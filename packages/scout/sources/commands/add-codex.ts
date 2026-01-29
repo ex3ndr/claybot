@@ -1,7 +1,8 @@
-import { confirm, intro, isCancel, outro, password, text } from "@clack/prompts";
+import { confirm, intro, isCancel, outro, password, select, text } from "@clack/prompts";
+import { getModels } from "@mariozechner/pi-ai";
 
-import type { InferenceProviderConfig } from "../auth.js";
-import { DEFAULT_AUTH_PATH, readAuthFile, writeAuthFile } from "../auth.js";
+import { DEFAULT_AUTH_PATH, readAuthFile } from "../auth.js";
+import { saveCodexAuth } from "../engine/client.js";
 
 export type AddCodexOptions = {
   token?: string;
@@ -25,19 +26,40 @@ export async function addCodexCommand(options: AddCodexOptions): Promise<void> {
   }
 
   const token = String(tokenInput);
-  const modelInput =
-    options.model ??
-    (await text({
-      message: "Codex model id",
-      validate: (value) => (value ? undefined : "Model id is required")
-    }));
+  let model = options.model ?? "";
+  if (!model) {
+    const modelOptions = buildModelOptions("openai-codex");
+    const optionsList =
+      modelOptions.length > 0
+        ? [...modelOptions, { label: "Enter custom model id", value: "custom" }]
+        : [{ label: "Enter custom model id", value: "custom" }];
 
-  if (isCancel(modelInput)) {
-    outro("Canceled.");
-    return;
+    const selection = await select({
+      message: "Select Codex model",
+      options: optionsList
+    });
+
+    if (isCancel(selection)) {
+      outro("Canceled.");
+      return;
+    }
+
+    if (selection === "custom") {
+      const custom = await text({
+        message: "Codex model id",
+        validate: (value) => (value ? undefined : "Model id is required")
+      });
+
+      if (isCancel(custom)) {
+        outro("Canceled.");
+        return;
+      }
+
+      model = String(custom);
+    } else {
+      model = String(selection);
+    }
   }
-
-  const model = String(modelInput);
   const auth = await readAuthFile(DEFAULT_AUTH_PATH);
 
   if (auth.codex?.token) {
@@ -52,35 +74,18 @@ export async function addCodexCommand(options: AddCodexOptions): Promise<void> {
     }
   }
 
-  auth.codex = { token };
-  auth.inference = {
-    providers: updateProviders(
-      auth.inference?.providers,
-      { id: "codex", model },
-      options.main
-    )
-  };
-  await writeAuthFile(DEFAULT_AUTH_PATH, auth);
+  await saveCodexAuth({ token, model, main: options.main });
 
-  outro(`Saved codex token to ${DEFAULT_AUTH_PATH}`);
+  outro("Saved Codex auth.");
 }
 
-function updateProviders(
-  providers: InferenceProviderConfig[] | undefined,
-  entry: Omit<InferenceProviderConfig, "main">,
-  makeMain?: boolean
-): InferenceProviderConfig[] {
-  const list = providers ?? [];
-  const existing = list.find((item) => item.id === entry.id);
-  const keepMain = makeMain === true ? true : existing?.main ?? false;
-  const filtered = list.filter((item) => item.id !== entry.id);
-
-  if (keepMain) {
-    return [
-      { ...entry, main: true },
-      ...filtered.map((item) => ({ ...item, main: false }))
-    ];
+function buildModelOptions(provider: "openai-codex") {
+  const models = getModels(provider).map((model) => model.id);
+  if (models.length === 0) {
+    return [];
   }
-
-  return [...filtered, { ...entry, main: false }];
+  const latest = models.filter((id) => id.endsWith("-latest"));
+  const rest = models.filter((id) => !latest.includes(id)).sort();
+  const ordered = [...latest, ...rest];
+  return ordered.map((id) => ({ label: id, value: id }));
 }

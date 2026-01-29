@@ -7,9 +7,10 @@ import {
   select,
   text
 } from "@clack/prompts";
+import { getModels } from "@mariozechner/pi-ai";
 
-import type { InferenceProviderConfig } from "../auth.js";
-import { DEFAULT_AUTH_PATH, readAuthFile, writeAuthFile } from "../auth.js";
+import { DEFAULT_AUTH_PATH, readAuthFile } from "../auth.js";
+import { saveClaudeCodeAuth } from "../engine/client.js";
 
 export type AddClaudeCodeOptions = {
   token?: string;
@@ -37,14 +38,15 @@ export async function addClaudeCodeCommand(
   const token = String(tokenInput);
   let model = options.model ?? "";
   if (!model) {
+    const modelOptions = buildModelOptions("anthropic");
+    const optionsList =
+      modelOptions.length > 0
+        ? [...modelOptions, { label: "Enter custom model id", value: "custom" }]
+        : [{ label: "Enter custom model id", value: "custom" }];
+
     const selection = await select({
       message: "Select Claude Code model",
-      options: [
-        { label: "claude-3-5-sonnet-latest", value: "claude-3-5-sonnet-latest" },
-        { label: "claude-3-5-haiku-latest", value: "claude-3-5-haiku-latest" },
-        { label: "claude-3-opus-latest", value: "claude-3-opus-latest" },
-        { label: "Enter custom model id", value: "custom" }
-      ]
+      options: optionsList
     });
 
     if (isCancel(selection)) {
@@ -82,29 +84,18 @@ export async function addClaudeCodeCommand(
     }
   }
 
-  auth["claude-code"] = { token, model };
-  auth.inference = {
-    providers: updateProviders(auth.inference?.providers, {
-      id: "claude-code",
-      model,
-      main: options.main
-    })
-  };
-  await writeAuthFile(DEFAULT_AUTH_PATH, auth);
+  await saveClaudeCodeAuth({ token, model, main: options.main });
 
-  outro(`Saved Claude Code auth to ${DEFAULT_AUTH_PATH}`);
+  outro("Saved Claude Code auth.");
 }
 
-function updateProviders(
-  providers: InferenceProviderConfig[] | undefined,
-  entry: InferenceProviderConfig
-): InferenceProviderConfig[] {
-  const list = (providers ?? []).filter((item) => item.id !== entry.id);
-  if (entry.main) {
-    return [
-      { ...entry, main: true },
-      ...list.map((item) => ({ ...item, main: false }))
-    ];
+function buildModelOptions(provider: "anthropic") {
+  const models = getModels(provider).map((model) => model.id);
+  if (models.length === 0) {
+    return [];
   }
-  return [...list, { ...entry, main: false }];
+  const latest = models.filter((id) => id.endsWith("-latest"));
+  const rest = models.filter((id) => !latest.includes(id)).sort();
+  const ordered = [...latest, ...rest];
+  return ordered.map((id) => ({ label: id, value: id }));
 }

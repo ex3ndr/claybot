@@ -16,6 +16,7 @@ This folder documents the current Scout CLI, connectors, sessions, and logging.
 - `sessions.md` - session queueing and sequencing
 - `config.md` - config files and resolution order
 - `logging.md` - logging configuration and output
+- `engine.md` - engine socket updates and control plane
 - `testing.md` - current test coverage
 
 ```mermaid
@@ -27,6 +28,7 @@ flowchart TD
   Docs --> Config[config.md]
   Docs --> Auth[auth.md]
   Docs --> Log[logging.md]
+  Docs --> Engine[engine.md]
   Docs --> Test[testing.md]
   Docs --> PM2[pm2.md]
   Docs --> Containers[containers.md]

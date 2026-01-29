@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { addClaudeCodeCommand } from "./commands/add-claude-code.js";
 import { addCodexCommand } from "./commands/add-codex.js";
 import { addTelegramCommand } from "./commands/add-telegram.js";
+import { removeTelegramCommand } from "./commands/remove-telegram.js";
 import { startCommand } from "./commands/start.js";
 import { statusCommand } from "./commands/status.js";
 import { initLogging } from "./log.js";
@@ -31,12 +32,21 @@ program
   .action(statusCommand);
 
 const addCommand = program.command("add").description("Add a connector");
+const removeCommand = program
+  .command("remove")
+  .description("Remove a connector");
 
 addCommand
   .command("telegram")
   .description("Add Telegram connector")
   .option("-t, --token <token>", "Telegram bot token")
   .action(addTelegramCommand);
+
+removeCommand
+  .command("telegram")
+  .description("Remove Telegram connector")
+  .option("-f, --force", "Skip confirmation prompt")
+  .action(removeTelegramCommand);
 
 addCommand
   .command("codex")

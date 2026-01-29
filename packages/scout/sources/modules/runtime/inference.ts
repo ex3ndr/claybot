@@ -1,6 +1,7 @@
 import {
   complete,
   getModel,
+  getModels,
   stream,
   type Api,
   type AssistantMessage,
@@ -10,7 +11,7 @@ import {
   type ProviderStreamOptions
 } from "@mariozechner/pi-ai";
 
-import type { InferenceProviderConfig } from "../../auth.js";
+import type { AuthConfig, InferenceProviderConfig } from "../../auth.js";
 import {
   DEFAULT_AUTH_PATH,
   getClaudeCodeToken,
@@ -39,6 +40,15 @@ export type InferenceRuntime = {
   providers: InferenceProviderConfig[];
   codexToken?: string | null;
   claudeCodeToken?: string | null;
+  auth?: AuthConfig;
+  onAttempt?: (provider: InferenceProviderConfig, modelId: string) => void;
+  onFallback?: (provider: InferenceProviderConfig, error: unknown) => void;
+  onSuccess?: (
+    provider: InferenceProviderConfig,
+    modelId: string,
+    message: AssistantMessage
+  ) => void;
+  onFailure?: (provider: InferenceProviderConfig, error: unknown) => void;
 };
 
 export type InferenceResult = {
@@ -49,22 +59,24 @@ export type InferenceResult = {
 export async function connectCodex(
   options: InferenceConnectOptions
 ): Promise<InferenceClient> {
-  if (!options.model) {
-    throw new Error("Missing codex model id");
-  }
   const apiKey = await resolveToken(options, getCodexToken, "codex");
-  const model = getModel("openai-codex", options.model as never);
+  const modelId = resolveModelId("openai-codex", options.model);
+  const model = getModel("openai-codex", modelId as never);
+  if (!model) {
+    throw new Error(`Unknown codex model: ${modelId}`);
+  }
   return buildClient(model as Model<Api>, apiKey);
 }
 
 export async function connectClaudeCode(
   options: InferenceConnectOptions
 ): Promise<InferenceClient> {
-  if (!options.model) {
-    throw new Error("Missing claude-code model id");
-  }
   const apiKey = await resolveToken(options, getClaudeCodeToken, "claude-code");
-  const model = getModel("anthropic", options.model as never);
+  const modelId = resolveModelId("anthropic", options.model);
+  const model = getModel("anthropic", modelId as never);
+  if (!model) {
+    throw new Error(`Unknown claude-code model: ${modelId}`);
+  }
   return buildClient(model as Model<Api>, apiKey);
 }
 
@@ -81,11 +93,21 @@ export async function runInferenceWithFallback(
       client = await connectProvider(provider, runtime);
     } catch (error) {
       lastError = error;
+      if (runtime.onFallback) {
+        runtime.onFallback(provider, error);
+      }
       continue;
     }
 
-    const message = await client.complete(context, { sessionId });
-    return { message, provider };
+    runtime.onAttempt?.(provider, client.model.id);
+    try {
+      const message = await client.complete(context, { sessionId });
+      runtime.onSuccess?.(provider, client.model.id, message);
+      return { message, provider };
+    } catch (error) {
+      runtime.onFailure?.(provider, error);
+      throw error;
+    }
   }
 
   if (lastError instanceof Error) {
@@ -120,17 +142,62 @@ async function connectProvider(
   switch (provider.id) {
     case "codex":
       return connectCodex({
-        model: provider.model,
+        model: resolveProviderModel(provider, runtime),
         token: runtime.codexToken ?? undefined
       });
     case "claude-code":
       return connectClaudeCode({
-        model: provider.model,
+        model: resolveProviderModel(provider, runtime),
         token: runtime.claudeCodeToken ?? undefined
       });
     default:
       throw new Error(`Unsupported inference provider: ${provider.id}`);
   }
+}
+
+function resolveProviderModel(
+  provider: InferenceProviderConfig,
+  runtime: InferenceRuntime
+): string | undefined {
+  if (provider.model) {
+    return provider.model;
+  }
+
+  const auth = runtime.auth;
+  if (!auth) {
+    return undefined;
+  }
+
+  switch (provider.id) {
+    case "codex":
+      return auth.codex?.model ?? auth["openai-codex"]?.model;
+    case "claude-code":
+      return auth["claude-code"]?.model ?? auth.claude?.model;
+    default:
+      return undefined;
+  }
+}
+
+function resolveModelId(
+  provider: "openai-codex" | "anthropic",
+  preferred?: string
+): string {
+  const models = getModels(provider);
+  if (models.length === 0) {
+    throw new Error(`No models available for provider ${provider}`);
+  }
+
+  if (preferred) {
+    const match = models.find((model) => model.id === preferred);
+    if (match) {
+      return match.id;
+    }
+  }
+
+  const latest =
+    models.find((model) => model.id.endsWith("-latest")) ??
+    models.find((model) => model.id.includes("latest"));
+  return latest?.id ?? models[0]!.id;
 }
 
 function buildClient(

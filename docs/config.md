@@ -105,6 +105,7 @@ Written by `scout add telegram`, `scout add codex`, and `scout add claude`.
 
 Provider priority comes from the array order (last entry is lowest priority).
 Setting `main: true` moves the provider to the front and clears `main` on others.
+If a model id is missing or invalid, Scout uses the pi-ai model registry to pick a default.
 
 ## `.scout/telegram.json` (legacy)
 Still read if no telegram token is found in `.scout/auth.json`.

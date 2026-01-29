@@ -12,6 +12,7 @@ Key pieces:
 - **Inference** wraps model providers for Codex/Claude Code.
 - **Session manager** serializes handling per session.
 - **Logging** is centralized via `initLogging`.
+- **Engine server** exposes a local HTTP socket for control-plane mutations.
 
 ```mermaid
 flowchart LR
@@ -26,6 +27,7 @@ flowchart LR
   Sessions -->|handler| Echo[echo handler]
   Echo -->|sendMessage| Connectors
   CLI --> Logging[initLogging]
+  Start --> Engine[Engine server]
 ```
 
 ## Message lifecycle (current)

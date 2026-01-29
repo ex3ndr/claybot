@@ -18,6 +18,8 @@ When handling a session message:
 - Scout tries providers in priority order.
 - It only falls back if a provider fails before inference starts (e.g., missing token or invalid model).
 - If inference has already started and fails, Scout stops and reports the error.
+- If the configured model id is missing or invalid, Scout picks a default from the pi-ai model registry
+  (prefers `*-latest`, otherwise the first model in the registry).
 
 ```mermaid
 sequenceDiagram

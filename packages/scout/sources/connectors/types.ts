@@ -13,8 +13,10 @@ export type MessageHandler = (
   context: MessageContext
 ) => void | Promise<void>;
 
+export type MessageUnsubscribe = () => void;
+
 export interface Connector {
-  onMessage(handler: MessageHandler): void;
+  onMessage(handler: MessageHandler): MessageUnsubscribe;
   sendMessage(targetId: string, message: ConnectorMessage): Promise<void>;
   shutdown?: (reason?: string) => void | Promise<void>;
 }

@@ -13,12 +13,15 @@
   "dependencies": {
     "@clack/prompts": "^0.10.0",
     "@mariozechner/pi-ai": "0.50.3",
+    "@paralleldrive/cuid2": "^2.2.2",
     "commander": "^12.1.0",
     "dockerode": "^4.0.0",
+    "fastify": "^4.26.2",
     "node-telegram-bot-api": "^0.66.0",
     "pino": "^9.0.0",
     "pino-pretty": "^11.0.0",
-    "pm2": "^5.4.2"
+    "pm2": "^5.4.2",
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "@types/dockerode": "^3.3.0",

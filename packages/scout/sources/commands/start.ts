@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { Context } from "@mariozechner/pi-ai";
+import { createId } from "@paralleldrive/cuid2";
 
 import {
   DEFAULT_AUTH_PATH,
@@ -11,6 +12,7 @@ import {
 } from "../auth.js";
 import { getLogger } from "../log.js";
 import { awaitShutdown, onShutdown, requestShutdown } from "../util/shutdown.js";
+import { startEngineServer } from "../engine/server.js";
 
 import type { CronTaskConfig } from "../modules/runtime/cron.js";
 import { CronScheduler } from "../modules/runtime/cron.js";
@@ -26,13 +28,11 @@ import type {
 import { runInferenceWithFallback } from "../modules/runtime/inference.js";
 import type { Pm2ProcessConfig } from "../modules/runtime/pm2.js";
 import { Pm2Runtime } from "../modules/runtime/pm2.js";
-import { TelegramConnector } from "../connectors/telegram.js";
-import type {
-  Connector,
-  ConnectorMessage,
-  MessageContext
-} from "../connectors/types.js";
+import { ConnectorManager } from "../connectors/manager.js";
+import type { Connector, MessageContext } from "../connectors/types.js";
 import { SessionManager } from "../sessions/manager.js";
+import { Session } from "../sessions/session.js";
+import { SessionStore } from "../sessions/store.js";
 import type { SessionMessage } from "../sessions/types.js";
 
 const logger = getLogger("command.start");
@@ -42,7 +42,7 @@ export type StartOptions = {
 };
 
 type TelegramConfig = {
-  token: string;
+  token?: string;
   polling?: boolean;
   statePath?: string | null;
   retry?: {
@@ -86,14 +86,14 @@ export async function startCommand(options: StartOptions): Promise<void> {
 
   const configPath = path.resolve(options.config);
   const config = (await readJsonFile<ScoutConfig>(configPath)) ?? {};
-  const auth = await readAuthFile(DEFAULT_AUTH_PATH);
+  let auth = await readAuthFile(DEFAULT_AUTH_PATH);
   const telegramFallback = await readJsonFile<TelegramConfig>(
     path.resolve(DEFAULT_TELEGRAM_CONFIG_PATH)
   );
 
-  const connectors: { name: string; connector: Connector }[] = [];
-
   const telegramConfig = config.connectors?.telegram ?? null;
+  const { token: _configToken, ...telegramRuntimeConfig } =
+    telegramConfig ?? {};
   const legacyCronConfig =
     config.connectors?.chron ??
     config.connectors?.cron ??
@@ -117,44 +117,24 @@ export async function startCommand(options: StartOptions): Promise<void> {
   const inferenceRuntime: InferenceRuntime = {
     providers: inferenceProviders,
     codexToken: getCodexToken(auth),
-    claudeCodeToken: getClaudeCodeToken(auth)
+    claudeCodeToken: getClaudeCodeToken(auth),
+    auth
+  };
+  let currentAuth = auth;
+  const syncAuthState = (updatedAuth: typeof auth) => {
+    currentAuth = updatedAuth;
+    inferenceRuntime.auth = updatedAuth;
+    inferenceRuntime.providers = getInferenceProviders(updatedAuth);
+    inferenceRuntime.codexToken = getCodexToken(updatedAuth);
+    inferenceRuntime.claudeCodeToken = getClaudeCodeToken(updatedAuth);
   };
 
   const telegramAuthToken = auth.telegram?.token ?? null;
   const telegramLegacyToken = telegramConfig?.token ?? telegramFallback?.token;
   const telegramToken = telegramAuthToken ?? telegramLegacyToken ?? null;
 
-  if (telegramToken) {
-    if (!telegramAuthToken && telegramLegacyToken) {
-      logger.warn(
-        "telegram auth should be stored in .scout/auth.json (auth.telegram.token)"
-      );
-    }
-    logger.info("load: telegram");
-    connectors.push({
-      name: "telegram",
-      connector: new TelegramConnector({
-        ...(telegramConfig ?? {}),
-        token: telegramToken,
-        enableGracefulShutdown: false,
-        onFatal: (reason, error) => {
-          logger.warn(
-            { reason, error },
-            "Telegram connector requested shutdown"
-          );
-          void requestShutdown("fatal");
-        }
-      })
-    });
-  }
-
-  logger.info(
-    { connectors: connectors.map((entry) => entry.name) },
-    "Connectors initialized"
-  );
-
   if (
-    connectors.length === 0 &&
+    !telegramToken &&
     cronTasks.length === 0 &&
     pm2Processes.length === 0 &&
     dockerContainers.length === 0 &&
@@ -164,11 +144,60 @@ export async function startCommand(options: StartOptions): Promise<void> {
       { config: configPath },
       "No connectors, cron, or runtime configured"
     );
-    return;
   }
 
+  const sessionStore = new SessionStore<{ context: Context }>();
   const sessions = new SessionManager<{ context: Context }>({
     createState: () => ({ context: { messages: [] } }),
+    storageIdFactory: () => sessionStore.createStorageId(),
+    onSessionCreated: (session, source, context) => {
+      logger.info(
+        {
+          sessionId: session.id,
+          source,
+          channelId: context.channelId,
+          userId: context.userId
+        },
+        "Session created"
+      );
+      void sessionStore
+        .recordSessionCreated(session, source, context)
+        .catch((error) => {
+          logger.warn(
+            { sessionId: session.id, source, error },
+            "Session persistence failed"
+          );
+        });
+    },
+    onSessionUpdated: (session, entry, source) => {
+      logger.info(
+        {
+          sessionId: session.id,
+          source,
+          messageId: entry.id,
+          pending: session.size
+        },
+        "Session updated"
+      );
+      void sessionStore.recordIncoming(session, entry, source).catch((error) => {
+        logger.warn(
+          { sessionId: session.id, source, messageId: entry.id, error },
+          "Session persistence failed"
+        );
+      });
+    },
+    onMessageStart: (session, entry, source) => {
+      logger.info(
+        { sessionId: session.id, source, messageId: entry.id },
+        "Session processing started"
+      );
+    },
+    onMessageEnd: (session, entry, source) => {
+      logger.info(
+        { sessionId: session.id, source, messageId: entry.id },
+        "Session processing completed"
+      );
+    },
     onError: (error, session, entry) => {
       logger.warn(
         { sessionId: session.id, messageId: entry.id, error },
@@ -177,12 +206,118 @@ export async function startCommand(options: StartOptions): Promise<void> {
     }
   });
 
-  for (const { name, connector } of connectors) {
-    connector.onMessage((message: ConnectorMessage, context: MessageContext) => {
+  const pendingInternalErrors: Array<{
+    session: Session<{ context: Context }>;
+    source: string;
+    context: MessageContext;
+  }> = [];
+
+  const restoredSessions = await sessionStore.loadSessions();
+  for (const restored of restoredSessions) {
+    const session = sessions.restoreSession(
+      restored.sessionId,
+      restored.storageId,
+      restored.state,
+      restored.createdAt,
+      restored.updatedAt
+    );
+    logger.info(
+      { sessionId: session.id, source: restored.source },
+      "Session restored"
+    );
+
+    if (restored.lastEntryType === "incoming") {
+      pendingInternalErrors.push({
+        session,
+        source: restored.source,
+        context: restored.context
+      });
+    }
+  }
+
+  const connectorManager = new ConnectorManager({
+    telegramConfig: telegramRuntimeConfig,
+    onMessage: (name, message, context) => {
       void sessions.handleMessage(name, message, context, (session, entry) =>
-        handleSessionMessage(connector, entry, session, name, inferenceRuntime)
+        handleSessionMessage(
+          connectorManager,
+          entry,
+          session,
+          name,
+          inferenceRuntime,
+          sessionStore
+        )
       );
+    },
+    onFatal: (name, reason, error) => {
+      logger.warn(
+        { connector: name, reason, error },
+        "Connector requested shutdown"
+      );
+      requestShutdown("fatal");
+    }
+  });
+
+  if (telegramToken) {
+    if (!telegramAuthToken && telegramLegacyToken) {
+      logger.warn(
+        "telegram auth should be stored in .scout/auth.json (auth.telegram.token)"
+      );
+    }
+    logger.info("load: telegram");
+    await connectorManager.syncTelegramToken(telegramToken);
+  }
+
+  logger.info(
+    { connectors: connectorManager.list() },
+    "Connectors initialized"
+  );
+
+  if (pendingInternalErrors.length > 0) {
+    await sendPendingInternalErrors(
+      connectorManager,
+      sessionStore,
+      pendingInternalErrors
+    );
+  }
+
+  let engineServer:
+    | Awaited<ReturnType<typeof startEngineServer>>
+    | null = null;
+  try {
+    engineServer = await startEngineServer({
+      onAuthUpdated: async (updatedAuth) => {
+        syncAuthState(updatedAuth);
+        await connectorManager.syncTelegramToken(
+          updatedAuth.telegram?.token ?? null
+        );
+      },
+      onConnectorLoad: async (id) => {
+        if (id !== "telegram") {
+          return {
+            ok: false,
+            status: "unknown",
+            message: "Unknown connector"
+          };
+        }
+        return connectorManager.load(
+          "telegram",
+          currentAuth.telegram?.token ?? null
+        );
+      },
+      onConnectorUnload: async (id) => {
+        if (id !== "telegram") {
+          return {
+            ok: false,
+            status: "unknown",
+            message: "Unknown connector"
+          };
+        }
+        return connectorManager.unload("telegram", "unload");
+      }
     });
+  } catch (error) {
+    logger.warn({ error }, "Engine server failed to start");
   }
 
   let cron: CronScheduler | null = null;
@@ -207,7 +342,7 @@ export async function startCommand(options: StartOptions): Promise<void> {
     tasks: cronTasks,
     onMessage: (message, context) => {
       void sessions.handleMessage("cron", message, context, (session, entry) =>
-        handleSessionMessage(null, entry, session, "cron", inferenceRuntime)
+        handleSessionMessage(null, entry, session, "cron", inferenceRuntime, sessionStore)
       );
     },
     onError: (error, task) => {
@@ -242,26 +377,9 @@ export async function startCommand(options: StartOptions): Promise<void> {
     }
   }
 
-  for (const { name, connector } of connectors) {
-    if (typeof connector.shutdown !== "function") {
-      continue;
-    }
-    onShutdown(`connector:${name}`, async () => {
-      try {
-        const maybe = connector.shutdown?.();
-        if (maybe && typeof (maybe as Promise<void>).catch === "function") {
-          void (maybe as Promise<void>).catch((error) => {
-            logger.warn(
-              { connector: name, error },
-              "Connector shutdown failed"
-            );
-          });
-        }
-      } catch (error) {
-        logger.warn({ connector: name, error }, "Connector shutdown failed");
-      }
-    });
-  }
+  onShutdown("connectors", () => {
+    void connectorManager.unloadAll("shutdown");
+  });
 
   if (cron) {
     onShutdown("cron", () => {
@@ -277,10 +395,15 @@ export async function startCommand(options: StartOptions): Promise<void> {
     });
   }
 
-  logger.info(
-    { connectors: connectors.map((entry) => entry.name) },
-    "Bot started"
-  );
+  if (engineServer) {
+    onShutdown("engine-server", () => {
+      void engineServer?.close().catch((error) => {
+        logger.warn({ error }, "Engine server shutdown failed");
+      });
+    });
+  }
+
+  logger.info({ connectors: connectorManager.list() }, "Bot started");
   cron?.start();
   logger.info("Ready. Listening for messages.");
 
@@ -290,24 +413,91 @@ export async function startCommand(options: StartOptions): Promise<void> {
 }
 
 async function handleSessionMessage(
-  connector: Connector | null,
+  connectorManager: ConnectorManager | null,
   entry: SessionMessage,
-  session: { id: string; context: { state: { context: Context } } },
+  session: Session<{ context: Context }>,
   name: string,
-  inferenceRuntime: InferenceRuntime
+  inferenceRuntime: InferenceRuntime,
+  sessionStore: SessionStore<{ context: Context }>
 ): Promise<void> {
   if (!entry.message.text) {
     return;
   }
 
+  if (!connectorManager) {
+    return;
+  }
+
+  if (name !== "telegram") {
+    return;
+  }
+
+  const connector = connectorManager.get("telegram");
   if (!connector) {
     return;
   }
 
   if (inferenceRuntime.providers.length === 0) {
     await echoMessage(connector, entry, name);
+    await recordOutgoingEntry(
+      sessionStore,
+      session,
+      name,
+      entry.context,
+      entry.message.text
+    );
     return;
   }
+
+  const inference = {
+    ...inferenceRuntime,
+    onAttempt: (provider, modelId) => {
+      logger.info(
+        {
+          sessionId: session.id,
+          messageId: entry.id,
+          provider: provider.id,
+          model: modelId
+        },
+        "Inference started"
+      );
+    },
+    onFallback: (provider, error) => {
+      logger.warn(
+        {
+          sessionId: session.id,
+          messageId: entry.id,
+          provider: provider.id,
+          error
+        },
+        "Inference fallback"
+      );
+    },
+    onSuccess: (provider, modelId, message) => {
+      logger.info(
+        {
+          sessionId: session.id,
+          messageId: entry.id,
+          provider: provider.id,
+          model: modelId,
+          stopReason: message.stopReason,
+          usage: message.usage
+        },
+        "Inference completed"
+      );
+    },
+    onFailure: (provider, error) => {
+      logger.warn(
+        {
+          sessionId: session.id,
+          messageId: entry.id,
+          provider: provider.id,
+          error
+        },
+        "Inference failed"
+      );
+    }
+  } satisfies InferenceRuntime;
 
   const context = session.context.state.context;
   context.messages.push({
@@ -319,7 +509,7 @@ async function handleSessionMessage(
   let response: InferenceResult;
   try {
     response = await runInferenceWithFallback(
-      inferenceRuntime,
+      inference,
       context,
       session.id
     );
@@ -330,9 +520,15 @@ async function handleSessionMessage(
       error.message === "No inference provider available"
         ? "No inference provider available."
         : "Inference failed.";
-    await connector.sendMessage(entry.context.channelId, {
-      text: message
-    });
+    await connector.sendMessage(entry.context.channelId, { text: message });
+    await recordOutgoingEntry(
+      sessionStore,
+      session,
+      name,
+      entry.context,
+      message
+    );
+    await recordSessionState(sessionStore, session, name);
     return;
   }
 
@@ -341,15 +537,110 @@ async function handleSessionMessage(
   const responseText = extractAssistantText(response.message);
   if (!responseText) {
     logger.warn({ provider: response.provider.id }, "Inference returned no text");
+    await recordSessionState(sessionStore, session, name);
     return;
   }
 
   try {
-    await connector.sendMessage(entry.context.channelId, {
-      text: responseText
-    });
+    await connector.sendMessage(entry.context.channelId, { text: responseText });
+    await recordOutgoingEntry(
+      sessionStore,
+      session,
+      name,
+      entry.context,
+      responseText
+    );
   } catch (error) {
     logger.warn({ connector: name, error }, "Failed to echo message");
+  } finally {
+    await recordSessionState(sessionStore, session, name);
+  }
+}
+
+async function sendPendingInternalErrors(
+  connectorManager: ConnectorManager,
+  sessionStore: SessionStore<{ context: Context }>,
+  pending: Array<{
+    session: Session<{ context: Context }>;
+    source: string;
+    context: MessageContext;
+  }>
+): Promise<void> {
+  const message = "Internal error.";
+
+  for (const entry of pending) {
+    if (entry.source !== "telegram") {
+      logger.warn(
+        { sessionId: entry.session.id, source: entry.source },
+        "Pending session reply skipped"
+      );
+      continue;
+    }
+
+    const connector = connectorManager.get("telegram");
+    if (!connector) {
+      logger.warn(
+        { sessionId: entry.session.id, source: entry.source },
+        "Pending session reply skipped"
+      );
+      continue;
+    }
+
+    try {
+      await connector.sendMessage(entry.context.channelId, { text: message });
+      await recordOutgoingEntry(
+        sessionStore,
+        entry.session,
+        entry.source,
+        entry.context,
+        message
+      );
+      await recordSessionState(sessionStore, entry.session, entry.source);
+    } catch (error) {
+      logger.warn(
+        { sessionId: entry.session.id, source: entry.source, error },
+        "Failed to send pending session reply"
+      );
+    }
+  }
+}
+
+async function recordOutgoingEntry(
+  sessionStore: SessionStore<{ context: Context }>,
+  session: Session<{ context: Context }>,
+  source: string,
+  context: MessageContext,
+  text: string | null
+): Promise<void> {
+  const messageId = createId();
+  try {
+    await sessionStore.recordOutgoing(
+      session,
+      messageId,
+      source,
+      context,
+      text
+    );
+  } catch (error) {
+    logger.warn(
+      { sessionId: session.id, source, messageId, error },
+      "Session persistence failed"
+    );
+  }
+}
+
+async function recordSessionState(
+  sessionStore: SessionStore<{ context: Context }>,
+  session: Session<{ context: Context }>,
+  source: string
+): Promise<void> {
+  try {
+    await sessionStore.recordState(session);
+  } catch (error) {
+    logger.warn(
+      { sessionId: session.id, source, error },
+      "Session persistence failed"
+    );
   }
 }
 

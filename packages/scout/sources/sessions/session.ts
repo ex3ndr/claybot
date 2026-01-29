@@ -3,12 +3,14 @@ import type { SessionContext, SessionMessage } from "./types.js";
 
 export class Session<State = Record<string, unknown>> {
   readonly id: string;
+  readonly storageId: string;
   readonly context: SessionContext<State>;
   private queue: SessionMessage[] = [];
   private processing = false;
 
-  constructor(id: string, context: SessionContext<State>) {
+  constructor(id: string, context: SessionContext<State>, storageId: string) {
     this.id = id;
+    this.storageId = storageId;
     this.context = context;
   }
 

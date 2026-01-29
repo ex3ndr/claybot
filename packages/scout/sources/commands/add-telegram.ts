@@ -1,5 +1,6 @@
 import { confirm, intro, isCancel, outro, password } from "@clack/prompts";
-import { DEFAULT_AUTH_PATH, readAuthFile, writeAuthFile } from "../auth.js";
+import { DEFAULT_AUTH_PATH, readAuthFile } from "../auth.js";
+import { saveTelegramAuth } from "../engine/client.js";
 
 export type AddTelegramOptions = {
   token?: string;
@@ -38,8 +39,7 @@ export async function addTelegramCommand(
     }
   }
 
-  auth.telegram = { token };
-  await writeAuthFile(DEFAULT_AUTH_PATH, auth);
+  await saveTelegramAuth(token);
 
-  outro(`Saved telegram token to ${DEFAULT_AUTH_PATH}`);
+  outro("Saved telegram token.");
 }
