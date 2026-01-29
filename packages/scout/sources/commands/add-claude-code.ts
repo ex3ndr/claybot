@@ -7,26 +7,20 @@ import {
   select,
   text
 } from "@clack/prompts";
-import path from "node:path";
 
 import type { InferenceProviderConfig } from "../auth.js";
-import { readAuthFile, writeAuthFile } from "../auth.js";
+import { DEFAULT_AUTH_PATH, readAuthFile, writeAuthFile } from "../auth.js";
 
 export type AddClaudeCodeOptions = {
   token?: string;
   model?: string;
   main?: boolean;
-  output: string;
 };
-
-const DEFAULT_OUTPUT = ".scout/auth.json";
 
 export async function addClaudeCodeCommand(
   options: AddClaudeCodeOptions
 ): Promise<void> {
   intro("scout add claude");
-
-  const outputPath = path.resolve(options.output || DEFAULT_OUTPUT);
 
   const tokenInput =
     options.token ??
@@ -74,11 +68,11 @@ export async function addClaudeCodeCommand(
       model = String(selection);
     }
   }
-  const auth = await readAuthFile(outputPath);
+  const auth = await readAuthFile(DEFAULT_AUTH_PATH);
 
   if (auth["claude-code"]?.token || auth.claude?.token) {
     const overwrite = await confirm({
-      message: `Overwrite existing Claude Code token in ${outputPath}?`,
+      message: `Overwrite existing Claude Code token in ${DEFAULT_AUTH_PATH}?`,
       initialValue: false
     });
 
@@ -96,9 +90,9 @@ export async function addClaudeCodeCommand(
       main: options.main
     })
   };
-  await writeAuthFile(outputPath, auth);
+  await writeAuthFile(DEFAULT_AUTH_PATH, auth);
 
-  outro(`Saved Claude Code auth to ${outputPath}`);
+  outro(`Saved Claude Code auth to ${DEFAULT_AUTH_PATH}`);
 }
 
 function updateProviders(
@@ -107,7 +101,10 @@ function updateProviders(
 ): InferenceProviderConfig[] {
   const list = (providers ?? []).filter((item) => item.id !== entry.id);
   if (entry.main) {
-    return [{ ...entry, main: true }, ...list.map((item) => ({ ...item, main: false }))];
+    return [
+      { ...entry, main: true },
+      ...list.map((item) => ({ ...item, main: false }))
+    ];
   }
   return [...list, { ...entry, main: false }];
 }

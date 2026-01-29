@@ -3,8 +3,8 @@
 Scout ships an inference helper for Codex and Claude Code via `@mariozechner/pi-ai`.
 
 ## Exports
-- `connectCodex({ model, token?, authPath? })`
-- `connectClaudeCode({ model, token?, authPath? })`
+- `connectCodex({ model, token? })`
+- `connectClaudeCode({ model, token? })`
 
 Each returns an `InferenceClient` with:
 - `complete(context, options?)`

@@ -117,8 +117,7 @@ export async function startCommand(options: StartOptions): Promise<void> {
   const inferenceRuntime: InferenceRuntime = {
     providers: inferenceProviders,
     codexToken: getCodexToken(auth),
-    claudeCodeToken: getClaudeCodeToken(auth),
-    authPath: DEFAULT_AUTH_PATH
+    claudeCodeToken: getClaudeCodeToken(auth)
   };
 
   const telegramAuthToken = auth.telegram?.token ?? null;

@@ -1,22 +1,16 @@
 import { confirm, intro, isCancel, outro, password, text } from "@clack/prompts";
-import path from "node:path";
 
 import type { InferenceProviderConfig } from "../auth.js";
-import { readAuthFile, writeAuthFile } from "../auth.js";
+import { DEFAULT_AUTH_PATH, readAuthFile, writeAuthFile } from "../auth.js";
 
 export type AddCodexOptions = {
   token?: string;
   model?: string;
   main?: boolean;
-  output: string;
 };
-
-const DEFAULT_OUTPUT = ".scout/auth.json";
 
 export async function addCodexCommand(options: AddCodexOptions): Promise<void> {
   intro("scout add codex");
-
-  const outputPath = path.resolve(options.output || DEFAULT_OUTPUT);
 
   const tokenInput =
     options.token ??
@@ -44,11 +38,11 @@ export async function addCodexCommand(options: AddCodexOptions): Promise<void> {
   }
 
   const model = String(modelInput);
-  const auth = await readAuthFile(outputPath);
+  const auth = await readAuthFile(DEFAULT_AUTH_PATH);
 
   if (auth.codex?.token) {
     const overwrite = await confirm({
-      message: `Overwrite existing codex token in ${outputPath}?`,
+      message: `Overwrite existing codex token in ${DEFAULT_AUTH_PATH}?`,
       initialValue: false
     });
 
@@ -66,9 +60,9 @@ export async function addCodexCommand(options: AddCodexOptions): Promise<void> {
       options.main
     )
   };
-  await writeAuthFile(outputPath, auth);
+  await writeAuthFile(DEFAULT_AUTH_PATH, auth);
 
-  outro(`Saved codex token to ${outputPath}`);
+  outro(`Saved codex token to ${DEFAULT_AUTH_PATH}`);
 }
 
 function updateProviders(

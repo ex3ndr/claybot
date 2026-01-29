@@ -1,6 +1,7 @@
 # Auth tokens
 
 Scout stores connector and inference tokens in `.scout/auth.json`.
+The path is fixed and cannot be overridden by CLI flags.
 
 ## Structure
 ```json

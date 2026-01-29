@@ -33,14 +33,12 @@ export type InferenceClient = {
 export type InferenceConnectOptions = {
   model?: string;
   token?: string;
-  authPath?: string;
 };
 
 export type InferenceRuntime = {
   providers: InferenceProviderConfig[];
   codexToken?: string | null;
   claudeCodeToken?: string | null;
-  authPath?: string;
 };
 
 export type InferenceResult = {
@@ -105,12 +103,11 @@ async function resolveToken(
     return options.token;
   }
 
-  const authPath = options.authPath ?? DEFAULT_AUTH_PATH;
-  const auth = await readAuthFile(authPath);
+  const auth = await readAuthFile(DEFAULT_AUTH_PATH);
   const token = picker(auth);
 
   if (!token) {
-    throw new Error(`Missing ${label} token in ${authPath}`);
+    throw new Error(`Missing ${label} token in ${DEFAULT_AUTH_PATH}`);
   }
 
   return token;
@@ -124,14 +121,12 @@ async function connectProvider(
     case "codex":
       return connectCodex({
         model: provider.model,
-        token: runtime.codexToken ?? undefined,
-        authPath: runtime.authPath
+        token: runtime.codexToken ?? undefined
       });
     case "claude-code":
       return connectClaudeCode({
         model: provider.model,
-        token: runtime.claudeCodeToken ?? undefined,
-        authPath: runtime.authPath
+        token: runtime.claudeCodeToken ?? undefined
       });
     default:
       throw new Error(`Unsupported inference provider: ${provider.id}`);
