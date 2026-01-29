@@ -9,10 +9,12 @@ import type {
   MessageContext,
   MessageHandler
 } from "./types.js";
+import { getLogger } from "../logging/index.js";
 
 export type TelegramConnectorOptions = {
   token: string;
   polling?: boolean;
+  clearWebhook?: boolean;
   statePath?: string | null;
   retry?: {
     minDelayMs?: number;
@@ -24,6 +26,7 @@ export type TelegramConnectorOptions = {
 };
 
 const DEFAULT_STATE_PATH = ".scout/telegram-offset.json";
+const logger = getLogger("connector.telegram");
 
 export class TelegramConnector implements Connector {
   private bot: TelegramBot;
@@ -36,9 +39,12 @@ export class TelegramConnector implements Connector {
   private persistTimer: NodeJS.Timeout | null = null;
   private shuttingDown = false;
   private retryOptions?: TelegramConnectorOptions["retry"];
+  private clearWebhookOnStart: boolean;
+  private clearedWebhook = false;
 
   constructor(options: TelegramConnectorOptions) {
     this.pollingEnabled = options.polling ?? true;
+    this.clearWebhookOnStart = options.clearWebhook ?? true;
     this.retryOptions = options.retry;
     this.statePath =
       options.statePath === undefined ? DEFAULT_STATE_PATH : options.statePath;
@@ -92,6 +98,9 @@ export class TelegramConnector implements Connector {
   }
 
   private async initialize(): Promise<void> {
+    if (this.pollingEnabled && this.clearWebhookOnStart) {
+      await this.ensureWebhookCleared();
+    }
     await this.loadState();
     if (this.pollingEnabled) {
       await this.startPolling();
@@ -122,7 +131,7 @@ export class TelegramConnector implements Connector {
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-        console.warn("telegram connector state load failed", error);
+        logger.warn({ error }, "Telegram connector state load failed");
       }
     }
   }
@@ -152,7 +161,7 @@ export class TelegramConnector implements Connector {
       const payload = JSON.stringify({ lastUpdateId: this.lastUpdateId });
       await fs.writeFile(this.statePath, payload, "utf8");
     } catch (error) {
-      console.warn("telegram connector state persist failed", error);
+      logger.warn({ error }, "Telegram connector state persist failed");
     }
   }
 
@@ -192,10 +201,32 @@ export class TelegramConnector implements Connector {
       return;
     }
 
+    if (isTelegramConflictError(error)) {
+      if (!this.clearedWebhook) {
+        logger.warn(
+          { error },
+          "Telegram polling conflict; clearing webhook and retrying"
+        );
+        this.pendingRetry = setTimeout(() => {
+          this.pendingRetry = null;
+          void this.ensureWebhookCleared().then(() => this.restartPolling());
+        }, 1000);
+        return;
+      }
+
+      this.pollingEnabled = false;
+      logger.warn(
+        { error },
+        "Telegram polling stopped (another instance is polling)"
+      );
+      void this.stopPolling("conflict");
+      return;
+    }
+
     const delayMs = this.nextRetryDelay();
-    console.warn(
-      `telegram polling error, retrying in ${delayMs}ms`,
-      error
+    logger.warn(
+      { error, delayMs },
+      "Telegram polling error, retrying"
     );
 
     this.pendingRetry = setTimeout(() => {
@@ -214,7 +245,7 @@ export class TelegramConnector implements Connector {
         await this.bot.stopPolling({ cancel: true, reason: "retry" });
       }
     } catch (error) {
-      console.warn("telegram polling stop failed", error);
+      logger.warn({ error }, "Telegram polling stop failed");
     }
 
     await this.startPolling();
@@ -272,9 +303,47 @@ export class TelegramConnector implements Connector {
     try {
       await this.bot.stopPolling({ cancel: true, reason });
     } catch (error) {
-      console.warn("telegram polling stop failed", error);
+      logger.warn({ error }, "Telegram polling stop failed");
     }
 
     await this.persistState();
   }
+
+  private async stopPolling(reason: string): Promise<void> {
+    try {
+      if (this.bot.isPolling()) {
+        await this.bot.stopPolling({ cancel: true, reason });
+      }
+    } catch (error) {
+      logger.warn({ error }, "Telegram polling stop failed");
+    }
+  }
+
+  private async ensureWebhookCleared(): Promise<void> {
+    if (this.clearedWebhook) {
+      return;
+    }
+
+    try {
+      await this.bot.deleteWebHook();
+      this.clearedWebhook = true;
+      logger.info("Telegram webhook cleared for polling");
+    } catch (error) {
+      logger.warn({ error }, "Failed to clear Telegram webhook");
+    }
+  }
+}
+
+function isTelegramConflictError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const maybe = error as {
+    code?: string;
+    response?: { statusCode?: number; body?: { error_code?: number } };
+  };
+
+  const status = maybe.response?.statusCode ?? maybe.response?.body?.error_code;
+  return maybe.code === "ETELEGRAM" && status === 409;
 }

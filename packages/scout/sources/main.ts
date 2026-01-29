@@ -2,8 +2,11 @@ import { Command } from "commander";
 import { addTelegramCommand } from "./commands/add-telegram.js";
 import { startCommand } from "./commands/start.js";
 import { statusCommand } from "./commands/status.js";
+import { initLogging } from "./logging/index.js";
 
 const program = new Command();
+
+initLogging();
 
 program
   .name("scout")

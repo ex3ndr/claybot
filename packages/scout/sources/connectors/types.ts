@@ -5,6 +5,7 @@ export type ConnectorMessage = {
 export type MessageContext = {
   channelId: string;
   userId: string | null;
+  sessionId?: string;
 };
 
 export type MessageHandler = (

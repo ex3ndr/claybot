@@ -14,11 +14,14 @@
     "@clack/prompts": "^0.10.0",
     "commander": "^12.1.0",
     "node-telegram-bot-api": "^0.66.0",
-    "pino": "^9.0.0"
+    "pm2": "^5.4.2",
+    "pino": "^9.0.0",
+    "pino-pretty": "^11.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/node-telegram-bot-api": "^0.64.8",
+    "@types/pm2": "^2.1.7",
     "tsx": "^4.19.2",
     "typescript": "^5.4.5",
     "vitest": "^1.6.0"
