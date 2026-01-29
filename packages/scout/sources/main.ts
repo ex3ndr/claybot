@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { configureTelegramCommand } from "./commands/configure-telegram.js";
 import { startCommand } from "./commands/start.js";
 import { statusCommand } from "./commands/status.js";
 
@@ -19,5 +20,12 @@ program
   .command("status")
   .description("Show bot status")
   .action(statusCommand);
+
+program
+  .command("configure-telegram")
+  .description("Configure Telegram connector")
+  .option("-t, --token <token>", "Telegram bot token")
+  .option("-o, --output <path>", "Config output path", ".scout/telegram.json")
+  .action(configureTelegramCommand);
 
 await program.parseAsync(process.argv);
