@@ -1,6 +1,7 @@
 import http from "node:http";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+
 const DEFAULT_SOCKET_PATH = ".scout/scout.sock";
 const PORT = Number(process.env.SCOUT_DASHBOARD_PORT ?? 7331);
 
@@ -13,7 +14,7 @@ const mimeTypes = {
   ".png": "image/png"
 };
 
-export function startServer({ staticDir }) {
+export function startServer({ staticDir, rootDir }) {
   const server = http.createServer(async (req, res) => {
     if (!req.url) {
       res.writeHead(400);
@@ -23,7 +24,7 @@ export function startServer({ staticDir }) {
 
     const url = new URL(req.url, `http://${req.headers.host}`);
     if (url.pathname.startsWith("/api/")) {
-      await proxyRequest(req, res, url);
+      await proxyRequest(req, res, url, rootDir);
       return;
     }
 
@@ -35,8 +36,8 @@ export function startServer({ staticDir }) {
   });
 }
 
-async function proxyRequest(req, res, url) {
-  const socketPath = process.env.SCOUT_ENGINE_SOCKET ?? DEFAULT_SOCKET_PATH;
+async function proxyRequest(req, res, url, rootDir) {
+  const socketPath = await resolveSocketPath(rootDir);
   const upstreamPath = url.pathname.replace(/^\/api/, "") + url.search;
 
   const proxy = http.request(
@@ -58,6 +59,49 @@ async function proxyRequest(req, res, url) {
   });
 
   req.pipe(proxy, { end: true });
+}
+
+function resolveWorkspaceRoot(rootDir) {
+  const parent = path.resolve(rootDir, "..");
+  if (path.basename(parent) === "packages") {
+    return path.resolve(parent, "..");
+  }
+  return rootDir;
+}
+
+async function resolveSocketPath(rootDir) {
+  const override = process.env.SCOUT_ENGINE_SOCKET;
+  if (override) {
+    return path.resolve(override);
+  }
+
+  const workspaceRoot = resolveWorkspaceRoot(rootDir);
+  const candidates = [
+    path.resolve(process.cwd(), DEFAULT_SOCKET_PATH),
+    path.resolve(rootDir, DEFAULT_SOCKET_PATH),
+    path.resolve(workspaceRoot, DEFAULT_SOCKET_PATH),
+    path.resolve(workspaceRoot, "packages", "scout", DEFAULT_SOCKET_PATH)
+  ];
+
+  for (const candidate of candidates) {
+    if (await pathExists(candidate)) {
+      return candidate;
+    }
+  }
+
+  return candidates[0];
+}
+
+async function pathExists(targetPath) {
+  try {
+    await fs.stat(targetPath);
+    return true;
+  } catch (error) {
+    if ((error.code ?? "") === "ENOENT") {
+      return false;
+    }
+    throw error;
+  }
 }
 
 async function serveStatic(res, root, pathname) {

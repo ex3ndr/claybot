@@ -68,6 +68,12 @@ flowchart TD
   "memory": {
     "enabled": true,
     "maxEntries": 1000
+  },
+  "assistant": {
+    "workspaceDir": "/Users/you/workspace/scout-project",
+    "containerWorkspacePath": "/workspace",
+    "allowedDockerImages": ["node:22-alpine", "python:3.12-slim"],
+    "allowedPm2Processes": ["worker", "api"]
   }
 }
 ```

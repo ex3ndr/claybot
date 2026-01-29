@@ -24,8 +24,13 @@ import { ToolRegistry } from "../tools/registry.js";
 import { buildCronTool } from "../tools/cron.js";
 import { buildMemoryTool } from "../tools/memory.js";
 import { buildImageGenerationTool } from "../tools/image-generation.js";
+import { buildReactionTool } from "../tools/reaction.js";
+import { buildPm2Tool } from "../tools/pm2.js";
+import { buildDockerRunTool } from "../tools/docker.js";
 import { CronScheduler } from "../modules/runtime/cron.js";
 import { EngineEventBus } from "./events.js";
+import type { Pm2Runtime } from "../modules/runtime/pm2.js";
+import type { DockerRuntime } from "../modules/runtime/containers.js";
 
 const logger = getLogger("engine.runtime");
 const MAX_TOOL_ITERATIONS = 5;
@@ -58,6 +63,8 @@ export class EngineRuntime {
   private cron: CronScheduler | null = null;
   private inferenceRouter: InferenceRouter;
   private eventBus: EngineEventBus;
+  private pm2Runtime: Pm2Runtime | null = null;
+  private dockerRuntime: DockerRuntime | null = null;
 
   constructor(options: EngineRuntimeOptions) {
     this.settings = options.settings;
@@ -225,6 +232,9 @@ export class EngineRuntime {
     );
     this.toolRegistry.register("core", buildMemoryTool(this.memoryEngine));
     this.toolRegistry.register("core", buildImageGenerationTool(this.imageRegistry));
+    this.toolRegistry.register("core", buildReactionTool());
+    this.toolRegistry.register("core", buildPm2Tool());
+    this.toolRegistry.register("core", buildDockerRunTool());
 
     await this.restoreSessions();
 
@@ -290,6 +300,14 @@ export class EngineRuntime {
 
   getInferenceRouter(): InferenceRouter {
     return this.inferenceRouter;
+  }
+
+  setPm2Runtime(runtime: Pm2Runtime | null): void {
+    this.pm2Runtime = runtime;
+  }
+
+  setDockerRuntime(runtime: DockerRuntime | null): void {
+    this.dockerRuntime = runtime;
   }
 
   updateSettings(settings: SettingsConfig): void {
@@ -379,6 +397,7 @@ export class EngineRuntime {
     let response: Awaited<ReturnType<InferenceRouter["complete"]>> | null = null;
     let toolLoopExceeded = false;
     const generatedFiles: FileReference[] = [];
+    const stopTyping = connector.startTyping?.(entry.context.channelId);
 
     try {
       for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration += 1) {
@@ -423,6 +442,9 @@ export class EngineRuntime {
             memory: this.memoryEngine,
             secrets: this.secretsStore,
             logger,
+            pm2Runtime: this.pm2Runtime,
+            dockerRuntime: this.dockerRuntime,
+            assistant: this.settings.assistant ?? null,
             session,
             source,
             messageContext: entry.context
@@ -447,6 +469,8 @@ export class EngineRuntime {
       await recordOutgoingEntry(this.sessionStore, session, source, entry.context, message);
       await recordSessionState(this.sessionStore, session, source);
       return;
+    } finally {
+      stopTyping?.();
     }
 
     if (!response) {

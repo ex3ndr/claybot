@@ -22,6 +22,9 @@ Tools are registered dynamically by plugins and core runtime:
 - `memory_search` queries the memory engine.
 - `web_search` (Brave) performs web search.
 - `generate_image` uses registered image providers.
+- `set_reaction` sets connector reactions (Telegram).
+- `pm2_manage` manages PM2 processes.
+- `docker_run` runs one-off docker commands in the workspace.
 
 ```mermaid
 sequenceDiagram

@@ -37,6 +37,7 @@ classDiagram
 - Persists `lastUpdateId` to `.scout/telegram-offset.json`.
 - Downloads incoming files into the shared file store.
 - Sends images/documents when tool results include files.
+- Supports chat actions (typing) and reactions.
 
 ```mermaid
 flowchart TD

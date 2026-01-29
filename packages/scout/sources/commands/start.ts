@@ -65,7 +65,8 @@ export async function startCommand(options: StartOptions): Promise<void> {
   const pm2Processes = Array.isArray(pm2Config)
     ? pm2Config
     : (pm2Config as Pm2Config | null)?.processes ?? [];
-  if (pm2Processes.length > 0) {
+  const assistantPm2Enabled = (settings.assistant?.allowedPm2Processes ?? []).length > 0;
+  if (pm2Processes.length > 0 || pm2Config || assistantPm2Enabled) {
     logger.info("load: pm2");
     pm2Runtime = new Pm2Runtime({
       connectTimeoutMs: !Array.isArray(pm2Config)
@@ -74,11 +75,14 @@ export async function startCommand(options: StartOptions): Promise<void> {
       disconnectOnExit: false
     });
     try {
-      await pm2Runtime.startProcesses(pm2Processes);
+      if (pm2Processes.length > 0) {
+        await pm2Runtime.startProcesses(pm2Processes);
+      }
     } catch (error) {
       logger.warn({ error }, "Failed to start pm2 processes");
     }
   }
+  runtime.setPm2Runtime(pm2Runtime);
 
   const containersConfig = settings.runtime?.containers ?? null;
   const dockerContainers = Array.isArray(containersConfig)
@@ -91,16 +95,22 @@ export async function startCommand(options: StartOptions): Promise<void> {
     : containersConfig && "connection" in containersConfig
       ? containersConfig.connection
       : undefined;
-  if (dockerContainers.length > 0) {
+  const assistantDockerEnabled =
+    (settings.assistant?.allowedDockerImages ?? []).length > 0 ||
+    (settings.assistant?.allowedDockerContainers ?? []).length > 0;
+  if (dockerContainers.length > 0 || containersConfig || assistantDockerEnabled) {
     logger.info("load: containers");
     dockerRuntime = new DockerRuntime({ connection: dockerConnection });
     try {
       await dockerRuntime.ensureConnected();
-      await dockerRuntime.applyContainers(dockerContainers);
+      if (dockerContainers.length > 0) {
+        await dockerRuntime.applyContainers(dockerContainers);
+      }
     } catch (error) {
       logger.warn({ error }, "Docker runtime failed");
     }
   }
+  runtime.setDockerRuntime(dockerRuntime);
 
   onShutdown("engine-runtime", () => {
     void runtime.shutdown();

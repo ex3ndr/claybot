@@ -9,6 +9,9 @@ import type { MemoryEngine } from "../memory/engine.js";
 import type { Session } from "../sessions/session.js";
 import type { SecretsStore } from "../secrets/store.js";
 import type { Logger } from "pino";
+import type { Pm2Runtime } from "../modules/runtime/pm2.js";
+import type { DockerRuntime } from "../modules/runtime/containers.js";
+import type { AssistantSettings } from "../settings.js";
 
 export type ToolExecutionContext<State = Record<string, unknown>> = {
   connectorRegistry: ConnectorRegistry | null;
@@ -16,6 +19,9 @@ export type ToolExecutionContext<State = Record<string, unknown>> = {
   memory: MemoryEngine | null;
   secrets: SecretsStore;
   logger: Logger;
+  pm2Runtime: Pm2Runtime | null;
+  dockerRuntime: DockerRuntime | null;
+  assistant: AssistantSettings | null;
   session: Session<State>;
   source: string;
   messageContext: MessageContext;

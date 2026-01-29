@@ -25,6 +25,7 @@ export type SettingsConfig = {
     socketPath?: string;
     dataDir?: string;
   };
+  assistant?: AssistantSettings;
   plugins?: PluginSettings[];
   inference?: {
     providers?: InferenceProviderSettings[];
@@ -40,6 +41,14 @@ export type SettingsConfig = {
     enabled?: boolean;
     maxEntries?: number;
   };
+};
+
+export type AssistantSettings = {
+  workspaceDir?: string;
+  containerWorkspacePath?: string;
+  allowedDockerImages?: string[];
+  allowedDockerContainers?: string[];
+  allowedPm2Processes?: string[];
 };
 
 export type Pm2Config = {

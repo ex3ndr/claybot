@@ -44,6 +44,7 @@ export class TelegramConnector implements Connector {
   private retryAttempt = 0;
   private pendingRetry: NodeJS.Timeout | null = null;
   private persistTimer: NodeJS.Timeout | null = null;
+  private typingTimers = new Map<string, NodeJS.Timeout>();
   private shuttingDown = false;
   private retryOptions?: TelegramConnectorOptions["retry"];
   private clearWebhookOnStart: boolean;
@@ -80,7 +81,8 @@ export class TelegramConnector implements Connector {
 
       const context: MessageContext = {
         channelId: String(message.chat.id),
-        userId: message.from ? String(message.from.id) : null
+        userId: message.from ? String(message.from.id) : null,
+        messageId: message.message_id ? String(message.message_id) : undefined
       };
 
       for (const handler of this.handlers) {
@@ -129,6 +131,40 @@ export class TelegramConnector implements Connector {
     for (const file of rest) {
       await this.sendFile(targetId, file);
     }
+  }
+
+  startTyping(targetId: string): () => void {
+    const key = String(targetId);
+    if (this.typingTimers.has(key)) {
+      return () => {
+        this.stopTyping(key);
+      };
+    }
+
+    const send = () => {
+      void this.bot.sendChatAction(targetId, "typing").catch((error) => {
+        logger.warn({ error }, "Telegram typing failed");
+      });
+    };
+
+    send();
+    const timer = setInterval(send, 4000);
+    this.typingTimers.set(key, timer);
+
+    return () => {
+      this.stopTyping(key);
+    };
+  }
+
+  async setReaction(
+    targetId: string,
+    messageId: string,
+    reaction: string
+  ): Promise<void> {
+    const emoji = reaction as TelegramBot.TelegramEmoji;
+    await this.bot.setMessageReaction(targetId, Number(messageId), {
+      reaction: [{ type: "emoji", emoji }]
+    });
   }
 
   private async sendFile(
@@ -346,6 +382,10 @@ export class TelegramConnector implements Connector {
       clearTimeout(this.persistTimer);
       this.persistTimer = null;
     }
+    for (const timer of this.typingTimers.values()) {
+      clearInterval(timer);
+    }
+    this.typingTimers.clear();
 
     try {
       await this.bot.stopPolling({ cancel: true, reason });
@@ -378,6 +418,15 @@ export class TelegramConnector implements Connector {
     } catch (error) {
       logger.warn({ error }, "Failed to clear Telegram webhook");
     }
+  }
+
+  private stopTyping(key: string): void {
+    const timer = this.typingTimers.get(key);
+    if (!timer) {
+      return;
+    }
+    clearInterval(timer);
+    this.typingTimers.delete(key);
   }
 
   private async extractFiles(message: TelegramBot.Message): Promise<FileReference[]> {

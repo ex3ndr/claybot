@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { PassThrough } from "node:stream";
 
 import Docker from "dockerode";
 
@@ -42,6 +43,28 @@ export type DockerRuntimeOptions = {
   timeoutMs?: number;
 };
 
+export type DockerOneOffMount = {
+  hostPath: string;
+  containerPath: string;
+  readOnly?: boolean;
+};
+
+export type DockerOneOffOptions = {
+  image: string;
+  command: string[];
+  workingDir?: string;
+  env?: Record<string, string>;
+  mounts?: DockerOneOffMount[];
+  timeoutMs?: number;
+  network?: string;
+};
+
+export type DockerOneOffResult = {
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+};
+
 type DockerOptions = ConstructorParameters<typeof Docker>[0];
 
 const DEFAULT_PING_TIMEOUT_MS = 5000;
@@ -72,6 +95,59 @@ export class DockerRuntime {
     for (const container of containers) {
       await this.applyContainer(container);
     }
+  }
+
+  async runOneOff(options: DockerOneOffOptions): Promise<DockerOneOffResult> {
+    const stdoutChunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
+    const stdout = new PassThrough();
+    const stderr = new PassThrough();
+    stdout.on("data", (chunk) => stdoutChunks.push(Buffer.from(chunk)));
+    stderr.on("data", (chunk) => stderrChunks.push(Buffer.from(chunk)));
+
+    const env = options.env
+      ? Object.entries(options.env).map(([key, value]) => `${key}=${value}`)
+      : undefined;
+    const binds = (options.mounts ?? []).map((mount) => {
+      const mode = mount.readOnly ? "ro" : "rw";
+      return `${mount.hostPath}:${mount.containerPath}:${mode}`;
+    });
+
+    const createOptions = {
+      Env: env,
+      WorkingDir: options.workingDir,
+      HostConfig: {
+        AutoRemove: true,
+        Binds: binds,
+        NetworkMode: options.network
+      }
+    };
+
+    const result = await withTimeout(
+      new Promise<{ data: { StatusCode?: number } }>((resolve, reject) => {
+        this.docker.run(
+          options.image,
+          options.command,
+          [stdout, stderr],
+          createOptions as never,
+          (error, data) => {
+            if (error) {
+              reject(error);
+              return;
+            }
+            resolve({ data: data ?? {} });
+          }
+        );
+      }),
+      options.timeoutMs ?? DEFAULT_ACTION_TIMEOUT_MS,
+      "docker run"
+    );
+
+    return {
+      exitCode: result.data.StatusCode ?? null,
+      stdout: Buffer.concat(stdoutChunks).toString("utf8"),
+      stderr: Buffer.concat(stderrChunks).toString("utf8")
+    };
   }
 
   private async applyContainer(
