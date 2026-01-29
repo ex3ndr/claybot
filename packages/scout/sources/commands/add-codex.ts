@@ -60,11 +60,11 @@ export async function addCodexCommand(options: AddCodexOptions): Promise<void> {
 
   auth.codex = { token };
   auth.inference = {
-    providers: updateProviders(auth.inference?.providers, {
-      id: "codex",
-      model,
-      main: options.main
-    })
+    providers: updateProviders(
+      auth.inference?.providers,
+      { id: "codex", model },
+      options.main
+    )
   };
   await writeAuthFile(outputPath, auth);
 
@@ -73,11 +73,20 @@ export async function addCodexCommand(options: AddCodexOptions): Promise<void> {
 
 function updateProviders(
   providers: InferenceProviderConfig[] | undefined,
-  entry: InferenceProviderConfig
+  entry: Omit<InferenceProviderConfig, "main">,
+  makeMain?: boolean
 ): InferenceProviderConfig[] {
-  const list = (providers ?? []).filter((item) => item.id !== entry.id);
-  if (entry.main) {
-    return [{ ...entry, main: true }, ...list.map((item) => ({ ...item, main: false }))];
+  const list = providers ?? [];
+  const existing = list.find((item) => item.id === entry.id);
+  const keepMain = makeMain === true ? true : existing?.main ?? false;
+  const filtered = list.filter((item) => item.id !== entry.id);
+
+  if (keepMain) {
+    return [
+      { ...entry, main: true },
+      ...filtered.map((item) => ({ ...item, main: false }))
+    ];
   }
-  return [...list, { ...entry, main: false }];
+
+  return [...filtered, { ...entry, main: false }];
 }

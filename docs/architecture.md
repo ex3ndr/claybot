@@ -7,6 +7,7 @@ Key pieces:
 - **Connectors** expose `onMessage`/`sendMessage`.
 - **Cron scheduler** emits messages on timers for internal automation.
 - **PM2 runtime** keeps background processes running.
+- **Container runtime** manages Docker containers via API.
 - **Auth** stores tokens for connectors and inference.
 - **Inference** wraps model providers for Codex/Claude Code.
 - **Session manager** serializes handling per session.
@@ -19,6 +20,7 @@ flowchart LR
   Connectors -->|message| Sessions[SessionManager]
   Cron[CronScheduler] -->|message| Sessions
   Start --> PM2[Pm2Runtime]
+  Start --> Containers[DockerRuntime]
   Start --> Auth[.scout/auth.json]
   Auth --> Inference[Inference client]
   Sessions -->|handler| Echo[echo handler]

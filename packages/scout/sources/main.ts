@@ -32,7 +32,7 @@ addCommand
   .command("telegram")
   .description("Add Telegram connector")
   .option("-t, --token <token>", "Telegram bot token")
-  .option("-o, --output <path>", "Auth output path", "auth.json")
+  .option("-o, --output <path>", "Auth output path", ".scout/auth.json")
   .action(addTelegramCommand);
 
 addCommand
@@ -41,7 +41,7 @@ addCommand
   .option("-t, --token <token>", "Codex token")
   .option("-m, --model <id>", "Codex model id")
   .option("--main", "Set Codex as the primary model")
-  .option("-o, --output <path>", "Auth output path", "auth.json")
+  .option("-o, --output <path>", "Auth output path", ".scout/auth.json")
   .action(addCodexCommand);
 
 addCommand
@@ -50,7 +50,7 @@ addCommand
   .option("-t, --token <token>", "Claude Code token")
   .option("-m, --model <id>", "Claude Code model id")
   .option("--main", "Set Claude Code as the primary model")
-  .option("-o, --output <path>", "Auth output path", "auth.json")
+  .option("-o, --output <path>", "Auth output path", ".scout/auth.json")
   .action(addClaudeCodeCommand);
 
 if (process.argv.length <= 2) {

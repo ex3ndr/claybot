@@ -1,11 +1,29 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { DEFAULT_AUTH_PATH, readAuthFile } from "../auth.js";
+import type { Context } from "@mariozechner/pi-ai";
+
+import {
+  DEFAULT_AUTH_PATH,
+  getClaudeCodeToken,
+  getCodexToken,
+  getInferenceProviders,
+  readAuthFile
+} from "../auth.js";
 import { getLogger } from "../log.js";
 import { awaitShutdown, onShutdown, requestShutdown } from "../util/shutdown.js";
 
 import type { CronTaskConfig } from "../modules/runtime/cron.js";
 import { CronScheduler } from "../modules/runtime/cron.js";
+import type {
+  DockerContainerConfig,
+  DockerRuntimeConfig
+} from "../modules/runtime/containers.js";
+import { DockerRuntime } from "../modules/runtime/containers.js";
+import type {
+  InferenceResult,
+  InferenceRuntime
+} from "../modules/runtime/inference.js";
+import { runInferenceWithFallback } from "../modules/runtime/inference.js";
 import type { Pm2ProcessConfig } from "../modules/runtime/pm2.js";
 import { Pm2Runtime } from "../modules/runtime/pm2.js";
 import { TelegramConnector } from "../connectors/telegram.js";
@@ -54,6 +72,7 @@ type CronConfig = {
 
 type RuntimeConfig = {
   pm2?: Pm2Config | Pm2ProcessConfig[];
+  containers?: DockerRuntimeConfig | DockerContainerConfig[];
 };
 
 type Pm2Config = {
@@ -87,6 +106,20 @@ export async function startCommand(options: StartOptions): Promise<void> {
   const pm2Processes = Array.isArray(pm2Config)
     ? pm2Config
     : pm2Config?.processes ?? [];
+  const containersConfig = config.runtime?.containers ?? null;
+  const dockerContainers = Array.isArray(containersConfig)
+    ? containersConfig
+    : containersConfig?.containers ?? [];
+  const dockerConnection = Array.isArray(containersConfig)
+    ? undefined
+    : containersConfig?.connection;
+  const inferenceProviders = getInferenceProviders(auth);
+  const inferenceRuntime: InferenceRuntime = {
+    providers: inferenceProviders,
+    codexToken: getCodexToken(auth),
+    claudeCodeToken: getClaudeCodeToken(auth),
+    authPath: DEFAULT_AUTH_PATH
+  };
 
   const telegramAuthToken = auth.telegram?.token ?? null;
   const telegramLegacyToken = telegramConfig?.token ?? telegramFallback?.token;
@@ -125,13 +158,18 @@ export async function startCommand(options: StartOptions): Promise<void> {
     connectors.length === 0 &&
     cronTasks.length === 0 &&
     pm2Processes.length === 0 &&
+    dockerContainers.length === 0 &&
     !cronConfig
   ) {
-    logger.warn({ config: configPath }, "No connectors or cron configured");
+    logger.warn(
+      { config: configPath },
+      "No connectors, cron, or runtime configured"
+    );
     return;
   }
 
-  const sessions = new SessionManager({
+  const sessions = new SessionManager<{ context: Context }>({
+    createState: () => ({ context: { messages: [] } }),
     onError: (error, session, entry) => {
       logger.warn(
         { sessionId: session.id, messageId: entry.id, error },
@@ -143,13 +181,14 @@ export async function startCommand(options: StartOptions): Promise<void> {
   for (const { name, connector } of connectors) {
     connector.onMessage((message: ConnectorMessage, context: MessageContext) => {
       void sessions.handleMessage(name, message, context, (session, entry) =>
-        handleSessionMessage(connector, entry, session, name)
+        handleSessionMessage(connector, entry, session, name, inferenceRuntime)
       );
     });
   }
 
   let cron: CronScheduler | null = null;
   let pm2Runtime: Pm2Runtime | null = null;
+  let dockerRuntime: DockerRuntime | null = null;
 
   if (cronConfig) {
     if (config.connectors?.chron) {
@@ -169,7 +208,7 @@ export async function startCommand(options: StartOptions): Promise<void> {
     tasks: cronTasks,
     onMessage: (message, context) => {
       void sessions.handleMessage("cron", message, context, (session, entry) =>
-        handleSessionMessage(null, entry, session, "cron")
+        handleSessionMessage(null, entry, session, "cron", inferenceRuntime)
       );
     },
     onError: (error, task) => {
@@ -190,6 +229,17 @@ export async function startCommand(options: StartOptions): Promise<void> {
       await pm2Runtime.startProcesses(pm2Processes);
     } catch (error) {
       logger.warn({ error }, "Failed to start pm2 processes");
+    }
+  }
+
+  if (dockerContainers.length > 0) {
+    logger.info("load: containers");
+    dockerRuntime = new DockerRuntime({ connection: dockerConnection });
+    try {
+      await dockerRuntime.ensureConnected();
+      await dockerRuntime.applyContainers(dockerContainers);
+    } catch (error) {
+      logger.warn({ error }, "Docker runtime failed");
     }
   }
 
@@ -243,8 +293,9 @@ export async function startCommand(options: StartOptions): Promise<void> {
 async function handleSessionMessage(
   connector: Connector | null,
   entry: SessionMessage,
-  _session: { id: string },
-  name: string
+  session: { id: string; context: { state: { context: Context } } },
+  name: string,
+  inferenceRuntime: InferenceRuntime
 ): Promise<void> {
   if (!entry.message.text) {
     return;
@@ -254,13 +305,75 @@ async function handleSessionMessage(
     return;
   }
 
+  if (inferenceRuntime.providers.length === 0) {
+    await echoMessage(connector, entry, name);
+    return;
+  }
+
+  const context = session.context.state.context;
+  context.messages.push({
+    role: "user",
+    content: entry.message.text,
+    timestamp: Date.now()
+  });
+
+  let response: InferenceResult;
+  try {
+    response = await runInferenceWithFallback(
+      inferenceRuntime,
+      context,
+      session.id
+    );
+  } catch (error) {
+    logger.warn({ connector: name, error }, "Inference failed");
+    const message =
+      error instanceof Error &&
+      error.message === "No inference provider available"
+        ? "No inference provider available."
+        : "Inference failed.";
+    await connector.sendMessage(entry.context.channelId, {
+      text: message
+    });
+    return;
+  }
+
+  context.messages.push(response.message);
+
+  const responseText = extractAssistantText(response.message);
+  if (!responseText) {
+    logger.warn({ provider: response.provider.id }, "Inference returned no text");
+    return;
+  }
+
   try {
     await connector.sendMessage(entry.context.channelId, {
-      text: entry.message.text
+      text: responseText
     });
   } catch (error) {
     logger.warn({ connector: name, error }, "Failed to echo message");
   }
+}
+
+async function echoMessage(
+  connector: Connector,
+  entry: SessionMessage,
+  name: string
+): Promise<void> {
+  try {
+    await connector.sendMessage(entry.context.channelId, {
+      text: entry.message.text ?? ""
+    });
+  } catch (error) {
+    logger.warn({ connector: name, error }, "Failed to echo message");
+  }
+}
+
+function extractAssistantText(message: InferenceResult["message"]): string {
+  const parts = message.content
+    .filter((block) => block.type === "text")
+    .map((block) => block.text)
+    .filter((text): text is string => typeof text === "string" && text.length > 0);
+  return parts.join("\n");
 }
 
 async function readJsonFile<T>(filePath: string): Promise<T | null> {

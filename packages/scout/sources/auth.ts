@@ -3,6 +3,7 @@ import path from "node:path";
 
 export type AuthEntry = {
   token: string;
+  model?: string;
 };
 
 export type InferenceProviderId = "codex" | "claude-code";

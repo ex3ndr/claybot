@@ -1,4 +1,12 @@
-import { confirm, intro, isCancel, outro, password, text } from "@clack/prompts";
+import {
+  confirm,
+  intro,
+  isCancel,
+  outro,
+  password,
+  select,
+  text
+} from "@clack/prompts";
 import path from "node:path";
 
 import type { InferenceProviderConfig } from "../auth.js";
@@ -33,19 +41,39 @@ export async function addClaudeCodeCommand(
   }
 
   const token = String(tokenInput);
-  const modelInput =
-    options.model ??
-    (await text({
-      message: "Claude Code model id",
-      validate: (value) => (value ? undefined : "Model id is required")
-    }));
+  let model = options.model ?? "";
+  if (!model) {
+    const selection = await select({
+      message: "Select Claude Code model",
+      options: [
+        { label: "claude-3-5-sonnet-latest", value: "claude-3-5-sonnet-latest" },
+        { label: "claude-3-5-haiku-latest", value: "claude-3-5-haiku-latest" },
+        { label: "claude-3-opus-latest", value: "claude-3-opus-latest" },
+        { label: "Enter custom model id", value: "custom" }
+      ]
+    });
 
-  if (isCancel(modelInput)) {
-    outro("Canceled.");
-    return;
+    if (isCancel(selection)) {
+      outro("Canceled.");
+      return;
+    }
+
+    if (selection === "custom") {
+      const custom = await text({
+        message: "Claude Code model id",
+        validate: (value) => (value ? undefined : "Model id is required")
+      });
+
+      if (isCancel(custom)) {
+        outro("Canceled.");
+        return;
+      }
+
+      model = String(custom);
+    } else {
+      model = String(selection);
+    }
   }
-
-  const model = String(modelInput);
   const auth = await readAuthFile(outputPath);
 
   if (auth["claude-code"]?.token || auth.claude?.token) {
@@ -60,7 +88,7 @@ export async function addClaudeCodeCommand(
     }
   }
 
-  auth["claude-code"] = { token };
+  auth["claude-code"] = { token, model };
   auth.inference = {
     providers: updateProviders(auth.inference?.providers, {
       id: "claude-code",
@@ -70,7 +98,7 @@ export async function addClaudeCodeCommand(
   };
   await writeAuthFile(outputPath, auth);
 
-  outro(`Saved Claude Code token to ${outputPath}`);
+  outro(`Saved Claude Code auth to ${outputPath}`);
 }
 
 function updateProviders(
