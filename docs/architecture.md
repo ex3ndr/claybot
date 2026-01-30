@@ -38,7 +38,7 @@ flowchart LR
 
 ## Message lifecycle
 1. Connector emits a `ConnectorMessage` (text + files).
-2. `SessionManager` routes to a session (source + channel or explicit sessionId).
+2. `SessionManager` routes to a session (provider + user or explicit sessionId).
 3. `Engine` builds a LLM context with attachments.
 4. Inference runs with tools (cron, memory, web search, image generation).
 5. Responses and generated files are sent back through the connector.

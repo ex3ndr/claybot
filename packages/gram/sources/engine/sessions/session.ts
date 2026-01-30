@@ -55,4 +55,20 @@ export class Session<State = Record<string, unknown>> {
   setProcessing(state: boolean): void {
     this.processing = state;
   }
+
+  resetContext(now: Date): void {
+    const current = this.context.state as { context?: { messages?: unknown[] } };
+    const existingContext =
+      current && typeof current === "object" && current.context && typeof current.context === "object"
+        ? current.context
+        : { messages: [] };
+    this.context.state = {
+      ...(this.context.state as Record<string, unknown>),
+      context: {
+        ...(existingContext as Record<string, unknown>),
+        messages: []
+      }
+    } as SessionContext<State>["state"];
+    this.context.updatedAt = now;
+  }
 }

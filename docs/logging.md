@@ -65,12 +65,12 @@ Received Telegram message chatId=123 messageId=456
 Dispatching to handlers handlerCount=1 channelId=123
 Handling connector.message event
 handleMessage() called source=telegram channelId=123 hasText=true fileCount=0
-Creating new session sessionId=telegram:123
-handleSessionMessage started sessionId=telegram:123 messageId=abc hasText=true textLength=15 fileCount=0
-Inference loop iteration=0 sessionId=telegram:123 messageCount=1
+Creating new session sessionId=anthropic:user-123
+handleSessionMessage started sessionId=anthropic:user-123 messageId=abc hasText=true textLength=15 fileCount=0
+Inference loop iteration=0 sessionId=anthropic:user-123 messageCount=1
 Trying provider providerIndex=0 providerId=anthropic model=claude-sonnet-4-20250514
 Creating inference client providerId=anthropic model=claude-sonnet-4-20250514
-Calling client.complete() providerId=anthropic modelId=claude-sonnet-4-20250514 sessionId=telegram:123
+Calling client.complete() providerId=anthropic modelId=claude-sonnet-4-20250514 sessionId=anthropic:user-123
 Inference completed successfully providerId=anthropic modelId=claude-sonnet-4-20250514 stopReason=end_turn contentBlocks=1 inputTokens=50 outputTokens=100
 Extracted tool calls from response toolCallCount=0
 No tool calls, breaking inference loop iteration=0

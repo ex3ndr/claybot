@@ -19,6 +19,7 @@ export type InferenceRouterOptions = {
   onFallback?: (providerId: string, error: unknown) => void;
   onSuccess?: (providerId: string, modelId: string, message: AssistantMessage) => void;
   onFailure?: (providerId: string, error: unknown) => void;
+  providersOverride?: ProviderSettings[];
 };
 
 export class InferenceRouter {
@@ -45,10 +46,11 @@ export class InferenceRouter {
     sessionId: string,
     options?: Omit<InferenceRouterOptions, "providers" | "registry" | "auth">
   ): Promise<InferenceResult> {
-    this.logger.debug(`InferenceRouter.complete() starting sessionId=${sessionId} messageCount=${context.messages.length} toolCount=${context.tools?.length ?? 0} providerCount=${this.providers.length}`);
+    const providers = options?.providersOverride ?? this.providers;
+    this.logger.debug(`InferenceRouter.complete() starting sessionId=${sessionId} messageCount=${context.messages.length} toolCount=${context.tools?.length ?? 0} providerCount=${providers.length}`);
     let lastError: unknown = null;
 
-    for (const [index, providerConfig] of this.providers.entries()) {
+    for (const [index, providerConfig] of providers.entries()) {
       this.logger.debug(`Trying provider providerIndex=${index} providerId=${providerConfig.id} model=${providerConfig.model}`);
 
       const provider = this.registry.get(providerConfig.id);

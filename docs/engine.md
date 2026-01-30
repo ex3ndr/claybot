@@ -16,6 +16,7 @@ Current endpoints:
 - `GET /v1/engine/cron/tasks`
 - `GET /v1/engine/sessions`
 - `GET /v1/engine/sessions/:storageId`
+- `POST /v1/engine/sessions/:storageId/reset`
 - `GET /v1/engine/memory/search?query=...` (requires the memory plugin)
 - `GET /v1/engine/plugins`
 - `POST /v1/engine/plugins/load`

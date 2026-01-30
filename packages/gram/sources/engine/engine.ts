@@ -38,6 +38,7 @@ const MAX_TOOL_ITERATIONS = 5;
 
 type SessionState = {
   context: Context;
+  providerId?: string;
 };
 
 export type EngineOptions = {
@@ -81,10 +82,15 @@ export class Engine {
 
     this.connectorRegistry = new ConnectorRegistry({
       onMessage: (source, message, context) => {
-        logger.debug(`Connector message received: source=${source} channel=${context.channelId} text=${message.text?.length ?? 0}chars files=${message.files?.length ?? 0}`);
+        const providerId = this.resolveProviderId(context);
+        const messageContext =
+          providerId && context.providerId !== providerId
+            ? { ...context, providerId }
+            : context;
+        logger.debug(`Connector message received: source=${source} channel=${messageContext.channelId} text=${message.text?.length ?? 0}chars files=${message.files?.length ?? 0}`);
         this.pluginEventQueue.emit(
           { pluginId: source, instanceId: source },
-          { type: "connector.message", payload: { source, message, context } }
+          { type: "connector.message", payload: { source, message, context: messageContext } }
         );
         logger.debug(`Connector message emitted to event queue: source=${source}`);
       },
@@ -128,9 +134,21 @@ export class Engine {
     });
 
     this.sessionManager = new SessionManager<SessionState>({
-      createState: () => ({ context: { messages: [] } }),
+      createState: () => ({ context: { messages: [] }, providerId: undefined }),
+      sessionIdFor: (_source, context) => {
+        if (context.sessionId) {
+          return context.sessionId;
+        }
+        const providerId = context.providerId ?? "default";
+        const userKey = context.userId ?? context.channelId;
+        return `${providerId}:${userKey}`;
+      },
       storageIdFactory: () => this.sessionStore.createStorageId(),
       onSessionCreated: (session, source, context) => {
+        const providerId = this.resolveProviderId(context);
+        if (providerId) {
+          session.context.state.providerId = providerId;
+        }
         logger.info(
           {
             sessionId: session.id,
@@ -201,11 +219,12 @@ export class Engine {
         logger.debug(`connector.message event has no payload, skipping`);
         return;
       }
-      logger.debug(`Dispatching to session manager: source=${payload.source} channel=${payload.context.channelId}`);
+      const messageContext = this.withProviderContext(payload.context);
+      logger.debug(`Dispatching to session manager: source=${payload.source} channel=${messageContext.channelId}`);
       await this.sessionManager.handleMessage(
         payload.source,
         payload.message,
-        payload.context,
+        messageContext,
         (session, entry) => this.handleSessionMessage(entry, session, payload.source)
       );
       logger.debug(`Session manager completed: source=${payload.source}`);
@@ -234,8 +253,9 @@ export class Engine {
     this.cron = new CronScheduler({
       tasks: this.settings.cron?.tasks ?? [],
       onMessage: (message, context) => {
-        logger.debug(`CronScheduler.onMessage triggered channelId=${context.channelId} sessionId=${context.sessionId}`);
-        void this.sessionManager.handleMessage("cron", message, context, (session, entry) =>
+        const messageContext = this.withProviderContext(context);
+        logger.debug(`CronScheduler.onMessage triggered channelId=${messageContext.channelId} sessionId=${messageContext.sessionId}`);
+        void this.sessionManager.handleMessage("cron", message, messageContext, (session, entry) =>
           this.handleSessionMessage(entry, session, "cron")
         );
       },
@@ -324,6 +344,43 @@ export class Engine {
     return this.sessionStore;
   }
 
+  resetSessionByStorageId(storageId: string): boolean {
+    const session = this.sessionManager.getByStorageId(storageId);
+    if (!session) {
+      return false;
+    }
+    session.resetContext(new Date());
+    void this.sessionStore.recordState(session).catch((error) => {
+      logger.warn({ sessionId: session.id, error }, "Session reset persistence failed");
+    });
+    this.eventBus.emit("session.reset", {
+      sessionId: session.id,
+      source: "system",
+      context: { channelId: session.id, userId: null, sessionId: session.id }
+    });
+    return true;
+  }
+
+  resetSession(sessionId: string): boolean {
+    const ok = this.sessionManager.resetSession(sessionId);
+    if (!ok) {
+      return false;
+    }
+    const session = this.sessionManager.getById(sessionId);
+    if (!session) {
+      return false;
+    }
+    void this.sessionStore.recordState(session).catch((error) => {
+      logger.warn({ sessionId: session.id, error }, "Session reset persistence failed");
+    });
+    this.eventBus.emit("session.reset", {
+      sessionId: session.id,
+      source: "system",
+      context: { channelId: session.id, userId: null, sessionId }
+    });
+    return true;
+  }
+
   getPluginManager(): PluginManager {
     return this.pluginManager;
   }
@@ -406,6 +463,45 @@ export class Engine {
     this.inferenceRouter.updateProviders(listActiveInferenceProviders(settings));
   }
 
+  private withProviderContext(context: MessageContext): MessageContext {
+    const providerId = this.resolveProviderId(context);
+    if (!providerId || context.providerId === providerId) {
+      return context;
+    }
+    return { ...context, providerId };
+  }
+
+  private resolveProviderId(context: MessageContext): string | undefined {
+    if (context.providerId) {
+      return context.providerId;
+    }
+    const providers = listActiveInferenceProviders(this.settings);
+    return providers[0]?.id;
+  }
+
+  private resolveSessionProvider(
+    session: Session<SessionState>,
+    context: MessageContext
+  ): string | undefined {
+    const providers = listActiveInferenceProviders(this.settings);
+    const activeIds = new Set(providers.map((provider) => provider.id));
+
+    let providerId = session.context.state.providerId ?? context.providerId;
+    if (!providerId || !activeIds.has(providerId)) {
+      const fallback =
+        context.providerId && activeIds.has(context.providerId)
+          ? context.providerId
+          : providers[0]?.id;
+      providerId = fallback;
+    }
+
+    if (providerId && session.context.state.providerId !== providerId) {
+      session.context.state.providerId = providerId;
+    }
+
+    return providerId;
+  }
+
   private async restoreSessions(): Promise<void> {
     const restoredSessions = await this.sessionStore.loadSessions();
     const pendingInternalErrors: Array<{
@@ -422,6 +518,12 @@ export class Engine {
         restored.createdAt,
         restored.updatedAt
       );
+      if (!session.context.state.providerId) {
+        const providerId = this.resolveProviderId(restored.context);
+        if (providerId) {
+          session.context.state.providerId = providerId;
+        }
+      }
       logger.info(
         { sessionId: session.id, source: restored.source },
         "Session restored"
@@ -498,6 +600,12 @@ export class Engine {
     context.messages.push(userMessage);
     logger.debug(`User message added to context totalMessages=${context.messages.length}`);
 
+    const providerId = this.resolveSessionProvider(session, entry.context);
+    const providersForSession = providerId
+      ? listActiveInferenceProviders(this.settings).filter((provider) => provider.id === providerId)
+      : [];
+    logger.debug(`Session provider resolved sessionId=${session.id} providerId=${providerId ?? "none"} providerCount=${providersForSession.length}`);
+
     let response: Awaited<ReturnType<InferenceRouter["complete"]>> | null = null;
     let toolLoopExceeded = false;
     const generatedFiles: FileReference[] = [];
@@ -509,6 +617,7 @@ export class Engine {
       for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration += 1) {
         logger.debug(`Inference loop iteration=${iteration} sessionId=${session.id} messageCount=${context.messages.length}`);
         response = await this.inferenceRouter.complete(context, session.id, {
+          providersOverride: providersForSession,
           onAttempt: (providerId, modelId) => {
             logger.debug(`Inference attempt starting providerId=${providerId} modelId=${modelId} sessionId=${session.id}`);
             logger.info(
@@ -746,10 +855,13 @@ function extractToolCalls(message: Context["messages"][number]): ToolCall[] {
 
 function normalizeSessionState(state: unknown): SessionState {
   if (state && typeof state === "object") {
-    const candidate = state as { context?: Context };
+    const candidate = state as { context?: Context; providerId?: string };
     if (candidate.context && Array.isArray(candidate.context.messages)) {
-      return { context: candidate.context };
+      return {
+        context: candidate.context,
+        providerId: typeof candidate.providerId === "string" ? candidate.providerId : undefined
+      };
     }
   }
-  return { context: { messages: [] } };
+  return { context: { messages: [] }, providerId: undefined };
 }

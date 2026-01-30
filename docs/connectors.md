@@ -10,7 +10,7 @@ Each connector exposes:
 
 Messages are normalized to:
 ```
-{ text: string | null, files?: FileReference[] }
+{ text: string | null, files?: FileReference[], replyToMessageId?: string }
 ```
 
 ```mermaid
@@ -23,11 +23,14 @@ classDiagram
   class ConnectorMessage {
     +text: string | null
     +files?: FileReference[]
+    +replyToMessageId?: string
   }
   class MessageContext {
     +channelId: string
     +userId: string | null
     +sessionId?: string
+    +messageId?: string
+    +providerId?: string
   }
 ```
 

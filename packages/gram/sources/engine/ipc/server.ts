@@ -90,6 +90,18 @@ export async function startEngineServer(
     return reply.send({ ok: true, entries });
   });
 
+  app.post("/v1/engine/sessions/:storageId/reset", async (request, reply) => {
+    const storageId = (request.params as { storageId: string }).storageId;
+    logger.debug(`POST /v1/engine/sessions/:storageId/reset storageId=${storageId}`);
+    const ok = options.runtime.resetSessionByStorageId(storageId);
+    if (!ok) {
+      logger.debug(`Session reset failed storageId=${storageId}`);
+      return reply.status(404).send({ ok: false, error: "Session not found" });
+    }
+    logger.info({ storageId }, "Session reset");
+    return reply.send({ ok: true });
+  });
+
   app.get("/v1/engine/memory/search", async (request, reply) => {
     const query = (request.query as { query?: string }).query ?? "";
     logger.debug(`GET /v1/engine/memory/search queryLength=${query.length}`);

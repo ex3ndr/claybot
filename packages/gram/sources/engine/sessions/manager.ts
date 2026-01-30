@@ -135,6 +135,37 @@ export class SessionManager<State = Record<string, unknown>> {
     return session;
   }
 
+  getByStorageId(storageId: string): Session<State> | null {
+    for (const session of this.sessions.values()) {
+      if (session.storageId === storageId) {
+        return session;
+      }
+    }
+    return null;
+  }
+
+  getById(sessionId: string): Session<State> | null {
+    return this.sessions.get(sessionId) ?? null;
+  }
+
+  resetSession(sessionId: string): boolean {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      return false;
+    }
+    session.resetContext(this.now());
+    return true;
+  }
+
+  resetByStorageId(storageId: string): boolean {
+    const session = this.getByStorageId(storageId);
+    if (!session) {
+      return false;
+    }
+    session.resetContext(this.now());
+    return true;
+  }
+
   async handleMessage(
     source: string,
     message: ConnectorMessage,

@@ -11,6 +11,7 @@ export type MessageContext = {
   userId: string | null;
   sessionId?: string;
   messageId?: string;
+  providerId?: string;
 };
 
 export type MessageHandler = (

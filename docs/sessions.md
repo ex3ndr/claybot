@@ -15,14 +15,19 @@ sequenceDiagram
 ```
 
 ## Session rules
-- Session id defaults to `${source}:${channelId}`.
-- A connector can override with `context.sessionId`.
+- Session id defaults to `${providerId}:${userId}` (falls back to `channelId` when `userId` is missing).
+- A connector or scheduler can override with `context.sessionId`.
+- Each session is bound to a single provider id and keeps context per provider.
 - Messages (and files) are queued and processed in order.
 
 ## Session persistence
 - Sessions are written to `.scout/sessions/<cuid2>.jsonl` as append-only logs.
 - Entries include `session_created`, `incoming`, `outgoing`, and `state` snapshots.
 - `incoming`/`outgoing` entries now store `files` when present.
+
+## Resetting sessions
+- Sessions can be reset without changing the session id.
+- Reset clears the stored context messages but keeps the provider binding intact.
 
 ## Memory integration
 Session updates are mirrored into the memory plugin (if enabled).
