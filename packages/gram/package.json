@@ -25,6 +25,7 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/node-telegram-bot-api": "^0.64.8",
+    "dotenv": "^16.6.0",
     "tsx": "^4.19.2",
     "typescript": "^5.4.5",
     "vitest": "^1.6.0"
