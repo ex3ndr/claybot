@@ -6,6 +6,7 @@ import { loadPluginCommand, unloadPluginCommand } from "./commands/plugins.js";
 import { setAuthCommand } from "./commands/auth.js";
 import { addCommand } from "./commands/add.js";
 import { removeCommand } from "./commands/remove.js";
+import { setDefaultProviderCommand } from "./commands/providers.js";
 import { DEFAULT_SETTINGS_PATH } from "./settings.js";
 
 const program = new Command();
@@ -77,6 +78,20 @@ authCommand
   .argument("<key>", "Credential key")
   .argument("<value>", "Credential value")
   .action(setAuthCommand);
+
+const providerCommand = program
+  .command("providers")
+  .description("Manage providers");
+
+providerCommand
+  .command("default")
+  .description("Select the default provider")
+  .option(
+    "-s, --settings <path>",
+    "Path to settings file",
+    DEFAULT_SETTINGS_PATH
+  )
+  .action(setDefaultProviderCommand);
 
 if (process.argv.length <= 2) {
   program.outputHelp();

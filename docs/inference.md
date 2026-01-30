@@ -14,6 +14,7 @@ Configured in settings (in priority order):
 ```
 
 `gram add` stores providers in priority order; disabled providers are skipped.
+`gram providers default` moves the selected provider to the top of the priority list.
 
 ```mermaid
 flowchart LR
