@@ -558,8 +558,7 @@ export class Engine {
       try {
         await connector.sendMessage(entry.context.channelId, {
           text: message,
-          replyToMessageId: entry.context.messageId,
-          threadId: entry.context.threadId
+          replyToMessageId: entry.context.messageId
         });
       } catch (error) {
         logger.warn({ sessionId: entry.sessionId, source: entry.source, error }, "Pending reply failed");
@@ -696,8 +695,7 @@ export class Engine {
       logger.debug(`Sending error message to user message=${message}`);
       await connector.sendMessage(entry.context.channelId, {
         text: message,
-        replyToMessageId: entry.context.messageId,
-        threadId: entry.context.threadId
+        replyToMessageId: entry.context.messageId
       });
       await recordOutgoingEntry(this.sessionStore, session, source, entry.context, message);
       await recordSessionState(this.sessionStore, session, source);
@@ -724,8 +722,7 @@ export class Engine {
         try {
           await connector.sendMessage(entry.context.channelId, {
             text: message,
-            replyToMessageId: entry.context.messageId,
-            threadId: entry.context.threadId
+            replyToMessageId: entry.context.messageId
           });
           await recordOutgoingEntry(this.sessionStore, session, source, entry.context, message);
         } catch (error) {
@@ -743,8 +740,7 @@ export class Engine {
       await connector.sendMessage(entry.context.channelId, {
         text: outgoingText,
         files: generatedFiles.length > 0 ? generatedFiles : undefined,
-        replyToMessageId: entry.context.messageId,
-        threadId: entry.context.threadId
+        replyToMessageId: entry.context.messageId
       });
       logger.debug("Response sent successfully");
       await recordOutgoingEntry(this.sessionStore, session, source, entry.context, outgoingText, generatedFiles);

@@ -20,11 +20,11 @@ It normalizes incoming messages into `ConnectorMessage` objects and sends respon
 ## Incoming message handling
 - Only accepts `message.chat.type === "private"`.
 - Extracts text or caption and downloads attached photos/documents into the file store.
-- Builds `MessageContext` with `channelId`, `userId`, `messageId`, and `threadId` when available.
+- Builds `MessageContext` with `channelId`, `userId`, and `messageId`.
 - Emits normalized payloads to session handling.
 
 ## Outgoing message handling
-- Sends text replies with `reply_to_message_id` and `message_thread_id` when present.
+- Sends text replies with `reply_to_message_id` when present.
 - Sends images with `sendPhoto` and other files with `sendDocument`.
 - Supports typing indicators and emoji reactions.
 
