@@ -10,7 +10,8 @@ export type ProviderDefinition = {
 };
 
 export const PROVIDER_DEFINITIONS: ProviderDefinition[] = [
-  { id: "openai", label: "OpenAI", auth: "apiKey", kind: "pi-ai" }
+  { id: "openai", label: "OpenAI", auth: "apiKey", kind: "pi-ai" },
+  { id: "anthropic", label: "Anthropic", auth: "mixed", kind: "pi-ai" }
 ];
 
 export function getProviderDefinition(id: string): ProviderDefinition | null {

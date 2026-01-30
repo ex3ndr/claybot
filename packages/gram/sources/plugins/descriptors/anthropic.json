@@ -2,5 +2,5 @@
   "id": "anthropic",
   "name": "Anthropic",
   "description": "Anthropic inference provider.",
-  "entry": "../anthropic.js"
+  "entry": "../pi-ai-provider.js"
 }
