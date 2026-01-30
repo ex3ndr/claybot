@@ -3,7 +3,7 @@ import path from "node:path";
 import { z } from "zod";
 
 import { TelegramConnector, type TelegramConnectorOptions } from "../connectors/telegram.js";
-import { definePlugin, type PluginOnboardingApi } from "./types.js";
+import { definePlugin } from "./types.js";
 
 const settingsSchema = z
   .object({
@@ -33,72 +33,7 @@ export const plugin = definePlugin({
       return null;
     }
     await api.auth.setToken(api.instanceId, token);
-
-    const polling = await api.prompt.confirm({
-      message: "Enable polling?",
-      default: true
-    });
-    if (polling === null) {
-      return null;
-    }
-
-    const clearWebhook = await api.prompt.confirm({
-      message: "Clear webhook on start?",
-      default: true
-    });
-    if (clearWebhook === null) {
-      return null;
-    }
-
-    const statePath = await api.prompt.input({
-      message: "State file path (optional, leave blank for default)"
-    });
-    if (statePath === null) {
-      return null;
-    }
-
-    const minDelayMs = await promptNumber(api, "Retry min delay ms (optional)");
-    if (minDelayMs === null) {
-      return null;
-    }
-    const maxDelayMs = await promptNumber(api, "Retry max delay ms (optional)");
-    if (maxDelayMs === null) {
-      return null;
-    }
-    const factor = await promptNumber(api, "Retry backoff factor (optional)");
-    if (factor === null) {
-      return null;
-    }
-    const jitter = await promptNumber(api, "Retry jitter (optional)");
-    if (jitter === null) {
-      return null;
-    }
-
-    const retry =
-      minDelayMs !== undefined ||
-      maxDelayMs !== undefined ||
-      factor !== undefined ||
-      jitter !== undefined
-        ? {
-            minDelayMs,
-            maxDelayMs,
-            factor,
-            jitter
-          }
-        : undefined;
-
-    const settings: Record<string, unknown> = {
-      polling,
-      clearWebhook
-    };
-    if (statePath) {
-      settings.statePath = statePath;
-    }
-    if (retry) {
-      settings.retry = retry;
-    }
-
-    return { settings };
+    return { settings: {} };
   },
   create: (api) => {
     const connectorId = api.instance.instanceId;
@@ -132,23 +67,3 @@ export const plugin = definePlugin({
     };
   }
 });
-
-async function promptNumber(
-  api: PluginOnboardingApi,
-  message: string
-): Promise<number | undefined | null> {
-  while (true) {
-    const value = await api.prompt.input({ message });
-    if (value === null) {
-      return null;
-    }
-    if (value.trim() === "") {
-      return undefined;
-    }
-    const parsed = Number(value);
-    if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
-      return parsed;
-    }
-    api.note("Enter a valid number or leave blank.", "Invalid input");
-  }
-}

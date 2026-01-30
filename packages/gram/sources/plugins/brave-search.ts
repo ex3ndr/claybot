@@ -45,17 +45,7 @@ export const plugin = definePlugin({
       return null;
     }
     await api.auth.setApiKey(api.instanceId, apiKey);
-
-    const toolName = await api.prompt.input({
-      message: "Tool name (optional, default web_search)"
-    });
-    if (toolName === null) {
-      return null;
-    }
-
-    return {
-      settings: toolName ? { toolName } : {}
-    };
+    return { settings: {} };
   },
   create: (api) => {
     const toolName = api.settings.toolName ?? "web_search";
