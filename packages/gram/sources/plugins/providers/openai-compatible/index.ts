@@ -24,16 +24,20 @@ type OpenAiCompatibleConfig = {
 };
 
 const settingsSchema = z.object({}).passthrough();
+const providerId = "openai-compatible";
+const providerLabel = "OpenAI-compatible";
 
 export const plugin = definePlugin({
   settingsSchema,
   create: (api) => {
-    const providerId = api.instance.instanceId;
+    if (api.instance.pluginId !== providerId) {
+      throw new Error(`Provider plugin mismatch: expected ${providerId}, got ${api.instance.pluginId}`);
+    }
     return {
       load: async () => {
         api.registrar.registerInferenceProvider({
           id: providerId,
-          label: providerId,
+          label: providerLabel,
           createClient: async (options) => {
             const config = (options.config ?? {}) as OpenAiCompatibleConfig;
             const modelId = options.model ?? config.modelId ?? null;
@@ -81,6 +85,55 @@ export const plugin = definePlugin({
         api.registrar.unregisterInferenceProvider(providerId);
       }
     };
+  },
+  onboarding: async (api) => {
+    if (api.pluginId !== providerId) {
+      throw new Error(`Provider plugin mismatch: expected ${providerId}, got ${api.pluginId}`);
+    }
+
+    const baseUrl = await api.prompt.input({
+      message: "Base URL"
+    });
+    if (baseUrl === null) {
+      return null;
+    }
+    if (!baseUrl) {
+      api.note("Base URL is required to continue.", providerLabel);
+      return null;
+    }
+
+    const modelId = await api.prompt.input({
+      message: "Default model"
+    });
+    if (modelId === null) {
+      return null;
+    }
+    if (!modelId) {
+      api.note("Model is required to continue.", providerLabel);
+      return null;
+    }
+
+    const apiKey = await api.prompt.input({
+      message: "API key (optional)"
+    });
+    if (apiKey === null) {
+      return null;
+    }
+    if (apiKey) {
+      await api.auth.setApiKey(providerId, apiKey);
+    }
+
+    return {
+      inference: {
+        id: providerId,
+        model: modelId,
+        options: {
+          baseUrl,
+          modelId,
+          api: inferApi(baseUrl)
+        }
+      }
+    };
   }
 });
 
@@ -97,4 +150,12 @@ function buildOptions(
     merged.apiKey = (runtimeOptions as { apiKey?: string } | undefined)?.apiKey ?? apiKey;
   }
   return merged;
+}
+
+function inferApi(baseUrl: string): Api {
+  const normalized = baseUrl.toLowerCase();
+  if (normalized.includes("responses")) {
+    return "openai-responses";
+  }
+  return "openai-completions";
 }

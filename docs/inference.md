@@ -15,7 +15,8 @@ Configured in settings (in priority order):
 }
 ```
 
-New providers are appended to the end of the list unless you set them as primary in `gram add`.
+`gram add` prompts for a default model during provider onboarding and inserts the provider at the
+front of the list so it becomes the primary fallback.
 
 ```mermaid
 flowchart LR

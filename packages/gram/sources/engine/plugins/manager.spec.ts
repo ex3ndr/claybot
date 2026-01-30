@@ -56,7 +56,9 @@ function createManager(
           description: "Test plugin",
           entry: entryPath
         },
-        entryPath
+        entryPath,
+        descriptorPath: path.join(rootDir, "descriptor.json"),
+        pluginDir: path.dirname(entryPath)
       }
     ]
   ]);

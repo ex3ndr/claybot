@@ -3,7 +3,7 @@ import type { ZodType } from "zod";
 
 import type { FileStore } from "../../files/store.js";
 import type { AuthStore } from "../../auth/store.js";
-import type { PluginInstanceSettings, SettingsConfig } from "../../settings.js";
+import type { InferenceProviderSettings, PluginInstanceSettings, SettingsConfig } from "../../settings.js";
 import type { PluginEventInput } from "./events.js";
 import type { PluginRegistrar } from "./registry.js";
 import type { EngineEventBus } from "../ipc/events.js";
@@ -69,6 +69,7 @@ export type PluginOnboardingApi = {
 
 export type PluginOnboardingResult = {
   settings?: Record<string, unknown>;
+  inference?: InferenceProviderSettings;
 };
 
 export type PluginModule<TSettings = unknown> = {

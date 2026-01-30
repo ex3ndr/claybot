@@ -7,6 +7,8 @@ import { pluginDescriptorSchema, type PluginDescriptor } from "./descriptor.js";
 export type PluginDefinition = {
   descriptor: PluginDescriptor;
   entryPath: string;
+  descriptorPath: string;
+  pluginDir: string;
 };
 
 const pluginsDir = fileURLToPath(new URL("../../plugins", import.meta.url));
@@ -34,8 +36,14 @@ export function buildPluginCatalog(): Map<string, PluginDefinition> {
   for (const descriptorPath of descriptorFiles) {
     const raw = fs.readFileSync(descriptorPath, "utf8");
     const parsed = pluginDescriptorSchema.parse(JSON.parse(raw));
-    const entryPath = path.resolve(path.dirname(descriptorPath), parsed.entry);
-    catalog.set(parsed.id, { descriptor: parsed, entryPath });
+    const pluginDir = path.dirname(descriptorPath);
+    const entryPath = path.resolve(pluginDir, parsed.entry);
+    catalog.set(parsed.id, {
+      descriptor: parsed,
+      entryPath,
+      descriptorPath,
+      pluginDir
+    });
   }
 
   return catalog;

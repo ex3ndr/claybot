@@ -58,7 +58,7 @@ flowchart TD
 `memory` settings are consumed by the memory plugin (if enabled).
 
 ## `.scout/auth.json`
-Credentials are stored per plugin instance id:
+Credentials are stored per plugin key. Provider plugins store credentials under the provider id (their `pluginId`), not the random instance id:
 
 ```json
 {

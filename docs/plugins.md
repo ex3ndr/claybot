@@ -23,7 +23,7 @@ The plugin API surface is intentionally narrow:
 - `api.settings`: validated settings for the instance
 - `api.engineSettings`: full engine settings snapshot
 - `api.registrar`: connector/inference/tool/image registration
-- `api.auth`: auth store (keyed by instance id)
+- `api.auth`: auth store (providers use the provider/plugin id; other plugins typically use instance id)
 - `api.fileStore`: shared file store
 - `api.logger`: per-plugin logger
 - `api.mode`: `"runtime"` or `"validate"` (used during `gram add` validation)
@@ -71,7 +71,8 @@ memory with metadata for later routing:
 Each instance gets a dedicated data directory:
 - `.scout/plugins/<instanceId>`
 
-Credentials are stored per instance id in `.scout/auth.json`.
+Credentials are stored in `.scout/auth.json` and keyed by the identifier the plugin uses.
+Provider plugins store credentials under the provider id (same as `pluginId`), not the random instance id.
 
 ```mermaid
 flowchart TD

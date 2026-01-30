@@ -9,7 +9,6 @@ import {
   removePlugin,
   updateSettingsFile
 } from "../settings.js";
-import { PROVIDER_DEFINITIONS } from "../engine/plugins/providers.js";
 import { buildPluginCatalog } from "../engine/plugins/catalog.js";
 
 export type RemoveOptions = {
@@ -38,7 +37,11 @@ export async function removeCommand(options: RemoveOptions): Promise<void> {
   const settings = await readSettingsFile(settingsPath);
   const catalog = buildPluginCatalog();
 
-  const providerLabels = new Map(PROVIDER_DEFINITIONS.map((provider) => [provider.id, provider.label]));
+  const providerLabels = new Map(
+    Array.from(catalog.values())
+      .filter((entry) => entry.pluginDir.includes(`${path.sep}plugins${path.sep}providers${path.sep}`))
+      .map((entry) => [entry.descriptor.id, entry.descriptor.name])
+  );
   const providerSelections: ProviderSelection[] = (settings.inference?.providers ?? []).map(
     (provider, index) => ({
       kind: "provider",
@@ -105,10 +108,9 @@ export async function removeCommand(options: RemoveOptions): Promise<void> {
         return current;
       }
       const nextProviders = providers.filter((_, idx) => idx !== index);
-      const stillHasProvider = nextProviders.some((entry) => entry.id === removed.id);
-      const nextPlugins = stillHasProvider
-        ? current.plugins
-        : removePlugin(current.plugins, removed.id);
+      const nextPlugins = listPlugins(current).filter(
+        (plugin) => plugin.pluginId !== removed.id
+      );
       return {
         ...current,
         plugins: nextPlugins,
@@ -133,10 +135,20 @@ export async function removeCommand(options: RemoveOptions): Promise<void> {
       return;
     }
 
-    await updateSettingsFile(settingsPath, (current) => ({
-      ...current,
-      plugins: removePlugin(current.plugins, instanceId)
-    }));
+    await updateSettingsFile(settingsPath, (current) => {
+      const nextPlugins = removePlugin(current.plugins, instanceId);
+      const nextProviders = (current.inference?.providers ?? []).filter(
+        (provider) => provider.id !== plugin.pluginId
+      );
+      return {
+        ...current,
+        plugins: nextPlugins,
+        inference: {
+          ...(current.inference ?? {}),
+          providers: nextProviders
+        }
+      };
+    });
 
     outro(
       `Removed ${plugin.label} (${plugin.instanceId}). Restart the engine to apply changes.`

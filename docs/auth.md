@@ -15,7 +15,8 @@ The file is read by the engine on startup and on demand by plugins.
 }
 ```
 
-Auth entries are keyed by plugin instance id (defaults to the plugin id when no instance id is provided).
+Auth entries are keyed by the identifier used by the plugin. Provider plugins use the provider id
+(the same value as `pluginId`), even when the instance id is random.
 
 ## CLI helpers
 - `gram auth set <id> <key> <value>` updates the auth store.
