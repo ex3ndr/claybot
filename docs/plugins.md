@@ -2,9 +2,7 @@
 
 Plugins are first-class runtime modules that can register:
 - Connectors
-- Inference providers
 - Tools
-- Image generation providers
 
 ## Execution model
 Plugins execute in the same Node.js process as the engine. There is no VM
@@ -90,9 +88,9 @@ flowchart TD
 
 ## Built-in plugins
 - `telegram` (connector)
-- `openai-codex` (inference)
-- `anthropic` (inference)
 - `brave-search` (tool)
-- `gpt-image` (image)
-- `nanobanana` (image)
 - `memory` (tool + storage)
+
+## Providers
+Providers are built-in modules (not plugins). They register inference and/or image
+generation capabilities and are configured in `.scout/settings.json`.

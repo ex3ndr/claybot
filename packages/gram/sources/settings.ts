@@ -22,6 +22,24 @@ export type InferenceProviderSettings = {
   options?: Record<string, unknown>;
 };
 
+export type ProviderImageSettings = {
+  enabled?: boolean;
+  model?: string;
+  size?: string;
+  quality?: "standard" | "hd";
+  endpoint?: string;
+  apiKeyHeader?: string;
+  apiKeyPrefix?: string;
+};
+
+export type ProviderSettings = {
+  id: string;
+  enabled?: boolean;
+  model?: string;
+  options?: Record<string, unknown>;
+  image?: ProviderImageSettings;
+};
+
 export type SettingsConfig = {
   engine?: {
     socketPath?: string;
@@ -29,6 +47,7 @@ export type SettingsConfig = {
   };
   assistant?: AssistantSettings;
   plugins?: Array<PluginInstanceSettings | LegacyPluginSettings>;
+  providers?: ProviderSettings[];
   inference?: {
     providers?: InferenceProviderSettings[];
   };
@@ -113,10 +132,36 @@ export function removePlugin(
   return normalizePlugins(plugins ?? []).filter((item) => item.instanceId !== instanceId);
 }
 
-export function listInferenceProviders(
-  settings: SettingsConfig
-): InferenceProviderSettings[] {
-  return settings.inference?.providers ?? [];
+export function listProviders(settings: SettingsConfig): ProviderSettings[] {
+  if (settings.providers && settings.providers.length > 0) {
+    return settings.providers.map((provider) => ({ ...provider }));
+  }
+  return (settings.inference?.providers ?? []).map((provider) => ({
+    id: provider.id,
+    enabled: true,
+    model: provider.model,
+    options: provider.options
+  }));
+}
+
+export function listActiveProviders(settings: SettingsConfig): ProviderSettings[] {
+  return listProviders(settings).filter((provider) => provider.enabled !== false);
+}
+
+export function upsertProviderSettings(
+  providers: ProviderSettings[] | undefined,
+  entry: ProviderSettings
+): ProviderSettings[] {
+  const list = providers ? [...providers] : [];
+  const filtered = list.filter((provider) => provider.id !== entry.id);
+  return [entry, ...filtered];
+}
+
+export function removeProviderSettings(
+  providers: ProviderSettings[] | undefined,
+  id: string
+): ProviderSettings[] {
+  return (providers ?? []).filter((provider) => provider.id !== id);
 }
 
 function normalizePlugins(

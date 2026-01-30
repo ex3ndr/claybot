@@ -1,6 +1,0 @@
-{
-  "id": "kimi-coding",
-  "name": "Kimi For Coding",
-  "description": "Kimi For Coding inference provider.",
-  "entry": "./plugin.js"
-}

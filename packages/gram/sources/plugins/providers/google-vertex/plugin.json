@@ -1,6 +1,0 @@
-{
-  "id": "google-vertex",
-  "name": "Vertex AI",
-  "description": "Vertex AI inference provider.",
-  "entry": "./plugin.js"
-}

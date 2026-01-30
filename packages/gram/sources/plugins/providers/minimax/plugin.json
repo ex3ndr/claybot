@@ -1,6 +1,0 @@
-{
-  "id": "minimax",
-  "name": "MiniMax",
-  "description": "MiniMax inference provider.",
-  "entry": "./plugin.js"
-}

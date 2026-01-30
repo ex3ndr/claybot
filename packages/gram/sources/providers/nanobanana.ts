@@ -1,7 +1,6 @@
-import { z } from "zod";
-
-import type { FileStore } from "../../files/store.js";
-import { definePlugin } from "../../engine/plugins/types.js";
+import type { ProviderDefinition } from "./types.js";
+import type { ProviderSettings } from "../settings.js";
+import type { FileStore } from "../files/store.js";
 
 type NanobananaResponse = {
   data?: Array<{
@@ -15,18 +14,14 @@ type NanobananaResponse = {
   output?: string;
 };
 
-const settingsSchema = z
-  .object({
-    endpoint: z.string().min(1),
-    model: z.string().optional(),
-    size: z.string().optional(),
-    apiKeyHeader: z.string().optional(),
-    apiKeyPrefix: z.string().optional()
-  })
-  .passthrough();
-
-export const plugin = definePlugin({
-  settingsSchema,
+export const nanobananaProvider: ProviderDefinition = {
+  id: "nanobanana",
+  name: "Nanobanana",
+  description: "Custom image generation endpoint.",
+  auth: "apiKey",
+  capabilities: {
+    image: true
+  },
   onboarding: async (api) => {
     const endpoint = await api.prompt.input({
       message: "Nanobanana endpoint URL"
@@ -41,57 +36,64 @@ export const plugin = definePlugin({
     if (!apiKey) {
       return null;
     }
-    await api.auth.setApiKey(api.instanceId, apiKey);
+    await api.auth.setApiKey(api.id, apiKey);
 
-    return { settings: { endpoint } };
-  },
-  create: (api) => {
-    const providerId = api.instance.instanceId;
     return {
-      load: async () => {
-        api.registrar.registerImageProvider({
-          id: providerId,
-          label: providerId,
-          generate: async (request, generationContext) => {
-            const config = api.settings;
-            const apiKey = await generationContext.auth.getApiKey(providerId);
-            if (!apiKey) {
-              throw new Error("Missing nanobanana apiKey in auth store");
-            }
-            const headers: Record<string, string> = {
-              "Content-Type": "application/json"
-            };
-            const headerName = config.apiKeyHeader ?? "Authorization";
-            const prefix = config.apiKeyPrefix ?? "Bearer ";
-            headers[headerName] = `${prefix}${apiKey}`;
-
-            const payload: Record<string, unknown> = {
-              prompt: request.prompt,
-              model: request.model ?? config.model,
-              size: request.size ?? config.size,
-              n: request.count ?? 1
-            };
-
-            const response = await fetch(config.endpoint, {
-              method: "POST",
-              headers,
-              body: JSON.stringify(payload)
-            });
-            if (!response.ok) {
-              throw new Error(`Nanobanana image generation failed: ${response.status}`);
-            }
-            const data = (await response.json()) as NanobananaResponse;
-            const files = await extractImages(data, generationContext.fileStore, providerId);
-            return { files };
-          }
-        });
-      },
-      unload: async () => {
-        api.registrar.unregisterImageProvider(providerId);
-      }
+      settings: {
+        image: {
+          endpoint
+        }
+      } satisfies Partial<ProviderSettings>
     };
-  }
-});
+  },
+  create: (context) => ({
+    load: async () => {
+      const providerId = context.settings.id;
+      const config = context.settings.image ?? {};
+      context.imageRegistry.register(providerId, {
+        id: providerId,
+        label: providerId,
+        generate: async (request, generationContext) => {
+          const apiKey = await generationContext.auth.getApiKey(providerId);
+          if (!apiKey) {
+            throw new Error("Missing nanobanana apiKey in auth store");
+          }
+          if (!config.endpoint) {
+            throw new Error("Missing nanobanana endpoint");
+          }
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json"
+          };
+          const headerName = config.apiKeyHeader ?? "Authorization";
+          const prefix = config.apiKeyPrefix ?? "Bearer ";
+          headers[headerName] = `${prefix}${apiKey}`;
+
+          const payload: Record<string, unknown> = {
+            prompt: request.prompt,
+            model: request.model ?? config.model,
+            size: request.size ?? config.size,
+            n: request.count ?? 1
+          };
+
+          const response = await fetch(config.endpoint, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(payload)
+          });
+          if (!response.ok) {
+            throw new Error(`Nanobanana image generation failed: ${response.status}`);
+          }
+          const data = (await response.json()) as NanobananaResponse;
+          const files = await extractImages(data, generationContext.fileStore, providerId);
+          return { files };
+        }
+      });
+    },
+    unload: async () => {
+      context.imageRegistry.unregister(context.settings.id);
+    }
+  })
+};
 
 async function extractImages(
   data: NanobananaResponse,

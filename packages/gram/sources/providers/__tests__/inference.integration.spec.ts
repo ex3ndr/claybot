@@ -7,22 +7,15 @@ import { fileURLToPath } from "node:url";
 
 import type { Context } from "@mariozechner/pi-ai";
 
-import { AuthStore } from "../../../auth/store.js";
-import { FileStore } from "../../../files/store.js";
-import { buildPluginCatalog } from "../../../engine/plugins/catalog.js";
-import { PluginEventQueue } from "../../../engine/plugins/events.js";
-import { PluginManager } from "../../../engine/plugins/manager.js";
-import { PluginRegistry } from "../../../engine/plugins/registry.js";
-import { InferenceRouter } from "../../../engine/inference/router.js";
-import {
-  ConnectorRegistry,
-  ImageGenerationRegistry,
-  InferenceRegistry,
-  ToolResolver
-} from "../../../engine/modules.js";
+import { AuthStore } from "../../auth/store.js";
+import { FileStore } from "../../files/store.js";
+import { InferenceRouter } from "../../engine/inference/router.js";
+import { ImageGenerationRegistry, InferenceRegistry } from "../../engine/modules.js";
+import { ProviderManager } from "../manager.js";
+import { listActiveInferenceProviders } from "../catalog.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(here, "..", "..", "..", "..", "..", "..");
+const repoRoot = path.resolve(here, "..", "..", "..", "..", "..");
 loadEnv({ path: path.join(repoRoot, ".env") });
 loadEnv({ path: path.join(process.cwd(), ".env") });
 
@@ -45,13 +38,13 @@ const providers = [
 
 const openAiCompatible = {
   id: "openai-compatible",
-  apiKeyEnv: "OPENAI_COMPATIBLE_API_KEY",
-  baseUrlEnv: "OPENAI_COMPATIBLE_BASE_URL",
-  modelEnv: "OPENAI_COMPATIBLE_MODEL",
-  apiEnv: "OPENAI_COMPATIBLE_API"
+  apiKeyEnv: ["OPENAI_COMPATIBLE_API_KEY"],
+  baseUrlEnv: ["OPENAI_COMPATIBLE_BASE_URL"],
+  modelEnv: ["OPENAI_COMPATIBLE_MODEL"],
+  apiEnv: ["OPENAI_COMPATIBLE_API"]
 };
 
-describeIf("inference provider plugins", () => {
+describeIf("inference providers", () => {
   for (const provider of providers) {
     const apiKey = resolveEnv(provider.apiKeyEnv);
     const model = resolveEnv(provider.modelEnv) ?? undefined;
@@ -170,54 +163,48 @@ async function setupProvider(providerId: string, config: ProviderConfig) {
     await auth.setApiKey(providerId, config.apiKey);
   }
 
-  const connectorRegistry = new ConnectorRegistry({
-    onMessage: () => {}
-  });
   const inferenceRegistry = new InferenceRegistry();
   const imageRegistry = new ImageGenerationRegistry();
-  const toolResolver = new ToolResolver();
-  const registry = new PluginRegistry(
-    connectorRegistry,
-    inferenceRegistry,
-    imageRegistry,
-    toolResolver
-  );
 
-  const manager = new PluginManager({
+  const providerManager = new ProviderManager({
     settings: {
-      inference: {
-        providers: [
-          {
-            id: providerId,
-            model: config.model,
-            options: config.options
-          }
-        ]
-      }
+      providers: [
+        {
+          id: providerId,
+          enabled: true,
+          model: config.model,
+          options: config.options
+        }
+      ]
     },
-    registry,
     auth,
     fileStore: new FileStore({ basePath: path.join(dir, "files") }),
-    pluginCatalog: buildPluginCatalog(),
-    dataDir: dir,
-    eventQueue: new PluginEventQueue()
+    inferenceRegistry,
+    imageRegistry
   });
 
-  await manager.load({
-    instanceId: providerId,
-    pluginId: providerId,
-    enabled: true,
-    settings: config.options ?? {}
-  });
-
-  const router = new InferenceRouter({
+  await providerManager.sync({
     providers: [
       {
         id: providerId,
+        enabled: true,
         model: config.model,
         options: config.options
       }
-    ],
+    ]
+  });
+
+  const router = new InferenceRouter({
+    providers: listActiveInferenceProviders({
+      providers: [
+        {
+          id: providerId,
+          enabled: true,
+          model: config.model,
+          options: config.options
+        }
+      ]
+    }),
     registry: inferenceRegistry,
     auth
   });
@@ -225,7 +212,6 @@ async function setupProvider(providerId: string, config: ProviderConfig) {
   return {
     router,
     cleanup: async () => {
-      await manager.unloadAll();
       await fs.rm(dir, { recursive: true, force: true });
     }
   };

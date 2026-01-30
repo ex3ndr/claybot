@@ -1,6 +1,0 @@
-{
-  "id": "nanobanana",
-  "name": "Nanobanana",
-  "description": "Nanobanana image generation provider.",
-  "entry": "./plugin.js"
-}

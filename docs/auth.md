@@ -10,13 +10,12 @@ The file is read by the engine on startup and on demand by plugins.
   "brave-search": { "type": "apiKey", "apiKey": "..." },
   "openai": { "type": "apiKey", "apiKey": "..." },
   "anthropic": { "type": "oauth", "refreshToken": "...", "accessToken": "..." },
-  "gpt-image": { "type": "apiKey", "apiKey": "..." },
   "nanobanana": { "type": "apiKey", "apiKey": "..." }
 }
 ```
 
-Auth entries are keyed by the identifier used by the plugin. Provider plugins use the provider id
-(the same value as `pluginId`), even when the instance id is random.
+Auth entries are keyed by the identifier used by the plugin or provider. Providers always use
+the provider id.
 
 ## CLI helpers
 - `gram auth set <id> <key> <value>` updates the auth store.
@@ -29,5 +28,5 @@ flowchart TD
 
 ## Usage
 - Connectors read auth for tokens (e.g., Telegram).
-- Inference providers read auth for API keys or OAuth credentials.
+- Providers read auth for API keys or OAuth credentials.
 - Tool plugins read auth for external services.

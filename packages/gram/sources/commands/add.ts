@@ -16,9 +16,14 @@ import {
   readSettingsFile,
   updateSettingsFile,
   upsertPlugin,
-  type InferenceProviderSettings,
-  type PluginInstanceSettings
+  listProviders,
+  upsertProviderSettings,
+  type PluginInstanceSettings,
+  type ProviderSettings
 } from "../settings.js";
+import { listProviderDefinitions, getProviderDefinition } from "../providers/catalog.js";
+import type { ProviderDefinition } from "../providers/types.js";
+import { getLogger } from "../log.js";
 
 export type AddOptions = {
   settings?: string;
@@ -35,7 +40,7 @@ export async function addCommand(options: AddOptions): Promise<void> {
   const addTarget = await promptSelect({
     message: "What do you want to add?",
     choices: [
-      { value: "provider", name: "Inference provider" },
+      { value: "provider", name: "Provider" },
       { value: "plugin", name: "Plugin" }
     ]
   });
@@ -46,34 +51,30 @@ export async function addCommand(options: AddOptions): Promise<void> {
   }
 
   if (addTarget === "plugin") {
-    await addPlugin(settingsPath, settings, dataDir, authStore, "plugin");
+    await addPlugin(settingsPath, settings, dataDir, authStore);
     return;
   }
 
-  await addPlugin(settingsPath, settings, dataDir, authStore, "provider");
+  await addProvider(settingsPath, dataDir, authStore);
 }
 
 async function addPlugin(
   settingsPath: string,
   settings: Awaited<ReturnType<typeof readSettingsFile>>,
   dataDir: string,
-  authStore: AuthStore,
-  kind: "provider" | "plugin"
+  authStore: AuthStore
 ): Promise<void> {
   const catalog = buildPluginCatalog();
-  const plugins = Array.from(catalog.values()).filter((entry) => {
-    const isProvider = entry.pluginDir.includes(`${path.sep}plugins${path.sep}providers${path.sep}`);
-    return kind === "provider" ? isProvider : !isProvider;
-  });
+  const plugins = Array.from(catalog.values());
 
   if (plugins.length === 0) {
-    outro(kind === "provider" ? "No providers available." : "No plugins available.");
+    outro("No plugins available.");
     return;
   }
 
-  const sortedPlugins = sortPlugins(plugins, kind);
+  const sortedPlugins = sortPlugins(plugins);
   const pluginId = await promptSelect({
-    message: kind === "provider" ? "Select a provider" : "Select a plugin",
+    message: "Select a plugin",
     choices: sortedPlugins.map((entry) => ({
       value: entry.descriptor.id,
       name: entry.descriptor.name,
@@ -92,9 +93,8 @@ async function addPlugin(
     return;
   }
 
-  const instanceId = createId();
+  const instanceId = createInstanceId();
   let settingsConfig: Record<string, unknown> = {};
-  let inferenceConfig: InferenceProviderSettings | null = null;
 
   const loader = new PluginModuleLoader(`onboarding:${instanceId}`);
   const { module } = await loader.load(definition.entryPath);
@@ -112,7 +112,6 @@ async function addPlugin(
       return;
     }
     settingsConfig = result.settings ?? {};
-    inferenceConfig = result.inference ?? null;
   } else {
     note("No onboarding flow provided; using default settings.", "Plugin");
   }
@@ -144,19 +143,74 @@ async function addPlugin(
         pluginId,
         enabled: true,
         settings: nextSettings
-      }),
-      inference: inferenceConfig
-        ? {
-            ...(current.inference ?? {}),
-            providers: upsertProvider(current.inference?.providers ?? [], inferenceConfig)
-          }
-        : current.inference
+      })
     };
   });
 
   outro(
     `Added ${definition.descriptor.name} (${instanceId}). Restart the engine to apply changes.`
   );
+}
+
+async function addProvider(
+  settingsPath: string,
+  dataDir: string,
+  authStore: AuthStore
+): Promise<void> {
+  const providers = listProviderDefinitions();
+  if (providers.length === 0) {
+    outro("No providers available.");
+    return;
+  }
+
+  const providerId = await promptSelect({
+    message: "Select a provider",
+    choices: providers.map((provider) => ({
+      value: provider.id,
+      name: provider.name,
+      description: provider.description
+    }))
+  });
+
+  if (providerId === null) {
+    outro("Cancelled.");
+    return;
+  }
+
+  const definition = getProviderDefinition(providerId);
+  if (!definition) {
+    outro("Unknown provider selection.");
+    return;
+  }
+
+  const result = await runProviderOnboarding(definition, authStore);
+  if (result === null) {
+    outro("Cancelled.");
+    return;
+  }
+
+  const providerSettings: ProviderSettings = {
+    id: definition.id,
+    enabled: true,
+    ...(result.settings ?? {})
+  };
+
+  try {
+    await validateProviderLoad(dataDir, authStore, definition, providerSettings);
+  } catch (error) {
+    outro(`Provider failed to load: ${(error as Error).message}`);
+    return;
+  }
+
+  await updateSettingsFile(settingsPath, (current) => {
+    const nextProviders = upsertProviderSettings(listProviders(current), providerSettings);
+    return {
+      ...current,
+      providers: nextProviders
+    };
+  });
+
+  outro(`Added ${definition.name}. Restart the engine to apply changes.`);
 }
 
 
@@ -166,6 +220,10 @@ function createPromptHelpers() {
     confirm: promptConfirm,
     select: promptSelect
   };
+}
+
+function createInstanceId(): string {
+  return createId();
 }
 
 async function validatePluginLoad(
@@ -208,54 +266,53 @@ async function validatePluginLoad(
   }
 }
 
-function upsertProvider(
-  providers: InferenceProviderSettings[],
-  entry: InferenceProviderSettings
-): InferenceProviderSettings[] {
-  const filtered = providers.filter((provider) => provider.id !== entry.id);
-  return [entry, ...filtered];
+async function runProviderOnboarding(
+  definition: ProviderDefinition,
+  authStore: AuthStore
+) {
+  if (!definition.onboarding) {
+    return { settings: {} };
+  }
+  const prompts = createPromptHelpers();
+  const result = await definition.onboarding({
+    id: definition.id,
+    auth: authStore,
+    prompt: prompts,
+    note
+  });
+  return result ?? null;
 }
 
-function sortPlugins(plugins: PluginDefinition[], kind: "provider" | "plugin") {
-  if (kind !== "provider") {
-    return [...plugins].sort((a, b) => a.descriptor.name.localeCompare(b.descriptor.name));
+async function validateProviderLoad(
+  dataDir: string,
+  authStore: AuthStore,
+  definition: ProviderDefinition,
+  providerSettings: ProviderSettings
+) {
+  const inferenceRegistry = new InferenceRegistry();
+  const imageRegistry = new ImageGenerationRegistry();
+  const fileStore = new FileStore({ basePath: `${dataDir}/files` });
+  const logger = getLogger(`provider.validate.${definition.id}`);
+  const instance = await Promise.resolve(
+    definition.create({
+      settings: providerSettings,
+      auth: authStore,
+      fileStore,
+      inferenceRegistry,
+      imageRegistry,
+      logger
+    })
+  );
+  await instance.load?.();
+  try {
+    await instance.unload?.();
+  } catch (error) {
+    note(`Provider validation unload failed: ${(error as Error).message}`, "Provider");
   }
+}
 
-  const popularity = [
-    "openai",
-    "openai-compatible",
-    "anthropic",
-    "google",
-    "openrouter",
-    "groq",
-    "mistral",
-    "xai",
-    "azure-openai-responses",
-    "github-copilot",
-    "openai-codex",
-    "google-gemini-cli",
-    "google-antigravity",
-    "amazon-bedrock",
-    "google-vertex",
-    "vercel-ai-gateway",
-    "cerebras",
-    "minimax",
-    "kimi-coding"
-  ];
-  const rank = new Map(popularity.map((id, index) => [id, index]));
-
-  return [...plugins].sort((a, b) => {
-    const rankA = rank.get(a.descriptor.id);
-    const rankB = rank.get(b.descriptor.id);
-    if (rankA !== undefined || rankB !== undefined) {
-      const aValue = rankA ?? Number.MAX_SAFE_INTEGER;
-      const bValue = rankB ?? Number.MAX_SAFE_INTEGER;
-      if (aValue !== bValue) {
-        return aValue - bValue;
-      }
-    }
-    return a.descriptor.name.localeCompare(b.descriptor.name);
-  });
+function sortPlugins(plugins: PluginDefinition[]) {
+  return [...plugins].sort((a, b) => a.descriptor.name.localeCompare(b.descriptor.name));
 }
 
 function intro(message: string): void {

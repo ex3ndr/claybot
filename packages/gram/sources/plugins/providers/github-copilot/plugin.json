@@ -1,6 +1,0 @@
-{
-  "id": "github-copilot",
-  "name": "GitHub Copilot",
-  "description": "GitHub Copilot inference provider.",
-  "entry": "./plugin.js"
-}

@@ -9,11 +9,8 @@ import { AuthStore } from "../../auth/store.js";
 import type { PluginApi } from "./types.js";
 import type { PluginRegistrar } from "./registry.js";
 
-import { plugin as openaiCodex } from "../../plugins/providers/openai-codex/plugin.js";
-import { plugin as anthropic } from "../../plugins/providers/anthropic/plugin.js";
 import { plugin as braveSearch } from "../../plugins/brave-search/plugin.js";
-import { plugin as gptImage } from "../../plugins/gpt-image/plugin.js";
-import { plugin as nanobanana } from "../../plugins/nanobanana/plugin.js";
+import { plugin as memory } from "../../plugins/memory/plugin.js";
 import { plugin as telegram } from "../../plugins/telegram/plugin.js";
 
 const tempRoots: string[] = [];
@@ -71,24 +68,7 @@ describe("built-in plugins", () => {
     );
   });
 
-  it("registers inference providers", async () => {
-    const dir = await createTempDir();
-    const registrar = createRegistrar();
-
-    const openaiSettings = openaiCodex.settingsSchema.parse({});
-    const openaiApi = await createApi("openai-codex", "openai-codex", openaiSettings, registrar, dir);
-    const openaiInstance = await openaiCodex.create(openaiApi);
-    await openaiInstance.load?.();
-
-    const anthropicSettings = anthropic.settingsSchema.parse({});
-    const anthropicApi = await createApi("anthropic", "anthropic", anthropicSettings, registrar, dir);
-    const anthropicInstance = await anthropic.create(anthropicApi);
-    await anthropicInstance.load?.();
-
-    expect(registrar.registerInferenceProvider).toHaveBeenCalledTimes(2);
-  });
-
-  it("registers tools and image providers", async () => {
+  it("registers tools", async () => {
     const dir = await createTempDir();
     const registrar = createRegistrar();
 
@@ -97,18 +77,13 @@ describe("built-in plugins", () => {
     const braveInstance = await braveSearch.create(braveApi);
     await braveInstance.load?.();
 
-    const gptSettings = gptImage.settingsSchema.parse({});
-    const gptApi = await createApi("gpt-main", "gpt-image", gptSettings, registrar, dir);
-    const gptInstance = await gptImage.create(gptApi);
-    await gptInstance.load?.();
-
-    const nanoSettings = nanobanana.settingsSchema.parse({ endpoint: "https://example.com" });
-    const nanoApi = await createApi("nano-main", "nanobanana", nanoSettings, registrar, dir);
-    const nanoInstance = await nanobanana.create(nanoApi);
-    await nanoInstance.load?.();
+    const memorySettings = memory.settingsSchema.parse({});
+    const memoryApi = await createApi("memory-main", "memory", memorySettings, registrar, dir);
+    const memoryInstance = await memory.create(memoryApi);
+    await memoryInstance.load?.();
 
     expect(registrar.registerTool).toHaveBeenCalledWith(expect.objectContaining({ tool: expect.objectContaining({ name: "search_v2" }) }));
-    expect(registrar.registerImageProvider).toHaveBeenCalledTimes(2);
+    expect(registrar.registerTool).toHaveBeenCalledWith(expect.objectContaining({ tool: expect.objectContaining({ name: "memory_search" }) }));
   });
 
   it("builds a telegram plugin instance without executing load", async () => {

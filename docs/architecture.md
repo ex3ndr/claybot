@@ -4,7 +4,8 @@ Grambot is a plugin-driven engine that routes connector traffic through sessions
 
 Key pieces:
 - **CLI** (`sources/main.ts`) starts the engine and manages plugins/auth.
-- **Plugins** register connectors, inference providers, tools, and image generators.
+- **Plugins** register connectors and tools.
+- **Providers** register inference and image generation capabilities.
 - **Auth store** (`.scout/auth.json`) holds provider credentials.
 - **File store** persists attachments for connectors and tools.
 - **Session manager** serializes handling per session and persists state.
@@ -19,11 +20,12 @@ flowchart LR
   CLI[CLI: gram] --> Start[start command]
   Start --> Settings[.scout/settings.json]
   Start --> Auth[.scout/auth.json]
+  Start --> Providers[ProviderManager]
   Start --> Plugins[PluginManager]
+  Providers --> Inference[InferenceRegistry]
+  Providers --> Images[ImageRegistry]
   Plugins --> Connectors[ConnectorRegistry]
   Plugins --> Tools[ToolResolver]
-  Plugins --> Inference[InferenceRegistry]
-  Plugins --> Images[ImageRegistry]
   Connectors -->|message| Sessions[SessionManager]
   Cron[CronScheduler] -->|message| Sessions
   Sessions --> InferenceRouter

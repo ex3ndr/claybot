@@ -1,6 +1,0 @@
-{
-  "id": "google-antigravity",
-  "name": "Antigravity",
-  "description": "Antigravity inference provider.",
-  "entry": "./plugin.js"
-}

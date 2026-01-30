@@ -1,6 +1,0 @@
-{
-  "id": "cerebras",
-  "name": "Cerebras",
-  "description": "Cerebras inference provider.",
-  "entry": "./plugin.js"
-}

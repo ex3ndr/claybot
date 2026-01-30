@@ -1,6 +1,0 @@
-{
-  "id": "vercel-ai-gateway",
-  "name": "Vercel AI Gateway",
-  "description": "Vercel AI Gateway inference provider.",
-  "entry": "./plugin.js"
-}

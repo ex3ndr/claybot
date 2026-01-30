@@ -1,7 +1,7 @@
 import type { Context, AssistantMessage } from "@mariozechner/pi-ai";
 
 import type { InferenceRegistry } from "../modules.js";
-import type { InferenceProviderSettings } from "../../settings.js";
+import type { ProviderSettings } from "../../settings.js";
 import type { AuthStore } from "../../auth/store.js";
 import { getLogger } from "../../log.js";
 
@@ -12,7 +12,7 @@ export type InferenceResult = {
 };
 
 export type InferenceRouterOptions = {
-  providers: InferenceProviderSettings[];
+  providers: ProviderSettings[];
   registry: InferenceRegistry;
   auth: AuthStore;
   onAttempt?: (providerId: string, modelId: string) => void;
@@ -22,7 +22,7 @@ export type InferenceRouterOptions = {
 };
 
 export class InferenceRouter {
-  private providers: InferenceProviderSettings[];
+  private providers: ProviderSettings[];
   private registry: InferenceRegistry;
   private auth: AuthStore;
   private logger = getLogger("inference.router");
@@ -33,7 +33,7 @@ export class InferenceRouter {
     this.auth = options.auth;
   }
 
-  updateProviders(providers: InferenceProviderSettings[]): void {
+  updateProviders(providers: ProviderSettings[]): void {
     this.providers = providers;
   }
 

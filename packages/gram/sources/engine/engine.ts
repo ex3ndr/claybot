@@ -19,7 +19,7 @@ import { PluginEventQueue } from "./plugins/events.js";
 import { PluginManager } from "./plugins/manager.js";
 import { buildPluginCatalog } from "./plugins/catalog.js";
 import type { SettingsConfig } from "../settings.js";
-import { listInferenceProviders } from "../settings.js";
+import { listActiveInferenceProviders } from "../providers/catalog.js";
 import { SessionManager } from "./sessions/manager.js";
 import { SessionStore } from "./sessions/store.js";
 import { Session } from "./sessions/session.js";
@@ -31,6 +31,7 @@ import { buildReactionTool } from "./tools/reaction.js";
 import type { ToolExecutionResult } from "./tools/types.js";
 import { CronScheduler } from "../modules/runtime/cron.js";
 import { EngineEventBus } from "./ipc/events.js";
+import { ProviderManager } from "../providers/manager.js";
 
 const logger = getLogger("engine.runtime");
 const MAX_TOOL_ITERATIONS = 5;
@@ -59,6 +60,7 @@ export class Engine {
   private pluginManager: PluginManager;
   private pluginEventQueue: PluginEventQueue;
   private pluginEventEngine: PluginEventEngine;
+  private providerManager: ProviderManager;
   private sessionStore: SessionStore<SessionState>;
   private sessionManager: SessionManager<SessionState>;
   private cron: CronScheduler | null = null;
@@ -107,6 +109,14 @@ export class Engine {
       dataDir: this.dataDir,
       eventQueue: this.pluginEventQueue,
       engineEvents: this.eventBus
+    });
+
+    this.providerManager = new ProviderManager({
+      settings: this.settings,
+      auth: this.authStore,
+      fileStore: this.fileStore,
+      inferenceRegistry: this.inferenceRegistry,
+      imageRegistry: this.imageRegistry
     });
 
     this.sessionStore = new SessionStore<SessionState>({
@@ -194,13 +204,14 @@ export class Engine {
     });
 
     this.inferenceRouter = new InferenceRouter({
-      providers: listInferenceProviders(this.settings),
+      providers: listActiveInferenceProviders(this.settings),
       registry: this.inferenceRegistry,
       auth: this.authStore
     });
   }
 
   async start(): Promise<void> {
+    await this.providerManager.sync(this.settings);
     await this.pluginManager.loadEnabled(this.settings);
     this.pluginEventEngine.start();
 
@@ -264,6 +275,7 @@ export class Engine {
   getStatus() {
     return {
       plugins: this.pluginManager.listLoaded(),
+      providers: this.providerManager.listLoaded(),
       connectors: this.connectorRegistry.listStatus(),
       inferenceProviders: this.inferenceRegistry.list().map((provider) => ({
         id: provider.id,
@@ -273,7 +285,7 @@ export class Engine {
         id: provider.id,
         label: provider.label
       })),
-      tools: this.toolResolver.listTools().map((tool) => tool.name)
+      tools: this.listContextTools().map((tool) => tool.name)
     };
   }
 
@@ -307,6 +319,14 @@ export class Engine {
 
   getInferenceRouter(): InferenceRouter {
     return this.inferenceRouter;
+  }
+
+  private listContextTools() {
+    const tools = this.toolResolver.listTools();
+    if (this.imageRegistry.list().length === 0) {
+      return tools.filter((tool) => tool.name !== "generate_image");
+    }
+    return tools;
   }
 
   async executeTool(
@@ -354,8 +374,9 @@ export class Engine {
 
   async updateSettings(settings: SettingsConfig): Promise<void> {
     this.settings = settings;
+    await this.providerManager.sync(settings);
     await this.pluginManager.syncWithSettings(settings);
-    this.inferenceRouter.updateProviders(listInferenceProviders(settings));
+    this.inferenceRouter.updateProviders(listActiveInferenceProviders(settings));
   }
 
   private async restoreSessions(): Promise<void> {
@@ -430,7 +451,7 @@ export class Engine {
     const sessionContext = session.context.state.context;
     const context: Context = {
       ...sessionContext,
-      tools: this.toolResolver.listTools()
+      tools: this.listContextTools()
     };
 
     const userMessage = await buildUserMessage(entry);

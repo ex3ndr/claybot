@@ -1,6 +1,0 @@
-{
-  "id": "anthropic",
-  "name": "Anthropic",
-  "description": "Anthropic inference provider.",
-  "entry": "./plugin.js"
-}

@@ -24,17 +24,12 @@ flowchart TD
   "plugins": [
     { "instanceId": "telegram", "pluginId": "telegram", "enabled": true, "settings": { "polling": true } },
     { "instanceId": "brave-search", "pluginId": "brave-search", "enabled": true },
-    { "instanceId": "gpt-image", "pluginId": "gpt-image", "enabled": true },
-    { "instanceId": "nanobanana", "pluginId": "nanobanana", "enabled": false, "settings": { "endpoint": "https://api.example.com/images" } },
-    { "instanceId": "openai-codex", "pluginId": "openai-codex", "enabled": true },
-    { "instanceId": "anthropic", "pluginId": "anthropic", "enabled": false },
     { "instanceId": "memory", "pluginId": "memory", "enabled": true }
   ],
-  "inference": {
-    "providers": [
-      { "id": "openai-codex", "model": "gpt-4o-mini" }
-    ]
-  },
+  "providers": [
+    { "id": "openai", "enabled": true, "model": "gpt-4o-mini" },
+    { "id": "nanobanana", "enabled": false, "image": { "endpoint": "https://api.example.com/images" } }
+  ],
   "cron": {
     "tasks": [
       {
@@ -55,19 +50,18 @@ flowchart TD
 }
 ```
 
-`memory` settings are consumed by the memory plugin (if enabled). Provider instances added via
-`gram add` use random instance ids; the inference provider entry always uses the provider id.
+`memory` settings are consumed by the memory plugin (if enabled). Providers are configured
+at the top level; order defines inference priority and `enabled: false` disables a provider.
 
 ## `.scout/auth.json`
-Credentials are stored per plugin key. Provider plugins store credentials under the provider id (their `pluginId`), not the random instance id:
+Credentials are stored per plugin or provider id:
 
 ```json
 {
   "telegram": { "type": "token", "token": "..." },
   "brave-search": { "type": "apiKey", "apiKey": "..." },
-  "openai-codex": { "type": "apiKey", "apiKey": "..." },
+  "openai": { "type": "apiKey", "apiKey": "..." },
   "anthropic": { "type": "apiKey", "apiKey": "..." },
-  "gpt-image": { "type": "apiKey", "apiKey": "..." },
   "nanobanana": { "type": "apiKey", "apiKey": "..." }
 }
 ```

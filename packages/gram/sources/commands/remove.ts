@@ -5,11 +5,14 @@ import { promptSelect } from "./prompts.js";
 import {
   DEFAULT_SETTINGS_PATH,
   listPlugins,
+  listProviders,
+  removeProviderSettings,
   readSettingsFile,
   removePlugin,
   updateSettingsFile
 } from "../settings.js";
 import { buildPluginCatalog } from "../engine/plugins/catalog.js";
+import { getProviderDefinition } from "../providers/catalog.js";
 
 export type RemoveOptions = {
   settings?: string;
@@ -37,18 +40,13 @@ export async function removeCommand(options: RemoveOptions): Promise<void> {
   const settings = await readSettingsFile(settingsPath);
   const catalog = buildPluginCatalog();
 
-  const providerLabels = new Map(
-    Array.from(catalog.values())
-      .filter((entry) => entry.pluginDir.includes(`${path.sep}plugins${path.sep}providers${path.sep}`))
-      .map((entry) => [entry.descriptor.id, entry.descriptor.name])
-  );
-  const providerSelections: ProviderSelection[] = (settings.inference?.providers ?? []).map(
+  const providerSelections: ProviderSelection[] = listProviders(settings).map(
     (provider, index) => ({
       kind: "provider",
       index,
       id: provider.id,
       model: provider.model,
-      label: providerLabels.get(provider.id) ?? provider.id
+      label: getProviderDefinition(provider.id)?.name ?? provider.id
     })
   );
 
@@ -102,22 +100,15 @@ export async function removeCommand(options: RemoveOptions): Promise<void> {
     }
 
     await updateSettingsFile(settingsPath, (current) => {
-      const providers = current.inference?.providers ?? [];
+      const providers = listProviders(current);
       const removed = providers[index];
       if (!removed) {
         return current;
       }
-      const nextProviders = providers.filter((_, idx) => idx !== index);
-      const nextPlugins = listPlugins(current).filter(
-        (plugin) => plugin.pluginId !== removed.id
-      );
+      const nextProviders = removeProviderSettings(current.providers ?? providers, removed.id);
       return {
         ...current,
-        plugins: nextPlugins,
-        inference: {
-          ...(current.inference ?? {}),
-          providers: nextProviders
-        }
+        providers: nextProviders
       };
     });
 
@@ -135,20 +126,10 @@ export async function removeCommand(options: RemoveOptions): Promise<void> {
       return;
     }
 
-    await updateSettingsFile(settingsPath, (current) => {
-      const nextPlugins = removePlugin(current.plugins, instanceId);
-      const nextProviders = (current.inference?.providers ?? []).filter(
-        (provider) => provider.id !== plugin.pluginId
-      );
-      return {
-        ...current,
-        plugins: nextPlugins,
-        inference: {
-          ...(current.inference ?? {}),
-          providers: nextProviders
-        }
-      };
-    });
+    await updateSettingsFile(settingsPath, (current) => ({
+      ...current,
+      plugins: removePlugin(current.plugins, instanceId)
+    }));
 
     outro(
       `Removed ${plugin.label} (${plugin.instanceId}). Restart the engine to apply changes.`

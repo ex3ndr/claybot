@@ -1,6 +1,0 @@
-{
-  "id": "google",
-  "name": "Google",
-  "description": "Google inference provider.",
-  "entry": "./plugin.js"
-}

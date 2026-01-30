@@ -1,6 +1,0 @@
-{
-  "id": "groq",
-  "name": "Groq",
-  "description": "Groq inference provider.",
-  "entry": "./plugin.js"
-}

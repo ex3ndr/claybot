@@ -33,7 +33,7 @@ program
 
 program
   .command("add")
-  .description("Add an inference provider or plugin")
+  .description("Add a provider or plugin")
   .option(
     "-s, --settings <path>",
     "Path to settings file",
@@ -43,7 +43,7 @@ program
 
 program
   .command("remove")
-  .description("Remove an inference provider or plugin")
+  .description("Remove a provider or plugin")
   .option(
     "-s, --settings <path>",
     "Path to settings file",
