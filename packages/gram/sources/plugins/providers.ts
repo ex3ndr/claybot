@@ -12,7 +12,13 @@ export type ProviderDefinition = {
 export const PROVIDER_DEFINITIONS: ProviderDefinition[] = [
   { id: "openai", label: "OpenAI", auth: "apiKey", kind: "pi-ai" },
   { id: "anthropic", label: "Anthropic", auth: "mixed", kind: "pi-ai" },
-  { id: "google", label: "Google", auth: "apiKey", kind: "pi-ai" }
+  { id: "google", label: "Google", auth: "apiKey", kind: "pi-ai" },
+  {
+    id: "azure-openai-responses",
+    label: "Azure OpenAI (Responses)",
+    auth: "apiKey",
+    kind: "pi-ai"
+  }
 ];
 
 export function getProviderDefinition(id: string): ProviderDefinition | null {
