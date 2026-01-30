@@ -85,4 +85,4 @@ You are a helpful assistant. Be concise and direct in your responses.
 - Be honest about limitations
 ```
 
-Edit SOUL.md to customize the assistant. Restart the engine to apply changes.
+Edit SOUL.md to customize the assistant. Changes take effect on the next message.

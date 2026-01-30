@@ -84,7 +84,6 @@ export class Engine {
   private cron: CronScheduler | null = null;
   private inferenceRouter: InferenceRouter;
   private eventBus: EngineEventBus;
-  private systemPrompt: string | null = null;
 
   constructor(options: EngineOptions) {
     logger.debug(`Engine constructor starting, dataDir=${options.dataDir}`);
@@ -166,9 +165,6 @@ export class Engine {
         const providerId = this.resolveProviderId(context);
         if (providerId) {
           session.context.state.providerId = providerId;
-        }
-        if (this.systemPrompt) {
-          session.context.state.context.systemPrompt = this.systemPrompt;
         }
         logger.info(
           {
@@ -263,11 +259,6 @@ export class Engine {
     logger.debug("Syncing provider manager with settings");
     await this.providerManager.sync(this.settings);
     logger.debug("Provider manager sync complete");
-
-    logger.debug("Loading system prompt from SOUL.md");
-    this.systemPrompt = await readSystemPrompt();
-    logger.info("System prompt loaded from SOUL.md");
-
     logger.debug("Loading enabled plugins");
     await this.pluginManager.loadEnabled(this.settings);
     logger.debug("Plugins loaded, starting plugin event engine");
@@ -617,9 +608,12 @@ export class Engine {
     const providerId = this.resolveSessionProvider(session, entry.context);
     const codexPrompt = resolveCodexSystemPrompt(sessionContext, providerId);
     logger.debug(`Building context sessionId=${session.id} existingMessageCount=${sessionContext.messages.length}`);
+
+    const systemPrompt = await readSystemPrompt();
     const context: Context = {
       ...sessionContext,
-      tools: this.listContextTools()
+      tools: this.listContextTools(),
+      systemPrompt
     };
     if (codexPrompt) {
       resolveCodexSystemPrompt(context, providerId);
