@@ -1,8 +1,11 @@
 import { createId } from "@paralleldrive/cuid2";
 
+import { getLogger } from "../../log.js";
 import type { ConnectorMessage, MessageContext } from "../connectors/types.js";
 import { Session } from "./session.js";
 import type { SessionMessage } from "./types.js";
+
+const logger = getLogger("sessions.manager");
 
 export type SessionHandler<State = Record<string, unknown>> = (
   session: Session<State>,
@@ -80,11 +83,14 @@ export class SessionManager<State = Record<string, unknown>> {
 
   getSession(source: string, context: MessageContext): Session<State> {
     const id = this.sessionIdFor(source, context);
+    logger.debug({ sessionId: id, source, channelId: context.channelId }, "[VERBOSE] getSession() called");
     const existing = this.sessions.get(id);
     if (existing) {
+      logger.debug({ sessionId: id }, "[VERBOSE] Returning existing session");
       return existing;
     }
 
+    logger.debug({ sessionId: id }, "[VERBOSE] Creating new session");
     const now = this.now();
     const storageId = this.storageIdFactory();
     const session = new Session<State>(id, {
@@ -95,6 +101,7 @@ export class SessionManager<State = Record<string, unknown>> {
     }, storageId);
 
     this.sessions.set(id, session);
+    logger.debug({ sessionId: id, storageId, totalSessions: this.sessions.size }, "[VERBOSE] New session created");
     if (this.onSessionCreated) {
       void this.onSessionCreated(session, source, context);
     }
@@ -108,8 +115,10 @@ export class SessionManager<State = Record<string, unknown>> {
     createdAt?: Date,
     updatedAt?: Date
   ): Session<State> {
+    logger.debug({ sessionId: id, storageId }, "[VERBOSE] restoreSession() called");
     const existing = this.sessions.get(id);
     if (existing) {
+      logger.debug({ sessionId: id }, "[VERBOSE] Session already exists, returning existing");
       return existing;
     }
 
@@ -122,6 +131,7 @@ export class SessionManager<State = Record<string, unknown>> {
     }, storageId);
 
     this.sessions.set(id, session);
+    logger.debug({ sessionId: id, totalSessions: this.sessions.size }, "[VERBOSE] Session restored");
     return session;
   }
 
@@ -131,28 +141,42 @@ export class SessionManager<State = Record<string, unknown>> {
     context: MessageContext,
     handler: SessionHandler<State>
   ): Promise<SessionMessage> {
+    logger.debug(
+      { source, channelId: context.channelId, hasText: !!message.text, fileCount: message.files?.length ?? 0 },
+      "[VERBOSE] handleMessage() called"
+    );
     const session = this.getSession(source, context);
     const entry = session.enqueue(message, context, this.now(), this.idFactory());
+    logger.debug({ sessionId: session.id, messageId: entry.id, queueSize: session.size }, "[VERBOSE] Message enqueued");
 
     if (this.onSessionUpdated) {
       void this.onSessionUpdated(session, entry, source);
     }
 
     if (session.isProcessing()) {
+      logger.debug({ sessionId: session.id, messageId: entry.id }, "[VERBOSE] Session already processing, message queued");
       return entry;
     }
 
+    logger.debug({ sessionId: session.id }, "[VERBOSE] Starting session processing loop");
     session.setProcessing(true);
 
     try {
+      let processedCount = 0;
       while (session.peek()) {
         const current = session.peek()!;
+        logger.debug(
+          { sessionId: session.id, messageId: current.id, processedCount, remaining: session.size },
+          "[VERBOSE] Processing message from queue"
+        );
         try {
           if (this.onMessageStart) {
             await this.onMessageStart(session, current, source);
           }
           await handler(session, current);
+          logger.debug({ sessionId: session.id, messageId: current.id }, "[VERBOSE] Message handler completed");
         } catch (error) {
+          logger.debug({ sessionId: session.id, messageId: current.id, error: String(error) }, "[VERBOSE] Message handler threw error");
           if (this.onError) {
             await this.onError(error, session, current);
           }
@@ -161,10 +185,13 @@ export class SessionManager<State = Record<string, unknown>> {
             await this.onMessageEnd(session, current, source);
           }
           session.dequeue();
+          processedCount++;
         }
       }
+      logger.debug({ sessionId: session.id, processedCount }, "[VERBOSE] Session processing loop complete");
     } finally {
       session.setProcessing(false);
+      logger.debug({ sessionId: session.id }, "[VERBOSE] Session processing stopped");
     }
 
     return entry;

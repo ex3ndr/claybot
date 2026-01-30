@@ -40,13 +40,19 @@ export class ProviderManager {
   }
 
   async sync(settings: SettingsConfig): Promise<void> {
+    logger.debug({ loadedCount: this.loaded.size }, "[VERBOSE] sync() starting");
     const activeProviders = listProviders(settings).filter(
       (provider) => provider.enabled !== false
+    );
+    logger.debug(
+      { activeCount: activeProviders.length, activeIds: activeProviders.map(p => p.id) },
+      "[VERBOSE] Active providers from settings"
     );
 
     const activeIds = new Set(activeProviders.map((provider) => provider.id));
     for (const [id, entry] of this.loaded.entries()) {
       if (!activeIds.has(id)) {
+        logger.debug({ providerId: id }, "[VERBOSE] Provider no longer active, unloading");
         await entry.instance.unload?.();
         this.loaded.delete(id);
         logger.info({ provider: id }, "Provider unloaded");
@@ -54,8 +60,10 @@ export class ProviderManager {
     }
 
     for (const providerSettings of activeProviders) {
+      logger.debug({ providerId: providerSettings.id, model: providerSettings.model }, "[VERBOSE] Processing provider");
       const definition = getProviderDefinition(providerSettings.id);
       if (!definition) {
+        logger.debug({ providerId: providerSettings.id }, "[VERBOSE] Provider definition not found");
         logger.warn({ provider: providerSettings.id }, "Unknown provider");
         continue;
       }
@@ -63,14 +71,17 @@ export class ProviderManager {
       const settingsHash = hashSettings(providerSettings);
       const existing = this.loaded.get(providerSettings.id);
       if (existing && existing.settingsHash === settingsHash) {
+        logger.debug({ providerId: providerSettings.id }, "[VERBOSE] Provider already loaded with same settings");
         continue;
       }
 
       if (existing) {
+        logger.debug({ providerId: providerSettings.id }, "[VERBOSE] Provider settings changed, reloading");
         await existing.instance.unload?.();
         this.loaded.delete(providerSettings.id);
       }
 
+      logger.debug({ providerId: providerSettings.id }, "[VERBOSE] Creating provider instance");
       const instance = await Promise.resolve(
         definition.create({
           settings: providerSettings,
@@ -81,10 +92,13 @@ export class ProviderManager {
           logger
         })
       );
+      logger.debug({ providerId: providerSettings.id }, "[VERBOSE] Calling provider.load()");
       await instance.load?.();
       this.loaded.set(providerSettings.id, { instance, settingsHash });
+      logger.debug({ providerId: providerSettings.id, totalLoaded: this.loaded.size }, "[VERBOSE] Provider registered");
       logger.info({ provider: providerSettings.id }, "Provider loaded");
     }
+    logger.debug({ loadedCount: this.loaded.size }, "[VERBOSE] sync() complete");
   }
 
   static listDefinitions() {
