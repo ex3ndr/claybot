@@ -1,0 +1,6 @@
+{
+  "id": "minimax",
+  "name": "MiniMax",
+  "description": "MiniMax inference provider.",
+  "entry": "../pi-ai-provider.js"
+}
