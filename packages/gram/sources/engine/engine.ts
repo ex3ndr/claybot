@@ -19,7 +19,7 @@ import { PluginEventQueue } from "./plugins/events.js";
 import { PluginManager } from "./plugins/manager.js";
 import { buildPluginCatalog } from "./plugins/catalog.js";
 import type { SettingsConfig } from "../settings.js";
-import { readSystemPrompt } from "../settings.js";
+import { createSystemPrompt } from "./createSystemPrompt.js";
 import { listActiveInferenceProviders } from "../providers/catalog.js";
 import { SessionManager } from "./sessions/manager.js";
 import { SessionStore } from "./sessions/store.js";
@@ -609,7 +609,7 @@ export class Engine {
     const codexPrompt = resolveCodexSystemPrompt(sessionContext, providerId);
     logger.debug(`Building context sessionId=${session.id} existingMessageCount=${sessionContext.messages.length}`);
 
-    const systemPrompt = await readSystemPrompt();
+    const systemPrompt = await createSystemPrompt();
     const context: Context = {
       ...sessionContext,
       tools: this.listContextTools(),
