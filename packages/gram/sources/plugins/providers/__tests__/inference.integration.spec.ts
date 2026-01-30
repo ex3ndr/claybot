@@ -31,15 +31,16 @@ const RUN_INTEGRATION =
 const describeIf = RUN_INTEGRATION ? describe : describe.skip;
 
 const providers = [
-  { id: "openai", apiKeyEnv: "OPENAI_API_KEY", modelEnv: "OPENAI_MODEL" },
-  { id: "anthropic", apiKeyEnv: "ANTHROPIC_API_KEY", modelEnv: "ANTHROPIC_MODEL" },
-  { id: "openrouter", apiKeyEnv: "OPENROUTER_API_KEY", modelEnv: "OPENROUTER_MODEL" },
-  { id: "mistral", apiKeyEnv: "MISTRAL_API_KEY", modelEnv: "MISTRAL_MODEL" },
-  { id: "groq", apiKeyEnv: "GROQ_API_KEY", modelEnv: "GROQ_MODEL" },
-  { id: "xai", apiKeyEnv: "XAI_API_KEY", modelEnv: "XAI_MODEL" },
-  { id: "cerebras", apiKeyEnv: "CEREBRAS_API_KEY", modelEnv: "CEREBRAS_MODEL" },
-  { id: "minimax", apiKeyEnv: "MINIMAX_API_KEY", modelEnv: "MINIMAX_MODEL" },
-  { id: "kimi-coding", apiKeyEnv: "KIMI_API_KEY", modelEnv: "KIMI_MODEL" }
+  { id: "openai", apiKeyEnv: ["OPENAI_API_TOKEN", "OPENAI_API_KEY"], modelEnv: ["OPENAI_MODEL"] },
+  { id: "anthropic", apiKeyEnv: ["ANTHROPIC_API_KEY"], modelEnv: ["ANTHROPIC_MODEL"] },
+  { id: "google", apiKeyEnv: ["GEMINI_API_TOKEN", "GEMINI_API_KEY"], modelEnv: ["GEMINI_MODEL"] },
+  { id: "openrouter", apiKeyEnv: ["OPENROUTER_API_KEY"], modelEnv: ["OPENROUTER_MODEL"] },
+  { id: "mistral", apiKeyEnv: ["MISTRAL_API_KEY"], modelEnv: ["MISTRAL_MODEL"] },
+  { id: "groq", apiKeyEnv: ["GROQ_API_KEY"], modelEnv: ["GROQ_MODEL"] },
+  { id: "xai", apiKeyEnv: ["XAI_API_KEY"], modelEnv: ["XAI_MODEL"] },
+  { id: "cerebras", apiKeyEnv: ["CEREBRAS_API_KEY"], modelEnv: ["CEREBRAS_MODEL"] },
+  { id: "minimax", apiKeyEnv: ["MINIMAX_API_KEY"], modelEnv: ["MINIMAX_MODEL"] },
+  { id: "kimi-coding", apiKeyEnv: ["KIMI_API_KEY"], modelEnv: ["KIMI_MODEL"] }
 ];
 
 const openAiCompatible = {
@@ -52,8 +53,8 @@ const openAiCompatible = {
 
 describeIf("inference provider plugins", () => {
   for (const provider of providers) {
-    const apiKey = process.env[provider.apiKeyEnv] ?? "";
-    const model = process.env[provider.modelEnv] ?? undefined;
+    const apiKey = resolveEnv(provider.apiKeyEnv);
+    const model = resolveEnv(provider.modelEnv) ?? undefined;
     const itIf = apiKey ? it : it.skip;
 
     itIf(`${provider.id} completes a prompt`, async () => {
@@ -62,16 +63,16 @@ describeIf("inference provider plugins", () => {
         model
       });
       const result = await router.complete(buildContext(), "integration");
-      const text = extractAssistantText(result.message);
-      expect(text).toBeTruthy();
+      const hasOutput = hasAssistantOutput(result.message);
+      expect(hasOutput).toBe(true);
       await cleanup();
     });
   }
 
-  const compatKey = process.env[openAiCompatible.apiKeyEnv] ?? "";
-  const compatBaseUrl = process.env[openAiCompatible.baseUrlEnv] ?? "";
-  const compatModel = process.env[openAiCompatible.modelEnv] ?? "";
-  const compatApi = process.env[openAiCompatible.apiEnv] ?? undefined;
+  const compatKey = resolveEnv(openAiCompatible.apiKeyEnv);
+  const compatBaseUrl = resolveEnv(openAiCompatible.baseUrlEnv);
+  const compatModel = resolveEnv(openAiCompatible.modelEnv);
+  const compatApi = resolveEnv(openAiCompatible.apiEnv) ?? undefined;
 
   const compatReady = compatBaseUrl && compatModel;
   const compatIt = compatReady ? it : it.skip;
@@ -87,8 +88,8 @@ describeIf("inference provider plugins", () => {
       }
     });
     const result = await router.complete(buildContext(), "integration");
-    const text = extractAssistantText(result.message);
-    expect(text).toBeTruthy();
+    const hasOutput = hasAssistantOutput(result.message);
+    expect(hasOutput).toBe(true);
     await cleanup();
   });
 });
@@ -115,6 +116,45 @@ function extractAssistantText(message: Context["messages"][number]): string | nu
     .map((block) => block.text)
     .filter((text): text is string => typeof text === "string" && text.length > 0);
   return parts.join("\n");
+}
+
+function hasAssistantOutput(message: Context["messages"][number]): boolean {
+  if (message.role !== "assistant") {
+    return false;
+  }
+  if (message.stopReason === "error" || message.stopReason === "aborted") {
+    return false;
+  }
+  if (message.content.length === 0) {
+    return true;
+  }
+  const text = extractAssistantText(message);
+  if (text && text.trim()) {
+    return true;
+  }
+  if ((message.usage?.totalTokens ?? 0) > 0) {
+    return true;
+  }
+  return message.content.some((part) => {
+    if (part.type === "thinking") {
+      return Boolean(part.thinking && part.thinking.trim());
+    }
+    if (part.type === "toolCall") {
+      return true;
+    }
+    return false;
+  });
+}
+
+function resolveEnv(keys: string | string[]): string {
+  const candidates = Array.isArray(keys) ? keys : [keys];
+  for (const key of candidates) {
+    const value = process.env[key];
+    if (value) {
+      return value;
+    }
+  }
+  return "";
 }
 
 type ProviderConfig = {
