@@ -55,7 +55,8 @@ flowchart TD
 }
 ```
 
-`memory` settings are consumed by the memory plugin (if enabled).
+`memory` settings are consumed by the memory plugin (if enabled). Provider instances added via
+`gram add` use random instance ids; the inference provider entry always uses the provider id.
 
 ## `.scout/auth.json`
 Credentials are stored per plugin key. Provider plugins store credentials under the provider id (their `pluginId`), not the random instance id:
