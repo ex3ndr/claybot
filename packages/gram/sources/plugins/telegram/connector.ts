@@ -89,7 +89,10 @@ export class TelegramConnector implements Connector {
       const context: MessageContext = {
         channelId: String(message.chat.id),
         userId: message.from ? String(message.from.id) : null,
-        messageId: message.message_id ? String(message.message_id) : undefined
+        messageId: message.message_id ? String(message.message_id) : undefined,
+        threadId: message.message_thread_id
+          ? String(message.message_thread_id)
+          : undefined
       };
 
       logger.debug(`Dispatching to handlers handlerCount=${this.handlers.length} channelId=${context.channelId}`);
@@ -548,15 +551,20 @@ function isTelegramConflictError(error: unknown): boolean {
 }
 
 function buildReplyOptions(message: ConnectorMessage): TelegramBot.SendMessageOptions | undefined {
-  if (!message.replyToMessageId) {
+  const replyTo = message.replyToMessageId
+    ? Number(message.replyToMessageId)
+    : undefined;
+  const threadId = message.threadId
+    ? Number(message.threadId)
+    : undefined;
+
+  if (!Number.isFinite(replyTo ?? NaN) && !Number.isFinite(threadId ?? NaN)) {
     return undefined;
   }
-  const replyTo = Number(message.replyToMessageId);
-  if (!Number.isFinite(replyTo)) {
-    return undefined;
-  }
+
   return {
-    reply_to_message_id: replyTo,
+    ...(Number.isFinite(replyTo ?? NaN) ? { reply_to_message_id: replyTo as number } : {}),
+    ...(Number.isFinite(threadId ?? NaN) ? { message_thread_id: threadId as number } : {}),
     allow_sending_without_reply: true
   };
 }

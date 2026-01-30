@@ -4,6 +4,7 @@ export type ConnectorMessage = {
   text: string | null;
   files?: FileReference[];
   replyToMessageId?: string;
+  threadId?: string;
 };
 
 export type MessageContext = {
@@ -12,6 +13,7 @@ export type MessageContext = {
   sessionId?: string;
   messageId?: string;
   providerId?: string;
+  threadId?: string;
 };
 
 export type MessageHandler = (
