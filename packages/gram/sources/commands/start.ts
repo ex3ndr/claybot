@@ -4,7 +4,7 @@ import { getLogger } from "../log.js";
 import { readSettingsFile } from "../settings.js";
 import { awaitShutdown, onShutdown } from "../util/shutdown.js";
 import { startEngineServer } from "../engine/ipc/server.js";
-import { EngineRuntime } from "../engine/runtime.js";
+import { Engine } from "../engine/engine.js";
 import { EngineEventBus } from "../engine/ipc/events.js";
 
 const logger = getLogger("command.start");
@@ -22,7 +22,7 @@ export async function startCommand(options: StartOptions): Promise<void> {
   const authPath = path.join(dataDir, "auth.json");
   const eventBus = new EngineEventBus();
 
-  const runtime = new EngineRuntime({
+  const runtime = new Engine({
     settings,
     dataDir,
     authPath,

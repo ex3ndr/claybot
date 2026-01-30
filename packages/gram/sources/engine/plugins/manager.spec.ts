@@ -3,16 +3,13 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { ConnectorRegistry } from "../connectors/registry.js";
+import { ConnectorRegistry, ImageGenerationRegistry, InferenceRegistry, ToolResolver } from "../modules.js";
 import { FileStore } from "../../files/store.js";
-import { ImageGenerationRegistry } from "../images/registry.js";
-import { InferenceRegistry } from "../inference/registry.js";
 import { PluginEventQueue } from "./events.js";
 import { PluginManager } from "./manager.js";
 import { PluginRegistry } from "./registry.js";
 import { AuthStore } from "../../auth/store.js";
 import type { PluginInstanceSettings } from "../../settings.js";
-import { ToolRegistry } from "../tools/registry.js";
 
 const tempRoots: string[] = [];
 
@@ -39,7 +36,7 @@ function createManager(
   });
   const inferenceRegistry = new InferenceRegistry();
   const imageRegistry = new ImageGenerationRegistry();
-  const toolRegistry = new ToolRegistry();
+  const toolRegistry = new ToolResolver();
   const pluginRegistry = new PluginRegistry(
     connectorRegistry,
     inferenceRegistry,

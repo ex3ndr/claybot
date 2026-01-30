@@ -2,7 +2,7 @@ import { Type } from "@sinclair/typebox";
 import { promises as fs } from "node:fs";
 import type { ToolResultMessage } from "@mariozechner/pi-ai";
 
-import type { ImageGenerationRegistry } from "../images/registry.js";
+import type { ImageGenerationRegistry } from "../modules.js";
 import type { ImageGenerationRequest } from "../images/types.js";
 import type { ToolDefinition } from "./types.js";
 

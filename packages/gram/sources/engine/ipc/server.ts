@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { getLogger } from "../../log.js";
 import { resolveEngineSocketPath } from "./socket.js";
-import type { EngineRuntime } from "../runtime.js";
+import type { Engine } from "../engine.js";
 import {
   listPlugins,
   readSettingsFile,
@@ -18,7 +18,7 @@ import type { EngineEventBus } from "./events.js";
 export type EngineServerOptions = {
   socketPath?: string;
   settingsPath: string;
-  runtime: EngineRuntime;
+  runtime: Engine;
   eventBus: EngineEventBus;
 };
 

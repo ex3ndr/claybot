@@ -5,11 +5,8 @@ import { getModels, getOAuthProvider, type OAuthProviderId } from "@mariozechner
 
 import { AuthStore } from "../auth/store.js";
 import { promptConfirm, promptInput, promptSelect } from "./prompts.js";
-import { ConnectorRegistry } from "../engine/connectors/registry.js";
+import { ConnectorRegistry, ImageGenerationRegistry, InferenceRegistry, ToolResolver } from "../engine/modules.js";
 import { FileStore } from "../files/store.js";
-import { ImageGenerationRegistry } from "../engine/images/registry.js";
-import { InferenceRegistry } from "../engine/inference/registry.js";
-import { ToolRegistry } from "../engine/tools/registry.js";
 import { PluginManager } from "../engine/plugins/manager.js";
 import { buildPluginCatalog } from "../engine/plugins/catalog.js";
 import { PluginEventQueue } from "../engine/plugins/events.js";
@@ -474,7 +471,7 @@ async function validatePluginLoad(
   });
   const inferenceRegistry = new InferenceRegistry();
   const imageRegistry = new ImageGenerationRegistry();
-  const toolRegistry = new ToolRegistry();
+  const toolRegistry = new ToolResolver();
   const pluginRegistry = new PluginRegistry(
     connectorRegistry,
     inferenceRegistry,

@@ -1,11 +1,8 @@
 import type { Connector } from "../connectors/types.js";
-import type { ConnectorRegistry } from "../connectors/registry.js";
+import type { ConnectorRegistry, ImageGenerationRegistry, InferenceRegistry, ToolResolver } from "../modules.js";
 import type { InferenceProvider } from "../inference/types.js";
-import type { InferenceRegistry } from "../inference/registry.js";
 import type { ImageGenerationProvider } from "../images/types.js";
-import type { ImageGenerationRegistry } from "../images/registry.js";
 import type { ToolDefinition } from "../tools/types.js";
-import type { ToolRegistry } from "../tools/registry.js";
 
 type PluginRegistrations = {
   connectors: Set<string>;
@@ -19,7 +16,7 @@ export class PluginRegistrar {
   private connectorRegistry: ConnectorRegistry;
   private inferenceRegistry: InferenceRegistry;
   private imageRegistry: ImageGenerationRegistry;
-  private toolRegistry: ToolRegistry;
+  private toolResolver: ToolResolver;
   private registrations: PluginRegistrations;
 
   constructor(
@@ -27,13 +24,13 @@ export class PluginRegistrar {
     connectorRegistry: ConnectorRegistry,
     inferenceRegistry: InferenceRegistry,
     imageRegistry: ImageGenerationRegistry,
-    toolRegistry: ToolRegistry
+    toolResolver: ToolResolver
   ) {
     this.pluginId = pluginId;
     this.connectorRegistry = connectorRegistry;
     this.inferenceRegistry = inferenceRegistry;
     this.imageRegistry = imageRegistry;
-    this.toolRegistry = toolRegistry;
+    this.toolResolver = toolResolver;
     this.registrations = {
       connectors: new Set(),
       providers: new Set(),
@@ -63,12 +60,12 @@ export class PluginRegistrar {
   }
 
   registerTool(definition: ToolDefinition): void {
-    this.toolRegistry.register(this.pluginId, definition);
+    this.toolResolver.register(this.pluginId, definition);
     this.registrations.tools.add(definition.tool.name);
   }
 
   unregisterTool(name: string): void {
-    this.toolRegistry.unregister(name);
+    this.toolResolver.unregister(name);
     this.registrations.tools.delete(name);
   }
 
@@ -93,7 +90,7 @@ export class PluginRegistrar {
       this.imageRegistry.unregister(id);
     }
     for (const name of this.registrations.tools) {
-      this.toolRegistry.unregister(name);
+      this.toolResolver.unregister(name);
     }
     this.registrations.connectors.clear();
     this.registrations.providers.clear();
@@ -106,18 +103,18 @@ export class PluginRegistry {
   private connectorRegistry: ConnectorRegistry;
   private inferenceRegistry: InferenceRegistry;
   private imageRegistry: ImageGenerationRegistry;
-  private toolRegistry: ToolRegistry;
+  private toolResolver: ToolResolver;
 
   constructor(
     connectorRegistry: ConnectorRegistry,
     inferenceRegistry: InferenceRegistry,
     imageRegistry: ImageGenerationRegistry,
-    toolRegistry: ToolRegistry
+    toolResolver: ToolResolver
   ) {
     this.connectorRegistry = connectorRegistry;
     this.inferenceRegistry = inferenceRegistry;
     this.imageRegistry = imageRegistry;
-    this.toolRegistry = toolRegistry;
+    this.toolResolver = toolResolver;
   }
 
   createRegistrar(pluginId: string): PluginRegistrar {
@@ -126,7 +123,7 @@ export class PluginRegistry {
       this.connectorRegistry,
       this.inferenceRegistry,
       this.imageRegistry,
-      this.toolRegistry
+      this.toolResolver
     );
   }
 }

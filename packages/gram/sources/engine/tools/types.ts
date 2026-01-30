@@ -3,7 +3,7 @@ import type { TSchema } from "@sinclair/typebox";
 
 import type { FileReference } from "../../files/types.js";
 import type { MessageContext } from "../connectors/types.js";
-import type { ConnectorRegistry } from "../connectors/registry.js";
+import type { ConnectorRegistry } from "../modules.js";
 import type { FileStore } from "../../files/store.js";
 import type { MemoryEngine } from "../memory/engine.js";
 import type { Session } from "../sessions/session.js";

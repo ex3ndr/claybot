@@ -3,13 +3,16 @@ import type { Context, ToolCall } from "@mariozechner/pi-ai";
 import { promises as fs } from "node:fs";
 
 import { getLogger } from "../log.js";
-import { ConnectorRegistry } from "./connectors/registry.js";
+import {
+  ConnectorRegistry,
+  ImageGenerationRegistry,
+  InferenceRegistry,
+  ToolResolver
+} from "./modules.js";
 import type { ConnectorMessage, MessageContext } from "./connectors/types.js";
 import { FileStore } from "../files/store.js";
 import type { FileReference } from "../files/types.js";
-import { InferenceRegistry } from "./inference/registry.js";
 import { InferenceRouter } from "./inference/router.js";
-import { ImageGenerationRegistry } from "./images/registry.js";
 import { MemoryEngine } from "./memory/engine.js";
 import { PluginRegistry } from "./plugins/registry.js";
 import { PluginEventEngine } from "./plugins/event-engine.js";
@@ -22,7 +25,6 @@ import { SessionManager } from "./sessions/manager.js";
 import { SessionStore } from "./sessions/store.js";
 import type { SessionMessage } from "./sessions/types.js";
 import { AuthStore } from "../auth/store.js";
-import { ToolRegistry } from "./tools/registry.js";
 import { buildCronTool } from "./tools/cron.js";
 import { buildMemoryTool } from "./tools/memory.js";
 import { buildImageGenerationTool } from "./tools/image-generation.js";
@@ -37,14 +39,14 @@ type SessionState = {
   context: Context;
 };
 
-export type EngineRuntimeOptions = {
+export type EngineOptions = {
   settings: SettingsConfig;
   dataDir: string;
   authPath: string;
   eventBus: EngineEventBus;
 };
 
-export class EngineRuntime {
+export class Engine {
   private settings: SettingsConfig;
   private dataDir: string;
   private authStore: AuthStore;
@@ -52,7 +54,7 @@ export class EngineRuntime {
   private connectorRegistry: ConnectorRegistry;
   private inferenceRegistry: InferenceRegistry;
   private imageRegistry: ImageGenerationRegistry;
-  private toolRegistry: ToolRegistry;
+  private toolResolver: ToolResolver;
   private pluginRegistry: PluginRegistry;
   private pluginManager: PluginManager;
   private pluginEventQueue: PluginEventQueue;
@@ -64,7 +66,7 @@ export class EngineRuntime {
   private inferenceRouter: InferenceRouter;
   private eventBus: EngineEventBus;
 
-  constructor(options: EngineRuntimeOptions) {
+  constructor(options: EngineOptions) {
     this.settings = options.settings;
     this.dataDir = options.dataDir;
     this.eventBus = options.eventBus;
@@ -88,13 +90,13 @@ export class EngineRuntime {
 
     this.inferenceRegistry = new InferenceRegistry();
     this.imageRegistry = new ImageGenerationRegistry();
-    this.toolRegistry = new ToolRegistry();
+    this.toolResolver = new ToolResolver();
 
     this.pluginRegistry = new PluginRegistry(
       this.connectorRegistry,
       this.inferenceRegistry,
       this.imageRegistry,
-      this.toolRegistry
+      this.toolResolver
     );
 
     this.pluginManager = new PluginManager({
@@ -245,15 +247,15 @@ export class EngineRuntime {
       }
     });
 
-    this.toolRegistry.register(
+    this.toolResolver.register(
       "core",
       buildCronTool(this.cron, (task) => {
         this.eventBus.emit("cron.task.added", { task });
       })
     );
-    this.toolRegistry.register("core", buildMemoryTool(this.memoryEngine));
-    this.toolRegistry.register("core", buildImageGenerationTool(this.imageRegistry));
-    this.toolRegistry.register("core", buildReactionTool());
+    this.toolResolver.register("core", buildMemoryTool(this.memoryEngine));
+    this.toolResolver.register("core", buildImageGenerationTool(this.imageRegistry));
+    this.toolResolver.register("core", buildReactionTool());
 
     await this.restoreSessions();
 
@@ -282,7 +284,7 @@ export class EngineRuntime {
         id: provider.id,
         label: provider.label
       })),
-      tools: this.toolRegistry.listTools().map((tool) => tool.name)
+      tools: this.toolResolver.listTools().map((tool) => tool.name)
     };
   }
 
@@ -401,7 +403,7 @@ export class EngineRuntime {
     const sessionContext = session.context.state.context;
     const context: Context = {
       ...sessionContext,
-      tools: this.toolRegistry.listTools()
+      tools: this.toolResolver.listTools()
     };
 
     const userMessage = await buildUserMessage(entry);
@@ -449,7 +451,7 @@ export class EngineRuntime {
         }
 
         for (const toolCall of toolCalls) {
-          const toolResult = await this.toolRegistry.execute(toolCall, {
+          const toolResult = await this.toolResolver.execute(toolCall, {
             connectorRegistry: this.connectorRegistry,
             fileStore: this.fileStore,
             memory: this.memoryEngine,
