@@ -1,5 +1,7 @@
 import http from "node:http";
 
+import { resolveEngineSocketPath } from "./socket.js";
+
 export type SocketResponse = {
   statusCode: number;
   body: string;
@@ -44,4 +46,52 @@ export function requestSocket(options: SocketRequestOptions): Promise<SocketResp
 
     request.end();
   });
+}
+
+type LoadPluginOptions = {
+  pluginId?: string;
+  instanceId?: string;
+  settings?: Record<string, unknown>;
+};
+
+export async function setAuth(id: string, key: string, value: string): Promise<void> {
+  const socketPath = resolveEngineSocketPath();
+  const response = await requestSocket({
+    socketPath,
+    path: "/v1/engine/auth",
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, key, value })
+  });
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw new Error(response.body);
+  }
+}
+
+export async function loadPlugin(options: LoadPluginOptions): Promise<void> {
+  const socketPath = resolveEngineSocketPath();
+  const response = await requestSocket({
+    socketPath,
+    path: "/v1/engine/plugins/load",
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(options)
+  });
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw new Error(response.body);
+  }
+}
+
+export async function unloadPlugin(instanceId: string): Promise<void> {
+  const socketPath = resolveEngineSocketPath();
+  const response = await requestSocket({
+    socketPath,
+    path: "/v1/engine/plugins/unload",
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ instanceId })
+  });
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw new Error(response.body);
+  }
 }
