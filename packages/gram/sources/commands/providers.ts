@@ -32,16 +32,21 @@ export async function setDefaultProviderCommand(
 
   const connected = await fetchConnectedProviders(settings);
   if (!connected) {
-    outro("Engine not running. Start the engine to list connected providers.");
+    console.log("Engine not running; using configured providers.");
+  }
+
+  const configuredProviders = listProviders(settings).filter(
+    (provider) => provider.enabled !== false
+  );
+  const providers: ConnectedProvider[] =
+    connected ?? configuredProviders.map((provider) => ({ id: provider.id }));
+
+  if (providers.length === 0) {
+    outro(connected ? "No connected providers." : "No configured providers.");
     return;
   }
 
-  if (connected.length === 0) {
-    outro("No connected providers.");
-    return;
-  }
-
-  const choices = connected.map((provider) => {
+  const choices = providers.map((provider) => {
     const definition = getProviderDefinition(provider.id);
     return {
       value: provider.id,
