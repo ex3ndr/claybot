@@ -31,7 +31,13 @@ export const PROVIDER_DEFINITIONS: ProviderDefinition[] = [
   { id: "groq", label: "Groq", auth: "apiKey", kind: "pi-ai" },
   { id: "xai", label: "xAI", auth: "apiKey", kind: "pi-ai" },
   { id: "amazon-bedrock", label: "Amazon Bedrock", auth: "none", kind: "pi-ai" },
-  { id: "google-vertex", label: "Vertex AI", auth: "none", kind: "pi-ai" }
+  { id: "google-vertex", label: "Vertex AI", auth: "none", kind: "pi-ai" },
+  {
+    id: "vercel-ai-gateway",
+    label: "Vercel AI Gateway",
+    auth: "apiKey",
+    kind: "pi-ai"
+  }
 ];
 
 export function getProviderDefinition(id: string): ProviderDefinition | null {
