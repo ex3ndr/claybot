@@ -52,6 +52,7 @@ export class TelegramConnector implements Connector {
   private onFatal?: TelegramConnectorOptions["onFatal"];
 
   constructor(options: TelegramConnectorOptions) {
+    logger.debug({ polling: options.polling, clearWebhook: options.clearWebhook, dataDir: options.dataDir }, "[VERBOSE] TelegramConnector constructor");
     this.pollingEnabled = options.polling ?? true;
     this.clearWebhookOnStart = options.clearWebhook ?? true;
     this.retryOptions = options.retry;
@@ -63,17 +64,25 @@ export class TelegramConnector implements Connector {
     if (this.statePath) {
       this.statePath = path.resolve(this.statePath);
     }
+    logger.debug({ statePath: this.statePath, pollingEnabled: this.pollingEnabled }, "[VERBOSE] State path configured");
 
     this.bot = new TelegramBot(options.token, { polling: false });
+    logger.debug("[VERBOSE] TelegramBot instance created");
 
     const originalProcessUpdate = this.bot.processUpdate.bind(this.bot);
     this.bot.processUpdate = (update: TelegramBot.Update) => {
+      logger.debug({ updateId: update.update_id }, "[VERBOSE] Processing Telegram update");
       this.trackUpdate(update);
       return originalProcessUpdate(update);
     };
 
     this.bot.on("message", async (message) => {
+      logger.debug(
+        { chatId: message.chat.id, fromId: message.from?.id, messageId: message.message_id, hasText: !!message.text, hasCaption: !!message.caption, hasPhoto: !!message.photo, hasDocument: !!message.document },
+        "[VERBOSE] Received Telegram message"
+      );
       const files = await this.extractFiles(message);
+      logger.debug({ fileCount: files.length }, "[VERBOSE] Extracted files from message");
       const payload: ConnectorMessage = {
         text: typeof message.text === "string" ? message.text : message.caption ?? null,
         files: files.length > 0 ? files : undefined
@@ -85,9 +94,11 @@ export class TelegramConnector implements Connector {
         messageId: message.message_id ? String(message.message_id) : undefined
       };
 
+      logger.debug({ handlerCount: this.handlers.length, channelId: context.channelId }, "[VERBOSE] Dispatching to handlers");
       for (const handler of this.handlers) {
         await handler(payload, context);
       }
+      logger.debug({ channelId: context.channelId }, "[VERBOSE] All handlers completed");
     });
 
     this.bot.on("polling_error", (error) => {
@@ -115,22 +126,32 @@ export class TelegramConnector implements Connector {
   }
 
   async sendMessage(targetId: string, message: ConnectorMessage): Promise<void> {
+    logger.debug(
+      { targetId, hasText: !!message.text, textLength: message.text?.length ?? 0, fileCount: message.files?.length ?? 0, replyTo: message.replyToMessageId },
+      "[VERBOSE] sendMessage() called"
+    );
     const files = message.files ?? [];
     if (files.length === 0) {
-      await this.bot.sendMessage(targetId, message.text ?? "");
+      logger.debug({ targetId }, "[VERBOSE] Sending text-only message");
+      await this.bot.sendMessage(targetId, message.text ?? "", buildReplyOptions(message));
+      logger.debug({ targetId }, "[VERBOSE] Text message sent");
       return;
     }
 
     const first = files[0];
     if (!first) {
+      logger.debug("[VERBOSE] No first file found, returning");
       return;
     }
     const rest = files.slice(1);
     const caption = message.text ?? undefined;
-    await this.sendFile(targetId, first, caption);
+    logger.debug({ targetId, fileName: first.name, mimeType: first.mimeType, hasCaption: !!caption }, "[VERBOSE] Sending first file");
+    await this.sendFile(targetId, first, caption, buildReplyOptions(message));
     for (const file of rest) {
+      logger.debug({ targetId, fileName: file.name, mimeType: file.mimeType }, "[VERBOSE] Sending additional file");
       await this.sendFile(targetId, file);
     }
+    logger.debug({ targetId, totalFiles: files.length }, "[VERBOSE] All files sent");
   }
 
   startTyping(targetId: string): () => void {
@@ -170,23 +191,34 @@ export class TelegramConnector implements Connector {
   private async sendFile(
     targetId: string,
     file: FileReference,
-    caption?: string
+    caption?: string,
+    replyOptions?: TelegramBot.SendMessageOptions
   ): Promise<void> {
+    const options = replyOptions && caption
+      ? { ...replyOptions, caption }
+      : caption
+        ? { caption }
+        : replyOptions;
     if (file.mimeType.startsWith("image/")) {
-      await this.bot.sendPhoto(targetId, file.path, caption ? { caption } : undefined);
+      await this.bot.sendPhoto(targetId, file.path, options as TelegramBot.SendPhotoOptions | undefined);
       return;
     }
-    await this.bot.sendDocument(targetId, file.path, caption ? { caption } : undefined);
+    await this.bot.sendDocument(targetId, file.path, options as TelegramBot.SendDocumentOptions | undefined);
   }
 
   private async initialize(): Promise<void> {
+    logger.debug({ pollingEnabled: this.pollingEnabled, clearWebhookOnStart: this.clearWebhookOnStart }, "[VERBOSE] initialize() starting");
     if (this.pollingEnabled && this.clearWebhookOnStart) {
+      logger.debug("[VERBOSE] Clearing webhook before polling");
       await this.ensureWebhookCleared();
     }
+    logger.debug("[VERBOSE] Loading state");
     await this.loadState();
     if (this.pollingEnabled) {
+      logger.debug("[VERBOSE] Starting polling");
       await this.startPolling();
     }
+    logger.debug("[VERBOSE] initialize() complete");
   }
 
   private trackUpdate(update: TelegramBot.Update): void {
@@ -248,11 +280,14 @@ export class TelegramConnector implements Connector {
   }
 
   private async startPolling(): Promise<void> {
+    logger.debug({ pollingEnabled: this.pollingEnabled, isPolling: this.bot.isPolling() }, "[VERBOSE] startPolling() called");
     if (!this.pollingEnabled) {
+      logger.debug("[VERBOSE] Polling disabled, returning");
       return;
     }
 
     if (this.bot.isPolling()) {
+      logger.debug("[VERBOSE] Already polling, returning");
       return;
     }
 
@@ -265,15 +300,19 @@ export class TelegramConnector implements Connector {
       pollingOptions.params = {
         offset: this.lastUpdateId + 1
       };
+      logger.debug({ offset: this.lastUpdateId + 1 }, "[VERBOSE] Resuming from last update ID");
     }
 
     try {
+      logger.debug("[VERBOSE] Starting Telegram polling");
       await this.bot.startPolling({
         restart: true,
         polling: pollingOptions
       });
       this.retryAttempt = 0;
+      logger.debug("[VERBOSE] Telegram polling started successfully");
     } catch (error) {
+      logger.debug({ error: String(error) }, "[VERBOSE] Polling start failed, scheduling retry");
       this.scheduleRetry(error);
     }
   }
@@ -367,33 +406,43 @@ export class TelegramConnector implements Connector {
   }
 
   async shutdown(reason: string = "shutdown"): Promise<void> {
+    logger.debug({ reason, alreadyShuttingDown: this.shuttingDown }, "[VERBOSE] shutdown() called");
     if (this.shuttingDown) {
+      logger.debug("[VERBOSE] Already shutting down, returning");
       return;
     }
 
     this.shuttingDown = true;
+    logger.debug("[VERBOSE] Beginning shutdown sequence");
 
     if (this.pendingRetry) {
+      logger.debug("[VERBOSE] Clearing pending retry timer");
       clearTimeout(this.pendingRetry);
       this.pendingRetry = null;
     }
 
     if (this.persistTimer) {
+      logger.debug("[VERBOSE] Clearing persist timer");
       clearTimeout(this.persistTimer);
       this.persistTimer = null;
     }
+    logger.debug({ typingTimerCount: this.typingTimers.size }, "[VERBOSE] Clearing typing timers");
     for (const timer of this.typingTimers.values()) {
       clearInterval(timer);
     }
     this.typingTimers.clear();
 
     try {
+      logger.debug("[VERBOSE] Stopping polling");
       await this.bot.stopPolling({ cancel: true, reason });
+      logger.debug("[VERBOSE] Polling stopped");
     } catch (error) {
       logger.warn({ error }, "Telegram polling stop failed");
     }
 
+    logger.debug("[VERBOSE] Persisting state");
     await this.persistState();
+    logger.debug("[VERBOSE] Shutdown complete");
   }
 
   private async stopPolling(reason: string): Promise<void> {
@@ -501,4 +550,18 @@ function isTelegramConflictError(error: unknown): boolean {
 
   const status = maybe.response?.statusCode ?? maybe.response?.body?.error_code;
   return maybe.code === "ETELEGRAM" && status === 409;
+}
+
+function buildReplyOptions(message: ConnectorMessage): TelegramBot.SendMessageOptions | undefined {
+  if (!message.replyToMessageId) {
+    return undefined;
+  }
+  const replyTo = Number(message.replyToMessageId);
+  if (!Number.isFinite(replyTo)) {
+    return undefined;
+  }
+  return {
+    reply_to_message_id: replyTo,
+    allow_sending_without_reply: true
+  };
 }

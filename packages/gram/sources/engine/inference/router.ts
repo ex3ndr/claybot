@@ -31,9 +31,14 @@ export class InferenceRouter {
     this.providers = options.providers;
     this.registry = options.registry;
     this.auth = options.auth;
+    this.logger.debug({ providerCount: options.providers.length }, "[VERBOSE] InferenceRouter initialized");
   }
 
   updateProviders(providers: ProviderSettings[]): void {
+    this.logger.debug(
+      { oldCount: this.providers.length, newCount: providers.length, providerIds: providers.map(p => p.id) },
+      "[VERBOSE] Updating providers"
+    );
     this.providers = providers;
   }
 
@@ -42,24 +47,37 @@ export class InferenceRouter {
     sessionId: string,
     options?: Omit<InferenceRouterOptions, "providers" | "registry" | "auth">
   ): Promise<InferenceResult> {
+    this.logger.debug(
+      { sessionId, messageCount: context.messages.length, toolCount: context.tools?.length ?? 0, providerCount: this.providers.length },
+      "[VERBOSE] InferenceRouter.complete() starting"
+    );
     let lastError: unknown = null;
 
-    for (const providerConfig of this.providers) {
+    for (const [index, providerConfig] of this.providers.entries()) {
+      this.logger.debug(
+        { providerIndex: index, providerId: providerConfig.id, model: providerConfig.model },
+        "[VERBOSE] Trying provider"
+      );
+
       const provider = this.registry.get(providerConfig.id);
       if (!provider) {
         this.logger.warn({ provider: providerConfig.id }, "Missing inference provider");
+        this.logger.debug({ providerId: providerConfig.id }, "[VERBOSE] Provider not found in registry, skipping");
         continue;
       }
 
       let client;
       try {
+        this.logger.debug({ providerId: providerConfig.id, model: providerConfig.model }, "[VERBOSE] Creating inference client");
         client = await provider.createClient({
           model: providerConfig.model,
           config: providerConfig.options,
           auth: this.auth,
           logger: this.logger
         });
+        this.logger.debug({ providerId: providerConfig.id, modelId: client.modelId }, "[VERBOSE] Inference client created");
       } catch (error) {
+        this.logger.debug({ providerId: providerConfig.id, error: String(error) }, "[VERBOSE] Failed to create client, falling back");
         lastError = error;
         options?.onFallback?.(providerConfig.id, error);
         continue;
@@ -67,15 +85,32 @@ export class InferenceRouter {
 
       options?.onAttempt?.(providerConfig.id, client.modelId);
       try {
+        this.logger.debug(
+          { providerId: providerConfig.id, modelId: client.modelId, sessionId },
+          "[VERBOSE] Calling client.complete()"
+        );
         const message = await client.complete(context, { sessionId });
+        this.logger.debug(
+          {
+            providerId: providerConfig.id,
+            modelId: client.modelId,
+            stopReason: message.stopReason,
+            contentBlocks: message.content.length,
+            inputTokens: message.usage?.input,
+            outputTokens: message.usage?.output
+          },
+          "[VERBOSE] Inference completed successfully"
+        );
         options?.onSuccess?.(providerConfig.id, client.modelId, message);
         return { message, providerId: providerConfig.id, modelId: client.modelId };
       } catch (error) {
+        this.logger.debug({ providerId: providerConfig.id, error: String(error) }, "[VERBOSE] Inference call failed");
         options?.onFailure?.(providerConfig.id, error);
         throw error;
       }
     }
 
+    this.logger.debug({ lastError: String(lastError) }, "[VERBOSE] All providers exhausted");
     if (lastError instanceof Error) {
       throw lastError;
     }
