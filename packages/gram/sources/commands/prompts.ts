@@ -27,9 +27,14 @@ type PromptResult<TValue> = {
 };
 
 const CANCEL_ERROR_NAMES = new Set(["CancelError", "ExitPromptError", "AbortError"]);
+const CANCEL_ERROR_CODES = new Set(["ERR_USE_AFTER_CLOSE"]);
 
 function isPromptCancelled(error: unknown): boolean {
-  return error instanceof Error && CANCEL_ERROR_NAMES.has(error.name);
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  const code = (error as Error & { code?: string }).code;
+  return CANCEL_ERROR_NAMES.has(error.name) || (code ? CANCEL_ERROR_CODES.has(code) : false);
 }
 
 const { prompt } = Enquirer;
