@@ -7,7 +7,12 @@ import { z } from "zod";
 import { getLogger } from "../log.js";
 import { resolveEngineSocketPath } from "./socket.js";
 import type { EngineRuntime } from "./runtime.js";
-import { readSettingsFile, updateSettingsFile, upsertPlugin } from "../settings.js";
+import {
+  listPlugins,
+  readSettingsFile,
+  updateSettingsFile,
+  upsertPlugin
+} from "../settings.js";
 import type { EngineEventBus } from "./events.js";
 
 export type EngineServerOptions = {
@@ -22,8 +27,15 @@ export type EngineServer = {
   close: () => Promise<void>;
 };
 
-const pluginSchema = z.object({
-  id: z.string().min(1)
+const pluginLoadSchema = z.object({
+  pluginId: z.string().min(1).optional(),
+  instanceId: z.string().min(1).optional(),
+  id: z.string().min(1).optional(),
+  settings: z.record(z.unknown()).optional()
+});
+const pluginUnloadSchema = z.object({
+  instanceId: z.string().min(1).optional(),
+  id: z.string().min(1).optional()
 });
 const secretSchema = z.object({
   pluginId: z.string().min(1),
@@ -78,53 +90,80 @@ export async function startEngineServer(
     return reply.send({
       ok: true,
       loaded: options.runtime.getPluginManager().listLoaded(),
-      configured: settings.plugins ?? []
+      configured: listPlugins(settings)
     });
   });
 
   app.post("/v1/engine/plugins/load", async (request, reply) => {
-    const payload = parseBody(pluginSchema, request.body, reply);
+    const payload = parseBody(pluginLoadSchema, request.body, reply);
     if (!payload) {
       return;
     }
 
+    const pluginId = payload.pluginId ?? payload.id ?? payload.instanceId;
+    const instanceId = payload.instanceId ?? payload.id ?? pluginId;
+    if (!pluginId || !instanceId) {
+      reply.status(400).send({ error: "pluginId or instanceId required" });
+      return;
+    }
+
     const settings = await updateSettingsFile(options.settingsPath, (current) => {
-      const existing = current.plugins?.find((plugin) => plugin.id === payload.id);
-      const config = existing ?? { id: payload.id, enabled: true };
+      const existing = listPlugins(current).find(
+        (plugin) => plugin.instanceId === instanceId
+      );
+      const config = existing ?? {
+        instanceId,
+        pluginId,
+        enabled: true
+      };
       return {
         ...current,
         plugins: upsertPlugin(current.plugins, {
           ...config,
-          enabled: true
+          enabled: true,
+          settings: payload.settings ?? config.settings
         })
       };
     });
 
     options.runtime.updateSettings(settings);
-    await options.runtime.getPluginManager().load({
-      id: payload.id,
-      enabled: true,
-      config: settings.plugins?.find((plugin) => plugin.id === payload.id)?.config
-    });
+    const config = listPlugins(settings).find(
+      (plugin) => plugin.instanceId === instanceId
+    );
+    if (config) {
+      await options.runtime.getPluginManager().load(config);
+    }
 
-    options.eventBus.emit("plugin.loaded", { id: payload.id });
+    options.eventBus.emit("plugin.loaded", { id: instanceId });
     return reply.send({ ok: true });
   });
 
   app.post("/v1/engine/plugins/unload", async (request, reply) => {
-    const payload = parseBody(pluginSchema, request.body, reply);
+    const payload = parseBody(pluginUnloadSchema, request.body, reply);
     if (!payload) {
+      return;
+    }
+
+    const instanceId = payload.instanceId ?? payload.id;
+    if (!instanceId) {
+      reply.status(400).send({ error: "instanceId required" });
       return;
     }
 
     const settings = await updateSettingsFile(options.settingsPath, (current) => ({
       ...current,
-      plugins: upsertPlugin(current.plugins, { id: payload.id, enabled: false })
+      plugins: upsertPlugin(current.plugins, {
+        ...(listPlugins(current).find((plugin) => plugin.instanceId === instanceId) ?? {
+          instanceId,
+          pluginId: instanceId
+        }),
+        enabled: false
+      })
     }));
 
     options.runtime.updateSettings(settings);
-    await options.runtime.getPluginManager().unload(payload.id);
-    options.eventBus.emit("plugin.unloaded", { id: payload.id });
+    await options.runtime.getPluginManager().unload(instanceId);
+    options.eventBus.emit("plugin.unloaded", { id: instanceId });
     return reply.send({ ok: true });
   });
 

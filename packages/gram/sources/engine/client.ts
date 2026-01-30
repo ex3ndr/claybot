@@ -1,7 +1,12 @@
 import http from "node:http";
 import { promises as fs } from "node:fs";
 
-import { DEFAULT_SETTINGS_PATH, updateSettingsFile, upsertPlugin } from "../settings.js";
+import {
+  DEFAULT_SETTINGS_PATH,
+  listPlugins,
+  updateSettingsFile,
+  upsertPlugin
+} from "../settings.js";
 import { DEFAULT_SECRETS_PATH, SecretsStore } from "../secrets/store.js";
 import { resolveEngineSocketPath, resolveRemoteEngineUrl } from "./socket.js";
 
@@ -17,38 +22,63 @@ export type EngineClientOptions = {
 
 const DEFAULT_TIMEOUT_MS = 1500;
 
+export type PluginInstallPayload = {
+  pluginId: string;
+  instanceId?: string;
+  settings?: Record<string, unknown>;
+};
+
 export async function loadPlugin(
-  id: string,
+  payload: PluginInstallPayload,
   options: EngineClientOptions = {}
 ): Promise<EngineWriteResult> {
+  const instanceId = payload.instanceId ?? payload.pluginId;
   return writeEngineMutation({
     options,
     endpoint: "/v1/engine/plugins/load",
     method: "POST",
-    payload: { id },
+    payload: { ...payload, instanceId },
     applyLocal: async () => {
-      await updateSettingsFile(DEFAULT_SETTINGS_PATH, (settings) => ({
-        ...settings,
-        plugins: upsertPlugin(settings.plugins, { id, enabled: true })
-      }));
+      await updateSettingsFile(DEFAULT_SETTINGS_PATH, (settings) => {
+        const existing = listPlugins(settings).find(
+          (plugin) => plugin.instanceId === instanceId
+        );
+        return {
+          ...settings,
+          plugins: upsertPlugin(settings.plugins, {
+            instanceId,
+            pluginId: payload.pluginId,
+            enabled: true,
+            settings: payload.settings ?? existing?.settings
+          })
+        };
+      });
     }
   });
 }
 
 export async function unloadPlugin(
-  id: string,
+  instanceId: string,
   options: EngineClientOptions = {}
 ): Promise<EngineWriteResult> {
   return writeEngineMutation({
     options,
     endpoint: "/v1/engine/plugins/unload",
     method: "POST",
-    payload: { id },
+    payload: { instanceId },
     applyLocal: async () => {
-      await updateSettingsFile(DEFAULT_SETTINGS_PATH, (settings) => ({
-        ...settings,
-        plugins: upsertPlugin(settings.plugins, { id, enabled: false })
-      }));
+      await updateSettingsFile(DEFAULT_SETTINGS_PATH, (settings) => {
+        const existing = listPlugins(settings).find(
+          (plugin) => plugin.instanceId === instanceId
+        );
+        if (!existing) {
+          return settings;
+        }
+        return {
+          ...settings,
+          plugins: upsertPlugin(settings.plugins, { ...existing, enabled: false })
+        };
+      });
     }
   });
 }

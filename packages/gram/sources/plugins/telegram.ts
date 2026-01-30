@@ -1,38 +1,59 @@
 import path from "node:path";
+
+import { z } from "zod";
+
 import { TelegramConnector, type TelegramConnectorOptions } from "../connectors/telegram.js";
-import type { Plugin } from "./types.js";
+import { definePlugin } from "./types.js";
+
+const settingsSchema = z
+  .object({
+    polling: z.boolean().optional(),
+    clearWebhook: z.boolean().optional(),
+    statePath: z.string().nullable().optional(),
+    retry: z
+      .object({
+        minDelayMs: z.number().optional(),
+        maxDelayMs: z.number().optional(),
+        factor: z.number().optional(),
+        jitter: z.number().optional()
+      })
+      .optional()
+  })
+  .passthrough();
 
 type TelegramPluginConfig = Omit<TelegramConnectorOptions, "token" | "fileStore" | "dataDir">;
 
-export function createTelegramPlugin(): Plugin {
-  return {
-    id: "telegram",
-    kind: "connector",
-    load: async (context) => {
-      const token = await context.secrets.get("telegram", "token");
-      if (!token) {
-        throw new Error("Missing telegram token in secrets store");
-      }
-      const config = (context.config.config ?? {}) as TelegramPluginConfig;
-      const statePath =
-        config.statePath === undefined
-          ? path.join(context.dataDir, "telegram-offset.json")
-          : config.statePath;
-      const connector = new TelegramConnector({
-        ...config,
-        statePath,
-        token,
-        fileStore: context.fileStore,
-        dataDir: context.dataDir,
-        enableGracefulShutdown: false,
-        onFatal: (reason, error) => {
-          context.logger.warn({ reason, error }, "Telegram connector fatal");
+export const plugin = definePlugin({
+  settingsSchema,
+  create: (api) => {
+    const connectorId = api.instance.instanceId;
+    return {
+      load: async () => {
+        const token = await api.secrets.get(connectorId, "token");
+        if (!token) {
+          throw new Error("Missing telegram token in secrets store");
         }
-      });
-      context.registrar.registerConnector("telegram", connector);
-    },
-    unload: async (context) => {
-      await context.registrar.unregisterConnector("telegram");
-    }
-  };
-}
+        const config = api.settings as TelegramPluginConfig;
+        const statePath =
+          config.statePath === undefined
+            ? path.join(api.dataDir, "telegram-offset.json")
+            : config.statePath;
+        const connector = new TelegramConnector({
+          ...config,
+          statePath,
+          token,
+          fileStore: api.fileStore,
+          dataDir: api.dataDir,
+          enableGracefulShutdown: false,
+          onFatal: (reason, error) => {
+            api.logger.warn({ reason, error }, "Telegram connector fatal");
+          }
+        });
+        api.registrar.registerConnector(connectorId, connector);
+      },
+      unload: async () => {
+        await api.registrar.unregisterConnector(connectorId);
+      }
+    };
+  }
+});
