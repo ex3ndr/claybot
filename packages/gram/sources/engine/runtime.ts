@@ -3,36 +3,32 @@ import type { Context, ToolCall } from "@mariozechner/pi-ai";
 import { promises as fs } from "node:fs";
 
 import { getLogger } from "../log.js";
-import { ConnectorRegistry } from "../connectors/registry.js";
-import type { ConnectorMessage, MessageContext } from "../connectors/types.js";
+import { ConnectorRegistry } from "./connectors/registry.js";
+import type { ConnectorMessage, MessageContext } from "./connectors/types.js";
 import { FileStore } from "../files/store.js";
 import type { FileReference } from "../files/types.js";
-import { InferenceRegistry } from "../inference/registry.js";
-import { InferenceRouter } from "../inference/router.js";
-import { ImageGenerationRegistry } from "../images/registry.js";
-import { MemoryEngine } from "../memory/engine.js";
-import { PluginRegistry } from "../plugins/registry.js";
-import { PluginEventEngine } from "../plugins/event-engine.js";
-import { PluginEventQueue } from "../plugins/events.js";
-import { PluginManager } from "../plugins/manager.js";
-import { buildPluginCatalog } from "../plugins/catalog.js";
+import { InferenceRegistry } from "./inference/registry.js";
+import { InferenceRouter } from "./inference/router.js";
+import { ImageGenerationRegistry } from "./images/registry.js";
+import { MemoryEngine } from "./memory/engine.js";
+import { PluginRegistry } from "./plugins/registry.js";
+import { PluginEventEngine } from "./plugins/event-engine.js";
+import { PluginEventQueue } from "./plugins/events.js";
+import { PluginManager } from "./plugins/manager.js";
+import { buildPluginCatalog } from "./plugins/catalog.js";
 import type { SettingsConfig } from "../settings.js";
 import { listInferenceProviders } from "../settings.js";
-import { SessionManager } from "../sessions/manager.js";
-import { SessionStore } from "../sessions/store.js";
-import type { SessionMessage } from "../sessions/types.js";
+import { SessionManager } from "./sessions/manager.js";
+import { SessionStore } from "./sessions/store.js";
+import type { SessionMessage } from "./sessions/types.js";
 import { AuthStore } from "../auth/store.js";
-import { ToolRegistry } from "../tools/registry.js";
-import { buildCronTool } from "../tools/cron.js";
-import { buildMemoryTool } from "../tools/memory.js";
-import { buildImageGenerationTool } from "../tools/image-generation.js";
-import { buildReactionTool } from "../tools/reaction.js";
-import { buildPm2Tool } from "../tools/pm2.js";
-import { buildDockerRunTool } from "../tools/docker.js";
+import { ToolRegistry } from "./tools/registry.js";
+import { buildCronTool } from "./tools/cron.js";
+import { buildMemoryTool } from "./tools/memory.js";
+import { buildImageGenerationTool } from "./tools/image-generation.js";
+import { buildReactionTool } from "./tools/reaction.js";
 import { CronScheduler } from "../modules/runtime/cron.js";
-import { EngineEventBus } from "./events.js";
-import type { Pm2Runtime } from "../modules/runtime/pm2.js";
-import type { DockerRuntime } from "../modules/runtime/containers.js";
+import { EngineEventBus } from "./ipc/events.js";
 
 const logger = getLogger("engine.runtime");
 const MAX_TOOL_ITERATIONS = 5;
@@ -67,8 +63,6 @@ export class EngineRuntime {
   private cron: CronScheduler | null = null;
   private inferenceRouter: InferenceRouter;
   private eventBus: EngineEventBus;
-  private pm2Runtime: Pm2Runtime | null = null;
-  private dockerRuntime: DockerRuntime | null = null;
 
   constructor(options: EngineRuntimeOptions) {
     this.settings = options.settings;
@@ -260,8 +254,6 @@ export class EngineRuntime {
     this.toolRegistry.register("core", buildMemoryTool(this.memoryEngine));
     this.toolRegistry.register("core", buildImageGenerationTool(this.imageRegistry));
     this.toolRegistry.register("core", buildReactionTool());
-    this.toolRegistry.register("core", buildPm2Tool());
-    this.toolRegistry.register("core", buildDockerRunTool());
 
     await this.restoreSessions();
 
@@ -330,13 +322,6 @@ export class EngineRuntime {
     return this.inferenceRouter;
   }
 
-  setPm2Runtime(runtime: Pm2Runtime | null): void {
-    this.pm2Runtime = runtime;
-  }
-
-  setDockerRuntime(runtime: DockerRuntime | null): void {
-    this.dockerRuntime = runtime;
-  }
 
   async updateSettings(settings: SettingsConfig): Promise<void> {
     this.settings = settings;
@@ -401,7 +386,7 @@ export class EngineRuntime {
 
   private async handleSessionMessage(
     entry: SessionMessage,
-    session: import("../sessions/session.js").Session<SessionState>,
+    session: import("./sessions/session.js").Session<SessionState>,
     source: string
   ): Promise<void> {
     if (!entry.message.text && (!entry.message.files || entry.message.files.length === 0)) {
@@ -470,8 +455,6 @@ export class EngineRuntime {
             memory: this.memoryEngine,
             auth: this.authStore,
             logger,
-            pm2Runtime: this.pm2Runtime,
-            dockerRuntime: this.dockerRuntime,
             assistant: this.settings.assistant ?? null,
             session,
             source,
@@ -586,7 +569,7 @@ async function buildUserMessage(
 
 async function recordOutgoingEntry(
   sessionStore: SessionStore<SessionState>,
-  session: import("../sessions/session.js").Session<SessionState>,
+  session: import("./sessions/session.js").Session<SessionState>,
   source: string,
   context: MessageContext,
   text: string | null,
@@ -602,7 +585,7 @@ async function recordOutgoingEntry(
 
 async function recordSessionState(
   sessionStore: SessionStore<SessionState>,
-  session: import("../sessions/session.js").Session<SessionState>,
+  session: import("./sessions/session.js").Session<SessionState>,
   source: string
 ): Promise<void> {
   try {

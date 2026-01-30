@@ -1,6 +1,6 @@
 import http from "node:http";
 
-import { resolveEngineSocketPath } from "../engine/socket.js";
+import { resolveEngineSocketPath } from "../engine/ipc/socket.js";
 
 export async function statusCommand(): Promise<void> {
   intro("gram status");

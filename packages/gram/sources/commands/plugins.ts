@@ -1,4 +1,4 @@
-import { loadPlugin, unloadPlugin } from "../engine/client.js";
+import { loadPlugin, unloadPlugin } from "../engine/ipc/client.js";
 
 export async function loadPluginCommand(
   pluginId: string,

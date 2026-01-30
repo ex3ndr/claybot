@@ -1,0 +1,6 @@
+{
+  "id": "groq",
+  "name": "Groq",
+  "description": "Groq inference provider.",
+  "entry": "../../../plugins/pi-ai-provider.js"
+}

@@ -1,0 +1,6 @@
+{
+  "id": "cerebras",
+  "name": "Cerebras",
+  "description": "Cerebras inference provider.",
+  "entry": "../../../plugins/pi-ai-provider.js"
+}

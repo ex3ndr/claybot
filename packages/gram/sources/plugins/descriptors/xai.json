@@ -1,6 +1,0 @@
-{
-  "id": "xai",
-  "name": "xAI",
-  "description": "xAI inference provider.",
-  "entry": "../pi-ai-provider.js"
-}

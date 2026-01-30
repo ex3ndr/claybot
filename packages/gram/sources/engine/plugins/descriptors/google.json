@@ -1,0 +1,6 @@
+{
+  "id": "google",
+  "name": "Google",
+  "description": "Google inference provider.",
+  "entry": "../../../plugins/pi-ai-provider.js"
+}

@@ -12,7 +12,6 @@ flowchart TD
   Settings --> Plugins
   Settings --> Inference
   Settings --> Cron
-  Settings --> Runtime
 ```
 
 ## Sample `.scout/settings.json`
@@ -48,31 +47,9 @@ flowchart TD
       }
     ]
   },
-  "runtime": {
-    "pm2": {
-      "processes": [
-        {
-          "name": "worker",
-          "script": "dist/worker.js",
-          "args": ["--mode", "job"],
-          "autorestart": true
-        }
-      ]
-    },
-    "containers": {
-      "connection": { "socketPath": "/var/run/docker.sock" },
-      "containers": [{ "name": "redis", "action": "ensure-running" }]
-    }
-  },
   "memory": {
     "enabled": true,
     "maxEntries": 1000
-  },
-  "assistant": {
-    "workspaceDir": "/Users/you/workspace/grambot-project",
-    "containerWorkspacePath": "/workspace",
-    "allowedDockerImages": ["node:22-alpine", "python:3.12-slim"],
-    "allowedPm2Processes": ["worker", "api"]
   }
 }
 ```

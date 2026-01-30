@@ -1,0 +1,6 @@
+{
+  "id": "telegram",
+  "name": "Telegram",
+  "description": "Telegram connector and incoming message adapter.",
+  "entry": "../../../plugins/telegram.js"
+}

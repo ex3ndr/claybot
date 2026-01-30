@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { select } from "@inquirer/prompts";
+import { promptSelect } from "./prompts.js";
 
 import {
   DEFAULT_SETTINGS_PATH,
@@ -9,8 +9,8 @@ import {
   removePlugin,
   updateSettingsFile
 } from "../settings.js";
-import { PROVIDER_DEFINITIONS } from "../plugins/providers.js";
-import { buildPluginCatalog } from "../plugins/catalog.js";
+import { PROVIDER_DEFINITIONS } from "../engine/plugins/providers.js";
+import { buildPluginCatalog } from "../engine/plugins/catalog.js";
 
 export type RemoveOptions = {
   settings?: string;
@@ -80,12 +80,10 @@ export async function removeCommand(options: RemoveOptions): Promise<void> {
     return;
   }
 
-  const selection = await promptValue(
-    select({
-      message: "Select a provider or plugin to remove",
-      choices
-    })
-  );
+  const selection = await promptSelect({
+    message: "Select a provider or plugin to remove",
+    choices
+  });
 
   if (selection === null) {
     outro("Cancelled.");
@@ -143,21 +141,6 @@ export async function removeCommand(options: RemoveOptions): Promise<void> {
     outro(
       `Removed ${plugin.label} (${plugin.instanceId}). Restart the engine to apply changes.`
     );
-  }
-}
-
-function isPromptCancelled(error: unknown): boolean {
-  return error instanceof Error && error.name === "ExitPromptError";
-}
-
-async function promptValue<T>(promise: Promise<T>): Promise<T | null> {
-  try {
-    return await promise;
-  } catch (error) {
-    if (isPromptCancelled(error)) {
-      return null;
-    }
-    throw error;
   }
 }
 

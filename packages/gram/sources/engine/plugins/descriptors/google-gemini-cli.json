@@ -1,0 +1,6 @@
+{
+  "id": "google-gemini-cli",
+  "name": "Google Gemini CLI",
+  "description": "Google Gemini CLI inference provider.",
+  "entry": "../../../plugins/pi-ai-provider.js"
+}

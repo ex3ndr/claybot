@@ -1,4 +1,4 @@
-import { setAuth } from "../engine/client.js";
+import { setAuth } from "../engine/ipc/client.js";
 
 export async function setAuthCommand(
   id: string,

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import type { FileStore } from "../files/store.js";
-import { definePlugin } from "./types.js";
+import { definePlugin } from "../engine/plugins/types.js";
 
 type NanobananaResponse = {
   data?: Array<{

@@ -9,7 +9,6 @@ A minimal, composable AI agent framework with plugin-driven architecture.
 - **Memory engine** - Searchable conversation history across sessions
 - **Cron scheduler** - Timed message dispatch and scheduled actions
 - **Multi-provider inference** - Anthropic Claude, OpenAI, and more
-- **Runtime management** - PM2 process control and Docker container execution
 - **Dashboard** - React SPA for monitoring and control
 
 ## Architecture
@@ -88,8 +87,6 @@ The AI agent has access to these tools:
 - `web_search` - Search the web (Brave)
 - `generate_image` - Create images
 - `set_reaction` - React to messages
-- `pm2_manage` - Manage processes (list, start, stop, restart)
-- `docker_run` - Execute commands in containers
 
 ## CLI Commands
 

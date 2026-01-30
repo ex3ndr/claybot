@@ -1,6 +1,0 @@
-{
-  "id": "gpt-image",
-  "name": "GPT Image",
-  "description": "OpenAI image generation provider.",
-  "entry": "../gpt-image.js"
-}

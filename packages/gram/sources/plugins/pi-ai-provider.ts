@@ -12,8 +12,8 @@ import {
 import { z } from "zod";
 
 import type { AuthStore } from "../auth/store.js";
-import { getProviderDefinition, type ProviderDefinition } from "./providers.js";
-import { definePlugin } from "./types.js";
+import { getProviderDefinition, type ProviderDefinition } from "../engine/plugins/providers.js";
+import { definePlugin } from "../engine/plugins/types.js";
 
 const settingsSchema = z.object({}).passthrough();
 

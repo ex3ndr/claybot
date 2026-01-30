@@ -1,0 +1,6 @@
+{
+  "id": "brave-search",
+  "name": "Brave Search",
+  "description": "Brave Search tool provider.",
+  "entry": "../../../plugins/brave-search.js"
+}

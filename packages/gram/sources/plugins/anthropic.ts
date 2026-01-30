@@ -8,7 +8,7 @@ import {
 } from "@mariozechner/pi-ai";
 import { z } from "zod";
 
-import { definePlugin } from "./types.js";
+import { definePlugin } from "../engine/plugins/types.js";
 
 const settingsSchema = z.object({}).passthrough();
 

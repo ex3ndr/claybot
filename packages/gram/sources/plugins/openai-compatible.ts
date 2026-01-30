@@ -1,7 +1,7 @@
 import { complete, stream, type Api, type Model } from "@mariozechner/pi-ai";
 import { z } from "zod";
 
-import { definePlugin } from "./types.js";
+import { definePlugin } from "../engine/plugins/types.js";
 
 type OpenAiCompatibleConfig = {
   baseUrl?: string;

@@ -1,6 +1,0 @@
-{
-  "id": "amazon-bedrock",
-  "name": "Amazon Bedrock",
-  "description": "Amazon Bedrock inference provider.",
-  "entry": "../pi-ai-provider.js"
-}

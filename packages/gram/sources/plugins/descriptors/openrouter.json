@@ -1,6 +1,0 @@
-{
-  "id": "openrouter",
-  "name": "OpenRouter",
-  "description": "OpenRouter inference provider.",
-  "entry": "../pi-ai-provider.js"
-}

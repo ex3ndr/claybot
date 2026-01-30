@@ -1,0 +1,6 @@
+{
+  "id": "github-copilot",
+  "name": "GitHub Copilot",
+  "description": "GitHub Copilot inference provider.",
+  "entry": "../../../plugins/pi-ai-provider.js"
+}

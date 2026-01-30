@@ -1,7 +1,7 @@
 import type {
   ConnectorMessage,
   MessageContext
-} from "../../connectors/types.js";
+} from "../../engine/connectors/types.js";
 
 export type CronTaskConfig = {
   id?: string;

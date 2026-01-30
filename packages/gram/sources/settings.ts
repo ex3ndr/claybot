@@ -2,11 +2,6 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import type { CronTaskConfig } from "./modules/runtime/cron.js";
-import type {
-  DockerContainerConfig,
-  DockerRuntimeConfig
-} from "./modules/runtime/containers.js";
-import type { Pm2ProcessConfig } from "./modules/runtime/pm2.js";
 
 export type LegacyPluginSettings = {
   id: string;
@@ -40,10 +35,6 @@ export type SettingsConfig = {
   cron?: {
     tasks?: CronTaskConfig[];
   };
-  runtime?: {
-    pm2?: Pm2Config | Pm2ProcessConfig[];
-    containers?: DockerRuntimeConfig | DockerContainerConfig[];
-  };
   memory?: {
     enabled?: boolean;
     maxEntries?: number;
@@ -52,16 +43,6 @@ export type SettingsConfig = {
 
 export type AssistantSettings = {
   workspaceDir?: string;
-  containerWorkspacePath?: string;
-  allowedDockerImages?: string[];
-  allowedDockerContainers?: string[];
-  allowedPm2Processes?: string[];
-};
-
-export type Pm2Config = {
-  processes?: Pm2ProcessConfig[];
-  connectTimeoutMs?: number;
-  disconnectOnExit?: boolean;
 };
 
 export const DEFAULT_SETTINGS_PATH = ".scout/settings.json";

@@ -1,0 +1,6 @@
+{
+  "id": "openai-compatible",
+  "name": "OpenAI-compatible",
+  "description": "OpenAI-compatible inference provider.",
+  "entry": "../../../plugins/openai-compatible.js"
+}

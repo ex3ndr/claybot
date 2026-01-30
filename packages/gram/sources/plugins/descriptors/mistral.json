@@ -1,6 +1,0 @@
-{
-  "id": "mistral",
-  "name": "Mistral",
-  "description": "Mistral inference provider.",
-  "entry": "../pi-ai-provider.js"
-}

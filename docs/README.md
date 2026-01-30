@@ -12,8 +12,6 @@ This folder documents the current Grambot CLI, plugins, sessions, and runtime.
 - `cron.md` - cron scheduler tasks and actions
 - `auth.md` - auth store and helper commands
 - `inference.md` - inference runtime helpers
-- `containers.md` - container runtime management (Docker)
-- `pm2.md` - pm2 runtime process management
 - `util.md` - shared utility helpers
 - `conventions.md` - import and compatibility rules
 - `sessions.md` - session queueing and sequencing
@@ -36,8 +34,6 @@ flowchart TD
   Docs --> Log[logging.md]
   Docs --> Engine[engine.md]
   Docs --> Test[testing.md]
-  Docs --> PM2[pm2.md]
-  Docs --> Containers[containers.md]
   Docs --> Util[util.md]
   Docs --> Conv[conventions.md]
   Docs --> Infer[inference.md]

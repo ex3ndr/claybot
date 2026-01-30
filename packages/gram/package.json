@@ -11,21 +11,18 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@inquirer/prompts": "^8.2.0",
     "@mariozechner/pi-ai": "0.50.3",
     "@paralleldrive/cuid2": "^2.2.2",
     "@sinclair/typebox": "^0.34.41",
     "commander": "^12.1.0",
-    "dockerode": "^4.0.0",
+    "enquirer": "^2.4.1",
     "fastify": "^4.26.2",
     "node-telegram-bot-api": "^0.66.0",
     "pino": "^9.0.0",
     "pino-pretty": "^11.0.0",
-    "pm2": "^5.4.2",
     "zod": "^3.25.0"
   },
   "devDependencies": {
-    "@types/dockerode": "^3.3.0",
     "@types/node": "^22.0.0",
     "@types/node-telegram-bot-api": "^0.64.8",
     "tsx": "^4.19.2",

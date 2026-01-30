@@ -1,0 +1,6 @@
+{
+  "id": "azure-openai-responses",
+  "name": "Azure OpenAI (Responses)",
+  "description": "Azure OpenAI Responses inference provider.",
+  "entry": "../../../plugins/pi-ai-provider.js"
+}

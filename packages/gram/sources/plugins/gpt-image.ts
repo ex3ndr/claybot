@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { definePlugin } from "./types.js";
+import { definePlugin } from "../engine/plugins/types.js";
 
 type OpenAiImageResponse = {
   data?: Array<{
