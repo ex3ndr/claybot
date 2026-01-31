@@ -32,6 +32,10 @@ const CANCEL_ERROR_NAMES = new Set(["CancelError", "ExitPromptError", "AbortErro
 const CANCEL_ERROR_CODES = new Set(["ERR_USE_AFTER_CLOSE"]);
 
 function isPromptCancelled(error: unknown): boolean {
+  // enquirer rejects with an empty string when user cancels
+  if (typeof error === "string") {
+    return true;
+  }
   if (!(error instanceof Error)) {
     return false;
   }
