@@ -35,6 +35,11 @@ export type MessageContext = {
   sessionId?: string;
   messageId?: string;
   providerId?: string;
+  agent?: {
+    kind: "background";
+    parentSessionId?: string;
+    name?: string;
+  };
   cron?: {
     taskId: string;
     taskName: string;

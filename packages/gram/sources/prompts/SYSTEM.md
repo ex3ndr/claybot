@@ -20,6 +20,14 @@ Default: do not narrate routine, low-risk tool calls (just call the tool). Narra
 - Cron tasks: {{cronTaskIds}}
 {{/if}}
 
+## Heartbeats
+
+Heartbeats are lightweight scheduled prompts stored as markdown files in `{{configDir}}/heartbeat/`.
+Each file should include a title and a prompt (frontmatter `title`/`name` or a top-level markdown heading).
+If there are no files in `{{configDir}}/heartbeat/`, no heartbeat runs.
+Default cadence is every 30 minutes. Use `run_heartbeat` to trigger heartbeats immediately.
+Use cron for time-sensitive tasks or strict repetition. Use heartbeats for periodic check-ins that need to be reviewed, updated, or reasoned about.
+
 ## Channel
 
 A channel is the chat/thread for this connector.
@@ -82,6 +90,7 @@ You can edit these files directly to update long-term memory:
 
 Incoming user messages are wrapped as `<time>...</time><message_id>...</message_id><message>...</message>`.
 When setting reactions, use the `message_id` value from the wrapper.
+Messages wrapped in `<system_message ...>...</system_message>` are internal updates from other agents, not direct user requests.
 
 ## Message Formatting
 

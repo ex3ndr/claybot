@@ -17,7 +17,6 @@ import type {
   PermissionAccess,
   PermissionDecision
 } from "./connectors/types.js";
-import { createCronConnector } from "./connectors/cron.js";
 import { FileStore } from "../files/store.js";
 import type { FileReference } from "../files/types.js";
 import { InferenceRouter } from "./inference/router.js";
@@ -51,21 +50,39 @@ import { buildImageGenerationTool } from "./tools/image-generation.js";
 import { buildReactionTool } from "./tools/reaction.js";
 import { buildPermissionRequestTool } from "./tools/permissions.js";
 import { buildSendFileTool } from "./tools/send-file.js";
+import { buildRunHeartbeatTool } from "./tools/heartbeat.js";
+import { buildSendSessionMessageTool, buildStartBackgroundAgentTool } from "./tools/background.js";
 import { formatTimeAI } from "../util/timeFormat.js";
-import type { ToolExecutionResult } from "./tools/types.js";
+import type { AgentRuntime, ToolExecutionResult } from "./tools/types.js";
 import { CronScheduler } from "./cron.js";
 import { CronStore } from "./cron-store.js";
+import { HeartbeatScheduler } from "./heartbeat.js";
+import { HeartbeatStore } from "./heartbeat-store.js";
 import { EngineEventBus } from "./ipc/events.js";
 import { ProviderManager } from "../providers/manager.js";
 import { DEFAULT_SOUL_PATH, DEFAULT_USER_PATH } from "../paths.js";
 
 const logger = getLogger("engine.runtime");
 const MAX_TOOL_ITERATIONS = 5;
+const BACKGROUND_TOOL_DENYLIST = new Set([
+  "request_permission",
+  "set_reaction",
+  "send_file"
+]);
 
 type SessionState = {
   context: Context;
   providerId?: string;
   permissions: SessionPermissions;
+  routing?: {
+    source: string;
+    context: MessageContext;
+  };
+  agent?: {
+    kind: "background";
+    parentSessionId?: string;
+    name?: string;
+  };
 };
 
 export type EngineOptions = {
@@ -97,6 +114,8 @@ export class Engine {
   private sessionManager: SessionManager<SessionState>;
   private cron: CronScheduler | null = null;
   private cronStore: CronStore | null = null;
+  private heartbeat: HeartbeatScheduler | null = null;
+  private heartbeatStore: HeartbeatStore | null = null;
   private inferenceRouter: InferenceRouter;
   private eventBus: EngineEventBus;
   private sessionKeyMap = new Map<string, string>();
@@ -144,7 +163,6 @@ export class Engine {
         logger.warn({ source, reason, error }, "Connector requested shutdown");
       }
     });
-    this.connectorRegistry.register("cron", createCronConnector());
 
     this.inferenceRegistry = new InferenceRegistry();
     this.imageRegistry = new ImageGenerationRegistry();
@@ -211,6 +229,8 @@ export class Engine {
         return formatIncomingMessage(message, context, receivedAt);
       },
       onSessionCreated: (session, source, context) => {
+        this.captureRouting(session, source, context);
+        this.captureAgent(session, context);
         const providerId = this.resolveProviderId(context);
         if (providerId) {
           session.context.state.providerId = providerId;
@@ -243,6 +263,8 @@ export class Engine {
         });
       },
       onSessionUpdated: (session, entry, source) => {
+        this.captureRouting(session, source, entry.context);
+        this.captureAgent(session, entry.context);
         logger.info(
           {
             sessionId: session.id,
@@ -324,7 +346,6 @@ export class Engine {
     this.cron = new CronScheduler({
       store: this.cronStore,
       onTask: (task, context) => {
-        const message: ConnectorMessage = { text: task.prompt };
         const messageContext = this.withProviderContext({
           ...context,
           cron: {
@@ -335,12 +356,40 @@ export class Engine {
           }
         });
         logger.debug(`CronScheduler.onTask triggered channelId=${messageContext.channelId} sessionId=${messageContext.sessionId}`);
-        void this.sessionManager.handleMessage("cron", message, messageContext, (session, entry) =>
-          this.handleSessionMessage(entry, session, "cron")
-        );
+        void this.startBackgroundAgent({
+          prompt: task.prompt,
+          sessionId: messageContext.sessionId,
+          name: task.taskName,
+          context: {
+            userId: "cron",
+            cron: messageContext.cron,
+            providerId: messageContext.providerId,
+            channelType: messageContext.channelType,
+            channelId: messageContext.channelId
+          }
+        });
       },
       onError: (error, taskId) => {
         logger.warn({ taskId, error }, "Cron task failed");
+      }
+    });
+
+    const heartbeatPath = path.join(this.configDir, "heartbeat");
+    logger.debug(`Initializing HeartbeatScheduler heartbeatPath=${heartbeatPath}`);
+    this.heartbeatStore = new HeartbeatStore(heartbeatPath);
+    await this.heartbeatStore.ensureDir();
+    this.heartbeat = new HeartbeatScheduler({
+      store: this.heartbeatStore,
+      intervalMs: 30 * 60 * 1000,
+      onTask: async (task) => {
+        await this.startBackgroundAgent({
+          prompt: task.prompt,
+          sessionId: `heartbeat:${task.id}`,
+          name: task.title
+        });
+      },
+      onError: (error, taskId) => {
+        logger.warn({ taskId, error }, "Heartbeat task failed");
       }
     });
 
@@ -358,12 +407,15 @@ export class Engine {
       this.toolResolver.register("core", buildCronWriteMemoryTool(this.cronStore));
     }
     this.toolResolver.register("core", buildCronDeleteTaskTool(this.cron));
+    this.toolResolver.register("core", buildRunHeartbeatTool());
+    this.toolResolver.register("core", buildStartBackgroundAgentTool());
+    this.toolResolver.register("core", buildSendSessionMessageTool());
     this.toolResolver.register("core", buildImageGenerationTool(this.imageRegistry));
     this.toolResolver.register("core", buildReactionTool());
     this.toolResolver.register("core", buildSendFileTool());
     this.toolResolver.register("core", buildPermissionRequestTool());
     logger.debug(
-      "Core tools registered: cron, cron_memory, image_generation, reaction, send_file, request_permission"
+      "Core tools registered: cron, cron_memory, heartbeat, background, image_generation, reaction, send_file, request_permission"
     );
 
     logger.debug("Restoring sessions from disk");
@@ -373,6 +425,10 @@ export class Engine {
     logger.debug("Starting cron scheduler");
     await this.cron.start();
     this.eventBus.emit("cron.started", { tasks: this.cron.listTasks() });
+    if (this.heartbeat) {
+      logger.debug("Starting heartbeat scheduler");
+      await this.heartbeat.start();
+    }
     logger.debug("Engine.start() complete");
   }
 
@@ -380,6 +436,9 @@ export class Engine {
     await this.connectorRegistry.unregisterAll("shutdown");
     if (this.cron) {
       this.cron.stop();
+    }
+    if (this.heartbeat) {
+      this.heartbeat.stop();
     }
     this.pluginEventEngine.stop();
     await this.pluginManager.unloadAll();
@@ -490,26 +549,32 @@ export class Engine {
     return this.inferenceRouter;
   }
 
-  private listContextTools(source?: string) {
+  private listContextTools(
+    source?: string,
+    options?: { agentKind?: "background" | "foreground"; allowCronTools?: boolean }
+  ) {
     let tools = this.toolResolver.listTools();
-    if (source && source !== "cron") {
+    if (source && source !== "cron" && !options?.allowCronTools) {
       tools = tools.filter(
         (tool) => tool.name !== "cron_read_memory" && tool.name !== "cron_write_memory"
       );
     }
+    if (options?.agentKind === "background") {
+      tools = tools.filter((tool) => !BACKGROUND_TOOL_DENYLIST.has(tool.name));
+    }
     const connectorCapabilities = source
       ? this.connectorRegistry.get(source)?.capabilities ?? null
       : null;
-    const supportsFiles = connectorCapabilities
-      ? (connectorCapabilities.sendFiles?.modes.length ?? 0) > 0
+    const supportsFiles = source
+      ? (connectorCapabilities?.sendFiles?.modes.length ?? 0) > 0
       : this.connectorRegistry
           .list()
           .some(
             (id) =>
               (this.connectorRegistry.get(id)?.capabilities.sendFiles?.modes.length ?? 0) > 0
           );
-    const supportsReactions = connectorCapabilities
-      ? connectorCapabilities.reactions === true
+    const supportsReactions = source
+      ? connectorCapabilities?.reactions === true
       : this.connectorRegistry
           .list()
           .some((id) => this.connectorRegistry.get(id)?.capabilities.reactions === true);
@@ -690,8 +755,110 @@ export class Engine {
       permissions: session.context.state.permissions,
       session,
       source: "system",
-      messageContext: context
+      messageContext: context,
+      agentRuntime: this.buildAgentRuntime()
     });
+  }
+
+  private buildAgentRuntime(): AgentRuntime {
+    return {
+      startBackgroundAgent: (args) => this.startBackgroundAgent(args),
+      sendSessionMessage: (args) => this.sendSessionMessage(args),
+      runHeartbeatNow: (args) => this.runHeartbeatNow(args)
+    };
+  }
+
+  private async startBackgroundAgent(args: {
+    prompt: string;
+    sessionId?: string;
+    name?: string;
+    parentSessionId?: string;
+    context?: Partial<MessageContext>;
+  }): Promise<{ sessionId: string }> {
+    const prompt = args.prompt.trim();
+    if (!prompt) {
+      throw new Error("Background agent prompt is required");
+    }
+    const sessionId = args.sessionId ?? `background:${createId()}`;
+    const agentContext = {
+      kind: "background" as const,
+      parentSessionId: args.parentSessionId ?? args.context?.agent?.parentSessionId,
+      name: args.name ?? args.context?.agent?.name
+    };
+    const messageContext: MessageContext = {
+      channelId: sessionId,
+      userId: "system",
+      sessionId,
+      agent: agentContext,
+      ...(args.context ?? {})
+    };
+    messageContext.channelId = sessionId;
+    messageContext.sessionId = sessionId;
+    messageContext.agent = { ...agentContext, ...(args.context?.agent ?? {}) };
+    const message: ConnectorMessage = { text: prompt };
+    await this.sessionManager.handleMessage(
+      "system",
+      message,
+      messageContext,
+      (session, entry) => this.handleSessionMessage(entry, session, "system")
+    );
+    return { sessionId };
+  }
+
+  private async sendSessionMessage(args: {
+    sessionId?: string;
+    text: string;
+    origin?: "background" | "system";
+  }): Promise<void> {
+    const targetSessionId = args.sessionId ?? await this.findMostRecentHumanSessionId();
+    if (!targetSessionId) {
+      throw new Error("No recent DM session with a human found.");
+    }
+    const session = this.sessionManager.getById(targetSessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${targetSessionId}`);
+    }
+    const routing = session.context.state.routing;
+    if (!routing) {
+      throw new Error(`Session routing unavailable: ${targetSessionId}`);
+    }
+    const source = routing.source;
+    if (!this.connectorRegistry.get(source)) {
+      throw new Error(`Connector unavailable for session: ${source}`);
+    }
+    const context = { ...routing.context, messageId: undefined, commands: undefined };
+    const message: ConnectorMessage = {
+      text: buildSystemMessageText(args.text, args.origin)
+    };
+    await this.sessionManager.handleMessage(
+      source,
+      message,
+      context,
+      (sessionToHandle, entry) => this.handleSessionMessage(entry, sessionToHandle, source)
+    );
+  }
+
+  private async findMostRecentHumanSessionId(): Promise<string | null> {
+    const sessions = await this.sessionStore.listSessions();
+    const candidates = sessions.filter((session) =>
+      isHumanDmSession(session.source, session.context)
+    );
+    if (candidates.length === 0) {
+      return null;
+    }
+    candidates.sort((a, b) => {
+      const aTime = getSessionTimestamp(a.updatedAt ?? a.createdAt);
+      const bTime = getSessionTimestamp(b.updatedAt ?? b.createdAt);
+      return bTime - aTime;
+    });
+    return candidates[0]?.sessionId ?? null;
+  }
+
+  private async runHeartbeatNow(args?: { ids?: string[] }): Promise<{ ran: number; taskIds: string[] }> {
+    if (!this.heartbeat) {
+      throw new Error("Heartbeat scheduler unavailable");
+    }
+    return this.heartbeat.runNow(args?.ids);
   }
 
 
@@ -719,6 +886,30 @@ export class Engine {
     }
     const providers = listActiveInferenceProviders(this.settings);
     return providers[0]?.id;
+  }
+
+  private captureRouting(
+    session: Session<SessionState>,
+    source: string,
+    context: MessageContext
+  ): void {
+    session.context.state.routing = {
+      source,
+      context: sanitizeRoutingContext(context)
+    };
+  }
+
+  private captureAgent(
+    session: Session<SessionState>,
+    context: MessageContext
+  ): void {
+    if (context.agent?.kind === "background") {
+      session.context.state.agent = {
+        kind: "background",
+        parentSessionId: context.agent.parentSessionId,
+        name: context.agent.name
+      };
+    }
   }
 
   private resolveSessionProvider(
@@ -914,11 +1105,16 @@ export class Engine {
     }
 
     const connector = this.connectorRegistry.get(source);
-    if (!connector) {
+    const isInternal =
+      !connector &&
+      (source === "system" || entry.context.agent?.kind === "background" || !!entry.context.cron);
+    if (!connector && !isInternal) {
       logger.debug(`handleSessionMessage skipping - connector not found sessionId=${session.id} source=${source}`);
       return;
     }
-    logger.debug(`Connector found source=${source}`);
+    logger.debug(
+      `Connector ${connector ? "found" : "not required"} source=${source} internal=${isInternal}`
+    );
 
     if (entry.context.cron?.filesPath) {
       session.context.state.permissions = normalizePermissions(
@@ -929,7 +1125,7 @@ export class Engine {
     }
 
     const command = resolveIncomingCommand(entry);
-    if (command) {
+    if (command && connector) {
       const handled = await this.handleSlashCommand(command, entry, session, source, connector);
       if (handled) {
         return;
@@ -955,6 +1151,7 @@ export class Engine {
       : this.cron?.listTasks().map((task) => task.id) ?? [];
     const pluginPrompts = await this.pluginManager.getSystemPrompts();
     const pluginPrompt = pluginPrompts.length > 0 ? pluginPrompts.join("\n\n") : "";
+    const agentKind = session.context.state.agent?.kind ?? entry.context.agent?.kind;
     const systemPrompt = await createSystemPrompt({
       provider: providerSettings?.id,
       model: providerSettings?.model,
@@ -977,11 +1174,17 @@ export class Engine {
       cronTaskIds: cronTaskIds.length > 0 ? cronTaskIds.join(", ") : "",
       soulPath: DEFAULT_SOUL_PATH,
       userPath: DEFAULT_USER_PATH,
-      pluginPrompt
+      pluginPrompt,
+      agentKind,
+      parentSessionId: session.context.state.agent?.parentSessionId ?? entry.context.agent?.parentSessionId,
+      configDir: this.configDir
     });
     const context: Context = {
       ...sessionContext,
-      tools: this.listContextTools(source),
+      tools: this.listContextTools(source, {
+        agentKind,
+        allowCronTools: !!entry.context.cron
+      }),
       systemPrompt
     };
     logger.debug(
@@ -1002,7 +1205,7 @@ export class Engine {
     let toolLoopExceeded = false;
     const generatedFiles: FileReference[] = [];
     logger.debug(`Starting typing indicator channelId=${entry.context.channelId}`);
-    const stopTyping = connector.startTyping?.(entry.context.channelId);
+    const stopTyping = connector?.startTyping?.(entry.context.channelId);
 
     try {
       logger.debug(`Starting inference loop maxIterations=${MAX_TOOL_ITERATIONS}`);
@@ -1062,7 +1265,8 @@ export class Engine {
             permissions: session.context.state.permissions,
             session,
             source,
-            messageContext: entry.context
+            messageContext: entry.context,
+            agentRuntime: this.buildAgentRuntime()
           });
           logger.debug(`Tool execution completed toolName=${toolCall.name} isError=${toolResult.toolMessage.isError} fileCount=${toolResult.files?.length ?? 0}`);
           context.messages.push(toolResult.toolMessage);
@@ -1086,11 +1290,13 @@ export class Engine {
           ? "No inference provider available."
           : "Inference failed.";
       logger.debug(`Sending error message to user message=${message}`);
-      await connector.sendMessage(entry.context.channelId, {
-        text: message,
-        replyToMessageId: entry.context.messageId
-      });
-      await recordOutgoingEntry(this.sessionStore, session, source, entry.context, message);
+      if (connector) {
+        await connector.sendMessage(entry.context.channelId, {
+          text: message,
+          replyToMessageId: entry.context.messageId
+        });
+        await recordOutgoingEntry(this.sessionStore, session, source, entry.context, message);
+      }
       await recordSessionState(this.sessionStore, session, source);
       logger.debug("handleSessionMessage completed with error");
       return;
@@ -1115,17 +1321,19 @@ export class Engine {
         `Inference returned error response provider=${response.providerId} model=${response.modelId} stopReason=${response.message.stopReason} error=${errorDetail}`
       );
       try {
-        await connector.sendMessage(entry.context.channelId, {
-          text: message,
-          replyToMessageId: entry.context.messageId
-        });
-        await recordOutgoingEntry(this.sessionStore, session, source, entry.context, message);
-        this.eventBus.emit("session.outgoing", {
-          sessionId: session.id,
-          source,
-          message: { text: message },
-          context: entry.context
-        });
+        if (connector) {
+          await connector.sendMessage(entry.context.channelId, {
+            text: message,
+            replyToMessageId: entry.context.messageId
+          });
+          await recordOutgoingEntry(this.sessionStore, session, source, entry.context, message);
+          this.eventBus.emit("session.outgoing", {
+            sessionId: session.id,
+            source,
+            message: { text: message },
+            context: entry.context
+          });
+        }
       } catch (error) {
         logger.warn({ connector: source, error }, "Failed to send error response");
       } finally {
@@ -1143,11 +1351,13 @@ export class Engine {
         const message = "Tool execution limit reached.";
         logger.debug("Tool loop exceeded, sending error message");
         try {
-          await connector.sendMessage(entry.context.channelId, {
-            text: message,
-            replyToMessageId: entry.context.messageId
-          });
-          await recordOutgoingEntry(this.sessionStore, session, source, entry.context, message);
+          if (connector) {
+            await connector.sendMessage(entry.context.channelId, {
+              text: message,
+              replyToMessageId: entry.context.messageId
+            });
+            await recordOutgoingEntry(this.sessionStore, session, source, entry.context, message);
+          }
         } catch (error) {
           logger.warn({ connector: source, error }, "Failed to send tool error");
         }
@@ -1160,23 +1370,25 @@ export class Engine {
     const outgoingText = responseText ?? (generatedFiles.length > 0 ? "Generated files." : null);
     logger.debug(`Sending response to user textLength=${outgoingText?.length ?? 0} fileCount=${generatedFiles.length} channelId=${entry.context.channelId}`);
     try {
-      await connector.sendMessage(entry.context.channelId, {
-        text: outgoingText,
-        files: generatedFiles.length > 0 ? generatedFiles : undefined,
-        replyToMessageId: entry.context.messageId
-      });
-      logger.debug("Response sent successfully");
-      await recordOutgoingEntry(this.sessionStore, session, source, entry.context, outgoingText, generatedFiles);
-      this.eventBus.emit("session.outgoing", {
-        sessionId: session.id,
-        source,
-        message: {
+      if (connector) {
+        await connector.sendMessage(entry.context.channelId, {
           text: outgoingText,
-          files: generatedFiles.length > 0 ? generatedFiles : undefined
-        },
-        context: entry.context
-      });
-      logger.debug("Session outgoing event emitted");
+          files: generatedFiles.length > 0 ? generatedFiles : undefined,
+          replyToMessageId: entry.context.messageId
+        });
+        logger.debug("Response sent successfully");
+        await recordOutgoingEntry(this.sessionStore, session, source, entry.context, outgoingText, generatedFiles);
+        this.eventBus.emit("session.outgoing", {
+          sessionId: session.id,
+          source,
+          message: {
+            text: outgoingText,
+            files: generatedFiles.length > 0 ? generatedFiles : undefined
+          },
+          context: entry.context
+        });
+        logger.debug("Session outgoing event emitted");
+      }
     } catch (error) {
       logger.debug(`Failed to send response error=${String(error)}`);
       logger.warn({ connector: source, error }, "Failed to send response");
@@ -1332,6 +1544,44 @@ function formatIncomingMessage(
   };
 }
 
+function sanitizeRoutingContext(context: MessageContext): MessageContext {
+  const { messageId, commands, ...rest } = context;
+  return { ...rest };
+}
+
+function buildSystemMessageText(text: string, origin?: "background" | "system"): string {
+  const trimmed = text.trim();
+  const originTag = origin ? ` origin=\"${origin}\"` : "";
+  return `<system_message${originTag}>${trimmed}</system_message>`;
+}
+
+function isHumanDmSession(source: string, context: MessageContext): boolean {
+  const blockedSources = new Set(["system", "cron", "background"]);
+  if (blockedSources.has(source)) {
+    return false;
+  }
+  const userId = context.userId?.toLowerCase();
+  if (!userId || ["system", "cron", "background"].includes(userId)) {
+    return false;
+  }
+  const channelType = context.channelType;
+  if (!channelType) {
+    return true;
+  }
+  return channelType === "private" || channelType === "unknown";
+}
+
+function getSessionTimestamp(value?: Date | string): number {
+  if (!value) {
+    return 0;
+  }
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) ? parsed.getTime() : 0;
+}
+
 type ResolvedCommand = {
   name: string;
   raw: string;
@@ -1384,22 +1634,62 @@ function normalizeSessionState(
       context?: Context;
       providerId?: string;
       permissions?: unknown;
+      routing?: unknown;
+      agent?: unknown;
     };
     const permissions = normalizePermissions(
       candidate.permissions,
       defaultPermissions.workingDir
     );
     ensureDefaultFilePermissions(permissions);
+    const routing = normalizeRouting(candidate.routing);
+    const agent = normalizeAgent(candidate.agent);
     if (candidate.context && Array.isArray(candidate.context.messages)) {
       return {
         context: candidate.context,
         providerId: typeof candidate.providerId === "string" ? candidate.providerId : undefined,
-        permissions
+        permissions,
+        routing,
+        agent
       };
     }
-    return { ...fallback, permissions };
+    return { ...fallback, permissions, routing, agent };
   }
   return fallback;
+}
+
+function normalizeRouting(value: unknown): SessionState["routing"] | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const candidate = value as { source?: unknown; context?: unknown };
+  if (typeof candidate.source !== "string") {
+    return undefined;
+  }
+  if (!candidate.context || typeof candidate.context !== "object") {
+    return undefined;
+  }
+  const context = candidate.context as MessageContext;
+  if (!context.channelId || !context.userId) {
+    return undefined;
+  }
+  return { source: candidate.source, context };
+}
+
+function normalizeAgent(value: unknown): SessionState["agent"] | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const candidate = value as { kind?: unknown; parentSessionId?: unknown; name?: unknown };
+  if (candidate.kind !== "background") {
+    return undefined;
+  }
+  return {
+    kind: "background",
+    parentSessionId:
+      typeof candidate.parentSessionId === "string" ? candidate.parentSessionId : undefined,
+    name: typeof candidate.name === "string" ? candidate.name : undefined
+  };
 }
 
 function buildDefaultPermissions(workingDir: string): SessionPermissions {

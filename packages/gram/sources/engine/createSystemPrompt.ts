@@ -28,12 +28,17 @@ export type SystemPromptContext = {
   soulPath?: string;
   userPath?: string;
   pluginPrompt?: string;
+  agentKind?: "background" | "foreground";
+  parentSessionId?: string;
+  configDir?: string;
 };
 
 export async function createSystemPrompt(context: SystemPromptContext = {}): Promise<string> {
   const soul = await readSoul();
   const user = await readUser();
-  const systemTemplate = await readSystemTemplate();
+  const systemTemplate = await readSystemTemplate(
+    context.agentKind === "background" ? "SYSTEM_BACKGROUND.md" : "SYSTEM.md"
+  );
 
   const template = Handlebars.compile(systemTemplate);
   const rendered = template({
@@ -62,6 +67,8 @@ export async function createSystemPrompt(context: SystemPromptContext = {}): Pro
     soulPath: context.soulPath ?? DEFAULT_SOUL_PATH,
     userPath: context.userPath ?? DEFAULT_USER_PATH,
     pluginPrompt: context.pluginPrompt ?? "",
+    parentSessionId: context.parentSessionId ?? "",
+    configDir: context.configDir ?? "",
     soul,
     user
   });
@@ -73,8 +80,8 @@ async function readSoul(): Promise<string> {
   return readPromptFile(DEFAULT_SOUL_PATH, "SOUL.md");
 }
 
-async function readSystemTemplate(): Promise<string> {
-  return readBundledPrompt("SYSTEM.md");
+async function readSystemTemplate(filename: string): Promise<string> {
+  return readBundledPrompt(filename);
 }
 
 async function readUser(): Promise<string> {
