@@ -127,6 +127,19 @@ export function upsertPlugin(
   return [...filtered, entry];
 }
 
+export function nextPluginInstanceId(
+  pluginId: string,
+  plugins: Array<PluginInstanceSettings | LegacyPluginSettings> | undefined
+): string {
+  const list = normalizePlugins(plugins ?? []);
+  const used = new Set(list.map((plugin) => plugin.instanceId));
+  let index = 1;
+  while (used.has(`${pluginId}-${index}`)) {
+    index += 1;
+  }
+  return `${pluginId}-${index}`;
+}
+
 export function removePlugin(
   plugins: Array<PluginInstanceSettings | LegacyPluginSettings> | undefined,
   instanceId: string

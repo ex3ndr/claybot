@@ -11,6 +11,7 @@ import {
   listPlugins,
   listEnabledPlugins,
   readSettingsFile,
+  nextPluginInstanceId,
   updateSettingsFile,
   upsertPlugin
 } from "../../settings.js";
@@ -141,13 +142,16 @@ export async function startEngineServer(
     }
 
     const pluginId = payload.pluginId ?? payload.id ?? payload.instanceId;
-    const instanceId = payload.instanceId ?? payload.id ?? pluginId;
-    if (!pluginId || !instanceId) {
-      logger.debug("Missing pluginId or instanceId");
-      reply.status(400).send({ error: "pluginId or instanceId required" });
+    const requestedInstanceId = payload.instanceId ?? payload.id;
+    if (!pluginId) {
+      logger.debug("Missing pluginId");
+      reply.status(400).send({ error: "pluginId required" });
       return;
     }
 
+    const currentSettings = await readSettingsFile(options.settingsPath);
+    const instanceId =
+      requestedInstanceId ?? nextPluginInstanceId(pluginId, currentSettings.plugins);
     logger.info({ plugin: pluginId, instance: instanceId }, "Plugin load requested");
     logger.debug(`Processing plugin load pluginId=${pluginId} instanceId=${instanceId} hasSettings=${!!payload.settings}`);
 

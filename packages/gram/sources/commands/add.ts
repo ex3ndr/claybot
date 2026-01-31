@@ -1,7 +1,5 @@
 import path from "node:path";
 
-import { createId } from "@paralleldrive/cuid2";
-
 import { AuthStore } from "../auth/store.js";
 import { promptConfirm, promptInput, promptSelect } from "./prompts.js";
 import { ConnectorRegistry, ImageGenerationRegistry, InferenceRegistry, ToolResolver } from "../engine/modules.js";
@@ -16,6 +14,7 @@ import {
   readSettingsFile,
   updateSettingsFile,
   upsertPlugin,
+  nextPluginInstanceId,
   listEnabledPlugins,
   listProviders,
   upsertProviderSettings,
@@ -96,7 +95,7 @@ async function addPlugin(
     return;
   }
 
-  const instanceId = createInstanceId();
+  const instanceId = nextPluginInstanceId(pluginId, settings.plugins);
   let settingsConfig: Record<string, unknown> = {};
 
   const exclusiveCheck = resolveExclusivePlugins(
@@ -245,10 +244,6 @@ function createPromptHelpers() {
     confirm: promptConfirm,
     select: promptSelect
   };
-}
-
-function createInstanceId(): string {
-  return createId();
 }
 
 async function validatePluginLoad(
