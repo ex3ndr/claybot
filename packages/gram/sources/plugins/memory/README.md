@@ -47,5 +47,3 @@ Pioneer of computing.
 - Name: max 60 characters, single line.
 - Description: max 160 characters, single line.
 
-## Settings
-- `basePath` (optional): override memory storage directory. Resolved inside the workspace.
