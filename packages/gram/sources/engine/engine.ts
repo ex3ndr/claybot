@@ -33,7 +33,7 @@ import {
   resolveWorkspaceDir,
   type SessionPermissions
 } from "./permissions.js";
-import { createSystemPrompt } from "./createSystemPrompt.js";
+import { assumeWorkspace, createSystemPrompt } from "./createSystemPrompt.js";
 import { getProviderDefinition, listActiveInferenceProviders } from "../providers/catalog.js";
 import { SessionManager } from "./sessions/manager.js";
 import { SessionStore } from "./sessions/store.js";
@@ -57,6 +57,7 @@ import { CronScheduler } from "./cron.js";
 import { CronStore } from "./cron-store.js";
 import { EngineEventBus } from "./ipc/events.js";
 import { ProviderManager } from "../providers/manager.js";
+import { DEFAULT_SOUL_PATH, DEFAULT_USER_PATH } from "../paths.js";
 
 const logger = getLogger("engine.runtime");
 const MAX_TOOL_ITERATIONS = 5;
@@ -106,12 +107,7 @@ export class Engine {
     this.dataDir = options.dataDir;
     this.configDir = options.configDir;
     this.workspaceDir = resolveWorkspaceDir(this.configDir, this.settings.assistant ?? null);
-    this.defaultPermissions = {
-      workingDir: this.workspaceDir,
-      writeDirs: [],
-      readDirs: [],
-      web: false
-    };
+    this.defaultPermissions = buildDefaultPermissions(this.workspaceDir);
     this.eventBus = options.eventBus;
     this.authStore = new AuthStore(options.authPath);
     this.fileStore = new FileStore({ basePath: `${this.dataDir}/files` });
@@ -218,6 +214,7 @@ export class Engine {
             { workingDir: context.cron.filesPath },
             this.defaultPermissions.workingDir
           );
+          ensureDefaultFilePermissions(session.context.state.permissions);
         }
         logger.info(
           {
@@ -700,12 +697,7 @@ export class Engine {
   async updateSettings(settings: SettingsConfig): Promise<void> {
     this.settings = settings;
     this.workspaceDir = resolveWorkspaceDir(this.configDir, this.settings.assistant ?? null);
-    this.defaultPermissions = {
-      workingDir: this.workspaceDir,
-      writeDirs: [],
-      readDirs: [],
-      web: false
-    };
+    this.defaultPermissions = buildDefaultPermissions(this.workspaceDir);
     await ensureWorkspaceDir(this.workspaceDir);
     await this.providerManager.sync(settings);
     await this.pluginManager.syncWithSettings(settings);
@@ -932,6 +924,7 @@ export class Engine {
         { workingDir: entry.context.cron.filesPath },
         this.defaultPermissions.workingDir
       );
+      ensureDefaultFilePermissions(session.context.state.permissions);
     }
 
     const command = resolveIncomingCommand(entry);
@@ -941,6 +934,8 @@ export class Engine {
         return;
       }
     }
+
+    await assumeWorkspace();
 
     const sessionContext = session.context.state.context;
     const providerId = this.resolveSessionProvider(session, entry.context);
@@ -1388,6 +1383,7 @@ function normalizeSessionState(
       candidate.permissions,
       defaultPermissions.workingDir
     );
+    ensureDefaultFilePermissions(permissions);
     if (candidate.context && Array.isArray(candidate.context.messages)) {
       return {
         context: candidate.context,
@@ -1398,6 +1394,29 @@ function normalizeSessionState(
     return { ...fallback, permissions };
   }
   return fallback;
+}
+
+function buildDefaultPermissions(workingDir: string): SessionPermissions {
+  const writeDirs = [DEFAULT_SOUL_PATH, DEFAULT_USER_PATH].map((entry) =>
+    path.resolve(entry)
+  );
+  const readDirs = [...writeDirs];
+  return {
+    workingDir: path.resolve(workingDir),
+    writeDirs: Array.from(new Set(writeDirs)),
+    readDirs: Array.from(new Set(readDirs)),
+    web: false
+  };
+}
+
+function ensureDefaultFilePermissions(permissions: SessionPermissions): void {
+  const defaults = [DEFAULT_SOUL_PATH, DEFAULT_USER_PATH].map((entry) =>
+    path.resolve(entry)
+  );
+  const nextWrite = new Set([...permissions.writeDirs, ...defaults]);
+  const nextRead = new Set([...permissions.readDirs, ...defaults]);
+  permissions.writeDirs = Array.from(nextWrite.values());
+  permissions.readDirs = Array.from(nextRead.values());
 }
 
 function applyPermission(

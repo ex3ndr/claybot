@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import Handlebars from "handlebars";
 
-import { DEFAULT_SOUL_PATH } from "../paths.js";
+import { DEFAULT_SOUL_PATH, DEFAULT_USER_PATH } from "../paths.js";
 
 export type SystemPromptContext = {
   model?: string;
@@ -29,6 +29,7 @@ export type SystemPromptContext = {
 
 export async function createSystemPrompt(context: SystemPromptContext = {}): Promise<string> {
   const soul = await readSoul();
+  const user = await readUser();
   const systemTemplate = await readSystemTemplate();
 
   const template = Handlebars.compile(systemTemplate);
@@ -55,14 +56,27 @@ export async function createSystemPrompt(context: SystemPromptContext = {}): Pro
     cronMemoryPath: context.cronMemoryPath ?? "",
     cronFilesPath: context.cronFilesPath ?? "",
     cronTaskIds: context.cronTaskIds ?? "",
-    soul
+    soul,
+    user
   });
 
   return rendered.trim();
 }
 
 async function readSoul(): Promise<string> {
-  const resolvedPath = path.resolve(DEFAULT_SOUL_PATH);
+  return readPromptFile(DEFAULT_SOUL_PATH, "SOUL.md");
+}
+
+async function readSystemTemplate(): Promise<string> {
+  return readBundledPrompt("SYSTEM.md");
+}
+
+async function readUser(): Promise<string> {
+  return readPromptFile(DEFAULT_USER_PATH, "USER.md");
+}
+
+async function readPromptFile(filePath: string, fallbackPrompt: string): Promise<string> {
+  const resolvedPath = path.resolve(filePath);
   try {
     const content = await fs.readFile(resolvedPath, "utf8");
     const trimmed = content.trim();
@@ -75,19 +89,32 @@ async function readSoul(): Promise<string> {
     }
   }
 
-  // File missing or empty - create from bundled default
-  const defaultContent = await readBundledPrompt("SOUL.md");
-  const dir = path.dirname(resolvedPath);
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(resolvedPath, defaultContent, "utf8");
+  const defaultContent = await readBundledPrompt(fallbackPrompt);
   return defaultContent.trim();
-}
-
-async function readSystemTemplate(): Promise<string> {
-  return readBundledPrompt("SYSTEM.md");
 }
 
 async function readBundledPrompt(filename: string): Promise<string> {
   const promptPath = new URL(`../prompts/${filename}`, import.meta.url);
   return fs.readFile(promptPath, "utf8");
+}
+
+export async function assumeWorkspace(): Promise<void> {
+  await ensurePromptFile(DEFAULT_SOUL_PATH, "SOUL.md");
+  await ensurePromptFile(DEFAULT_USER_PATH, "USER.md");
+}
+
+async function ensurePromptFile(filePath: string, bundledName: string): Promise<void> {
+  const resolvedPath = path.resolve(filePath);
+  try {
+    await fs.access(resolvedPath);
+    return;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  const content = await readBundledPrompt(bundledName);
+  await fs.mkdir(path.dirname(resolvedPath), { recursive: true });
+  await fs.writeFile(resolvedPath, content, "utf8");
 }

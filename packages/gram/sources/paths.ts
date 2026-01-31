@@ -16,3 +16,4 @@ export function resolveScoutPath(...segments: string[]): string {
 }
 
 export const DEFAULT_SOUL_PATH = resolveScoutPath("SOUL.md");
+export const DEFAULT_USER_PATH = resolveScoutPath("USER.md");
