@@ -19,10 +19,14 @@ Each plugin lives in its own folder under `sources/plugins/`:
 ```
 plugins/<plugin-id>/
 ├── plugin.json           # Plugin descriptor (metadata)
-├── plugin.ts             # Main entry point
 ├── README.md             # Implementation documentation (required)
-└── *.spec.ts             # Tests (optional, live next to source)
+└── sources/              # All implementation code
+    ├── plugin.ts         # Main entry point
+    ├── plugin.spec.ts    # Tests (live next to source)
+    └── *.ts              # Additional modules (tools, connectors, etc.)
 ```
+
+Implementation files and tests must be kept in the `sources/` subfolder. This keeps the plugin root clean with only metadata and documentation.
 
 ## Plugin Descriptor (`plugin.json`)
 
@@ -33,7 +37,7 @@ Every plugin requires a JSON descriptor:
   "id": "my-plugin",
   "name": "My Plugin",
   "description": "Brief description of what the plugin does.",
-  "entry": "./plugin.js",
+  "entry": "./sources/plugin.js",
   "exclusive": false
 }
 ```
@@ -48,10 +52,10 @@ Every plugin requires a JSON descriptor:
 
 ## Plugin Module
 
-The entry point exports a `PluginModule` using the `definePlugin()` helper:
+The entry point (`sources/plugin.ts`) exports a `PluginModule` using the `definePlugin()` helper:
 
 ```typescript
-import { definePlugin } from "../../engine/plugins/types.js";
+import { definePlugin } from "../../../engine/plugins/types.js";
 import { z } from "zod";
 
 const settingsSchema = z.object({
@@ -455,7 +459,16 @@ On shutdown or disable:
 
 ## Complete Example: Tool Plugin
 
-Here's a complete example of a tool plugin (based on `brave-search`):
+Here's a complete example of a tool plugin:
+
+```
+my-search/
+├── plugin.json
+├── README.md
+└── sources/
+    ├── plugin.ts
+    └── plugin.spec.ts
+```
 
 **plugin.json:**
 ```json
@@ -463,16 +476,16 @@ Here's a complete example of a tool plugin (based on `brave-search`):
   "id": "my-search",
   "name": "My Search",
   "description": "Custom search tool.",
-  "entry": "./plugin.js"
+  "entry": "./sources/plugin.js"
 }
 ```
 
-**plugin.ts:**
+**sources/plugin.ts:**
 ```typescript
 import { Type, type Static } from "@sinclair/typebox";
 import type { ToolResultMessage } from "@mariozechner/pi-ai";
 import { z } from "zod";
-import { definePlugin } from "../../engine/plugins/types.js";
+import { definePlugin } from "../../../engine/plugins/types.js";
 
 // Settings schema (validated on load)
 const settingsSchema = z.object({
@@ -568,14 +581,15 @@ export const plugin = definePlugin({
 
 ## Best Practices
 
-1. **Keep plugins contained** - Each plugin folder should be self-contained with all its code
-2. **Document with README.md** - Every plugin folder must include implementation documentation
-3. **Use TypeBox for tool schemas** - Provides type safety and JSON Schema generation
-4. **Handle cleanup in unload** - Always unregister components when unloading
-5. **Store credentials via auth API** - Never hardcode secrets
-6. **Use validate mode checks** - Skip expensive operations when `api.mode === "validate"`
-7. **Emit events for observability** - Use `api.events.emit()` for important state changes
-8. **Inject systemPrompt when needed** - Provide context to the LLM about plugin capabilities
+1. **Keep implementation in `sources/`** - All TypeScript files go in the `sources/` subfolder
+2. **Tests next to source** - Place `*.spec.ts` files alongside the code they test in `sources/`
+3. **Document with README.md** - Every plugin folder must include implementation documentation
+4. **Use TypeBox for tool schemas** - Provides type safety and JSON Schema generation
+5. **Handle cleanup in unload** - Always unregister components when unloading
+6. **Store credentials via auth API** - Never hardcode secrets
+7. **Use validate mode checks** - Skip expensive operations when `api.mode === "validate"`
+8. **Emit events for observability** - Use `api.events.emit()` for important state changes
+9. **Inject systemPrompt when needed** - Provide context to the LLM about plugin capabilities
 
 ---
 
