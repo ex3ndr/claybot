@@ -18,6 +18,7 @@ export default function SessionsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("all");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const syncSessions = useCallback(async (options: { silent?: boolean } = {}) => {
@@ -89,19 +90,25 @@ export default function SessionsPage() {
 
   const filtered = useMemo(() => {
     if (!query.trim()) {
-      return orderedSessions;
+      return sourceFilter === "all"
+        ? orderedSessions
+        : orderedSessions.filter((session) => (session.source ?? "unknown") === sourceFilter);
     }
     const q = query.toLowerCase();
     return orderedSessions.filter((session) => {
+      if (sourceFilter !== "all" && (session.source ?? "unknown") !== sourceFilter) {
+        return false;
+      }
       return (
         session.sessionId.toLowerCase().includes(q) ||
         (session.source ?? "").toLowerCase().includes(q) ||
         (session.lastMessage ?? "").toLowerCase().includes(q)
       );
     });
-  }, [query, orderedSessions]);
+  }, [query, orderedSessions, sourceFilter]);
 
   const sources = useMemo(() => new Set(sessions.map((session) => session.source ?? "unknown")), [sessions]);
+  const sourceOptions = useMemo(() => ["all", ...Array.from(sources).sort()], [sources]);
 
   return (
     <DashboardShell
@@ -143,7 +150,7 @@ export default function SessionsPage() {
     >
       <div className="flex flex-1 flex-col gap-6 px-4 py-6 lg:px-6">
         <div className="grid gap-4 md:grid-cols-3">
-          <Card>
+          <Card className="bg-gradient-to-br from-primary/10 via-card to-card/80">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardDescription>Total sessions</CardDescription>
@@ -155,7 +162,7 @@ export default function SessionsPage() {
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground">Active threads discovered from the engine.</CardContent>
           </Card>
-          <Card>
+          <Card className="bg-gradient-to-br from-accent/10 via-card to-card/80">
             <CardHeader>
               <CardDescription>Sources</CardDescription>
               <CardTitle className="text-2xl">{sources.size}</CardTitle>
@@ -164,7 +171,7 @@ export default function SessionsPage() {
               {Array.from(sources).slice(0, 3).join(", ") || "No sources yet"}
             </CardContent>
           </Card>
-          <Card>
+          <Card className="bg-gradient-to-br from-secondary/30 via-card to-card/80">
             <CardHeader>
               <CardDescription>Last message preview</CardDescription>
               <CardTitle className="text-lg">{sessions[0]?.lastMessage ? "Updated" : "No activity"}</CardTitle>
@@ -175,10 +182,37 @@ export default function SessionsPage() {
           </Card>
         </div>
 
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
-          <CardTitle>Active sessions</CardTitle>
-          <CardDescription>All active session activity from the engine.</CardDescription>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle>Active sessions</CardTitle>
+                <CardDescription>All active session activity from the engine.</CardDescription>
+              </div>
+              <div className="relative w-full md:hidden">
+                <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search sessions"
+                  className="h-9 pl-8"
+                  aria-label="Search sessions"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {sourceOptions.map((source) => (
+                  <Button
+                    key={source}
+                    size="sm"
+                    variant={sourceFilter === source ? "default" : "outline"}
+                    onClick={() => setSourceFilter(source)}
+                    className="capitalize"
+                  >
+                    {source}
+                  </Button>
+                ))}
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="pt-0">
             {filtered.length ? (
@@ -186,6 +220,7 @@ export default function SessionsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Session</TableHead>
+                    <TableHead className="hidden md:table-cell">Updated</TableHead>
                     <TableHead className="hidden lg:table-cell">Source</TableHead>
                     <TableHead className="hidden xl:table-cell">Last message</TableHead>
                     <TableHead>Status</TableHead>
@@ -193,7 +228,7 @@ export default function SessionsPage() {
                 </TableHeader>
                 <TableBody>
                   {filtered.map((session) => (
-                    <TableRow key={session.sessionId}>
+                    <TableRow key={session.sessionId} className="hover:bg-muted/50">
                       <TableCell>
                         {session.storageId ? (
                           <Link
@@ -207,7 +242,14 @@ export default function SessionsPage() {
                         )}
                         <div className="text-xs text-muted-foreground lg:hidden">{session.source ?? "unknown"}</div>
                       </TableCell>
-                      <TableCell className="hidden lg:table-cell">{session.source ?? "unknown"}</TableCell>
+                      <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                        {formatSessionTime(session)}
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <Badge variant="outline" className="text-xs">
+                          {session.source ?? "unknown"}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="hidden xl:table-cell">
                         <span className="line-clamp-2 text-xs text-muted-foreground">
                           {session.lastMessage ?? "No message yet"}
@@ -233,4 +275,14 @@ export default function SessionsPage() {
       </div>
     </DashboardShell>
   );
+}
+
+function formatSessionTime(session: Session) {
+  if (session.updatedAt) {
+    return new Date(session.updatedAt).toLocaleString();
+  }
+  if (session.createdAt) {
+    return new Date(session.createdAt).toLocaleString();
+  }
+  return "unknown";
 }

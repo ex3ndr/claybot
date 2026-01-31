@@ -65,7 +65,7 @@ export default function ProvidersPage() {
     >
       <div className="flex flex-1 flex-col gap-6 px-4 py-6 lg:px-6">
         <div className="grid gap-4 md:grid-cols-2">
-          <Card>
+          <Card className="bg-gradient-to-br from-primary/10 via-card to-card/80">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardDescription>Inference providers</CardDescription>
@@ -79,7 +79,7 @@ export default function ProvidersPage() {
               {inferenceNames.slice(0, 2).join(", ") || "No inference providers"}
             </CardContent>
           </Card>
-          <Card>
+          <Card className="bg-gradient-to-br from-secondary/30 via-card to-card/80">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardDescription>Image providers</CardDescription>
@@ -128,7 +128,7 @@ function ProviderList({
   items: { title: string; meta: string }[];
 }) {
   return (
-    <Card>
+    <Card className="overflow-hidden">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
@@ -136,7 +136,10 @@ function ProviderList({
       <CardContent className="space-y-3">
         {items.length ? (
           items.map((item) => (
-            <div key={item.title} className="rounded-lg border bg-background/60 px-4 py-3">
+            <div
+              key={item.title}
+              className="rounded-lg border bg-background/60 px-4 py-3 transition duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-background"
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-medium text-foreground">{item.title}</div>

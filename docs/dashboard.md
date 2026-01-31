@@ -39,6 +39,21 @@ flowchart LR
   Socket --> Engine[Engine sessions store]
 ```
 
+## Overview layout
+
+The overview page blends a stats strip, signal cards, and live panels.
+
+```mermaid
+flowchart TD
+  Header[Header + Live Status] --> Stats[Stats strip]
+  Stats --> Signals[Signal cards]
+  Signals --> MainGrid[Main grid]
+  MainGrid --> Activity[Activity chart]
+  MainGrid --> Sessions[Active sessions table]
+  MainGrid --> Inventory[Inventory tabs]
+  MainGrid --> Cron[Cron tasks]
+```
+
 ## Engine socket resolution
 
 The dashboard proxy prefers an explicit socket override. If none is set, it resolves a default

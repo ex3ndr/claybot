@@ -97,6 +97,22 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
   const orderedEntries = useMemo(() => {
     return [...entries].sort((a, b) => entryTimestamp(b) - entryTimestamp(a));
   }, [entries]);
+  const entryStats = useMemo(() => {
+    let incoming = 0;
+    let outgoing = 0;
+    let files = 0;
+    entries.forEach((entry) => {
+      if (entry.type === "incoming") {
+        incoming += 1;
+        files += entry.files?.length ?? 0;
+      }
+      if (entry.type === "outgoing") {
+        outgoing += 1;
+        files += entry.files?.length ?? 0;
+      }
+    });
+    return { incoming, outgoing, files };
+  }, [entries]);
 
   const lastActivity = useMemo(() => {
     if (orderedEntries.length) {
@@ -147,7 +163,7 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
     >
       <div className="flex flex-1 flex-col gap-6 px-4 py-6 lg:px-6">
         <div className="grid gap-4 md:grid-cols-3">
-          <Card>
+          <Card className="bg-gradient-to-br from-primary/10 via-card to-card/80">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardDescription>Session id</CardDescription>
@@ -159,7 +175,7 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground">Storage id: {storageId}</CardContent>
           </Card>
-          <Card>
+          <Card className="bg-gradient-to-br from-accent/10 via-card to-card/80">
             <CardHeader>
               <CardDescription>Source</CardDescription>
               <CardTitle className="text-xl">{summary?.source ?? "unknown"}</CardTitle>
@@ -168,7 +184,7 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
               {summary?.createdAt ? `Created ${formatDateTime(Date.parse(summary.createdAt))}` : "Creation time unknown"}
             </CardContent>
           </Card>
-          <Card>
+          <Card className="bg-gradient-to-br from-secondary/30 via-card to-card/80">
             <CardHeader>
               <CardDescription>Last activity</CardDescription>
               <CardTitle className="text-xl">{lastActivity}</CardTitle>
@@ -179,10 +195,25 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
           </Card>
         </div>
 
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
-            <CardTitle>Session log</CardTitle>
-            <CardDescription>Inbound and outbound messages tracked for this session.</CardDescription>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <CardTitle>Session log</CardTitle>
+                <CardDescription>Inbound and outbound messages tracked for this session.</CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline" className="text-xs">
+                  {entryStats.incoming} incoming
+                </Badge>
+                <Badge variant="outline" className="text-xs">
+                  {entryStats.outgoing} outgoing
+                </Badge>
+                <Badge variant="outline" className="text-xs">
+                  {entryStats.files} files
+                </Badge>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="pt-0">
             {orderedEntries.length ? (
@@ -198,7 +229,7 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
                   {orderedEntries.map((entry, index) => {
                     const fileNames = getFileNames(entry);
                     return (
-                      <TableRow key={`${entry.type}-${entryTimestamp(entry)}-${index}`}>
+                      <TableRow key={`${entry.type}-${entryTimestamp(entry)}-${index}`} className="hover:bg-muted/50">
                         <TableCell className="text-xs text-muted-foreground">
                           <div className="flex items-center gap-2">
                             <Clock className="h-3 w-3" />

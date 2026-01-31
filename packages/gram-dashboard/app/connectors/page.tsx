@@ -73,7 +73,7 @@ export default function ConnectorsPage() {
     >
       <div className="flex flex-1 flex-col gap-6 px-4 py-6 lg:px-6">
         <div className="grid gap-4 md:grid-cols-3">
-          <Card>
+          <Card className="bg-gradient-to-br from-primary/10 via-card to-card/80">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardDescription>Connector count</CardDescription>
@@ -87,14 +87,14 @@ export default function ConnectorsPage() {
               {connectorNames.slice(0, 2).join(", ") || "Live connector endpoints feeding the engine."}
             </CardContent>
           </Card>
-          <Card>
+          <Card className="bg-gradient-to-br from-accent/10 via-card to-card/80">
             <CardHeader>
               <CardDescription>Latest load</CardDescription>
               <CardTitle className="text-xl">{lastLoaded}</CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground">Most recent connector initialization.</CardContent>
           </Card>
-          <Card>
+          <Card className="bg-gradient-to-br from-secondary/30 via-card to-card/80">
             <CardHeader>
               <CardDescription>Health</CardDescription>
               <CardTitle className="text-xl">{connectors.length ? "Healthy" : "Standby"}</CardTitle>
@@ -103,7 +103,7 @@ export default function ConnectorsPage() {
           </Card>
         </div>
 
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle>Active connectors</CardTitle>
             <CardDescription>Loaded connector ids and timestamps.</CardDescription>
@@ -111,12 +111,18 @@ export default function ConnectorsPage() {
           <CardContent className="grid gap-3 sm:grid-cols-2">
             {connectors.length ? (
               connectors.map((connector) => (
-                <div key={connector.id} className="rounded-lg border bg-background/60 px-4 py-3">
+                <div
+                  key={connector.id}
+                  className="rounded-lg border bg-background/60 px-4 py-3 transition duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-background"
+                >
                   <div className="text-sm font-medium text-foreground">
                     {connector.name ?? connector.id}
                   </div>
                   {connector.name && connector.name !== connector.id ? (
                     <div className="text-xs text-muted-foreground">Instance: {connector.id}</div>
+                  ) : null}
+                  {connector.pluginId ? (
+                    <div className="mt-1 text-xs text-muted-foreground">Plugin: {connector.pluginId}</div>
                   ) : null}
                   <div className="text-xs text-muted-foreground">
                     Loaded at {new Date(connector.loadedAt).toLocaleTimeString()}

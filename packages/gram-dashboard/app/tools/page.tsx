@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { RefreshCw, Wrench } from "lucide-react";
 
 import { DashboardShell } from "@/components/dashboard-shell";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchEngineStatus, type EngineStatus } from "@/lib/engine-client";
@@ -33,13 +34,18 @@ export default function ToolsPage() {
   }, [refresh]);
 
   const tools = status?.tools ?? [];
-  const categories = useMemo(() => {
-    const grouped = new Map<string, number>();
+  const groupedTools = useMemo(() => {
+    const grouped = new Map<string, string[]>();
     tools.forEach((tool) => {
       const bucket = tool.split(".")[0] ?? "core";
-      grouped.set(bucket, (grouped.get(bucket) ?? 0) + 1);
+      const list = grouped.get(bucket) ?? [];
+      list.push(tool);
+      grouped.set(bucket, list);
     });
-    return Array.from(grouped.entries());
+    return Array.from(grouped.entries()).map(([namespace, items]) => ({
+      namespace,
+      items: items.sort()
+    }));
   }, [tools]);
 
   return (
@@ -67,7 +73,7 @@ export default function ToolsPage() {
     >
       <div className="flex flex-1 flex-col gap-6 px-4 py-6 lg:px-6">
         <div className="grid gap-4 md:grid-cols-3">
-          <Card>
+          <Card className="bg-gradient-to-br from-primary/10 via-card to-card/80">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardDescription>Total tools</CardDescription>
@@ -79,14 +85,14 @@ export default function ToolsPage() {
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground">Utility modules ready for task execution.</CardContent>
           </Card>
-          <Card>
+          <Card className="bg-gradient-to-br from-accent/10 via-card to-card/80">
             <CardHeader>
               <CardDescription>Categories</CardDescription>
-              <CardTitle className="text-2xl">{categories.length || 0}</CardTitle>
+              <CardTitle className="text-2xl">{groupedTools.length || 0}</CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground">Grouped by namespace prefix.</CardContent>
           </Card>
-          <Card>
+          <Card className="bg-gradient-to-br from-secondary/30 via-card to-card/80">
             <CardHeader>
               <CardDescription>Coverage</CardDescription>
               <CardTitle className="text-xl">{tools.length ? "Loaded" : "Empty"}</CardTitle>
@@ -95,17 +101,28 @@ export default function ToolsPage() {
           </Card>
         </div>
 
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle>Tool registry</CardTitle>
             <CardDescription>Available tool identifiers and namespaces.</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2">
-            {tools.length ? (
-              tools.map((tool) => (
-                <div key={tool} className="rounded-lg border bg-background/60 px-4 py-3">
-                  <div className="text-sm font-medium text-foreground">{tool}</div>
-                  <div className="text-xs text-muted-foreground">Namespace: {tool.split(".")[0] ?? "core"}</div>
+          <CardContent className="grid gap-4 lg:grid-cols-2">
+            {groupedTools.length ? (
+              groupedTools.map((group) => (
+                <div key={group.namespace} className="rounded-lg border bg-background/60 px-4 py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-semibold text-foreground">{group.namespace}</div>
+                    <Badge variant="outline" className="text-xs">
+                      {group.items.length} tools
+                    </Badge>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {group.items.map((tool) => (
+                      <Badge key={tool} variant="secondary" className="text-xs">
+                        {tool}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
               ))
             ) : (

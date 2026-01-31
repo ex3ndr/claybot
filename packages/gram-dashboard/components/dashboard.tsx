@@ -4,14 +4,18 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import {
+  Activity,
   AlarmClock,
   Boxes,
   Cable,
   Cpu,
+  MessageSquare,
+  Plug,
   RefreshCw,
   Sparkles,
   TrendingDown,
-  TrendingUp
+  TrendingUp,
+  Zap
 } from "lucide-react";
 
 import { DashboardShell } from "@/components/dashboard-shell";
@@ -25,6 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { fetchCronTasks, fetchEngineStatus, fetchSessions, type CronTask, type EngineEvent, type EngineStatus, type Session } from "@/lib/engine-client";
+import type { LucideIcon } from "lucide-react";
 
 type InventoryItem = {
   title: string;
@@ -203,28 +208,58 @@ export default function Dashboard() {
                 value: pluginCount,
                 description: "Runtime modules loaded",
                 meta: `${toolCount} tools registered`,
-                trend: pluginCount > 0 ? "up" : "down"
+                trend: pluginCount > 0 ? "up" : "down",
+                icon: Boxes,
+                tone: "primary"
               },
               {
                 title: "Active sessions",
                 value: sessionCount,
                 description: "Conversation threads online",
                 meta: sessionCount ? "Traffic flowing" : "No active sessions",
-                trend: sessionCount > 0 ? "up" : "down"
+                trend: sessionCount > 0 ? "up" : "down",
+                icon: MessageSquare,
+                tone: "accent"
               },
               {
                 title: "Automations",
                 value: cronCount,
                 description: "Scheduled tasks",
                 meta: cronCount ? "Pipelines queued" : "Idle",
-                trend: cronCount > 0 ? "up" : "down"
+                trend: cronCount > 0 ? "up" : "down",
+                icon: AlarmClock,
+                tone: "amber"
               },
               {
                 title: "Connectors",
                 value: connectorCount,
                 description: "Live connector endpoints",
                 meta: connectorCount ? "Healthy" : "Standby",
-                trend: connectorCount > 0 ? "up" : "down"
+                trend: connectorCount > 0 ? "up" : "down",
+                icon: Plug,
+                tone: "emerald"
+              }
+            ]}
+          />
+          <SignalStrip
+            items={[
+              {
+                label: "Event stream",
+                value: connected ? "Streaming" : "Offline",
+                detail: connected ? "SSE live updates" : "Waiting for engine",
+                icon: Activity
+              },
+              {
+                label: "Providers ready",
+                value: `${providerCount + imageProviderCount}`,
+                detail: providerCount ? "Inference online" : "No inference providers",
+                icon: Zap
+              },
+              {
+                label: "Last sync",
+                value: lastUpdated ? lastUpdated.toLocaleTimeString() : "Pending",
+                detail: lastUpdated ? "Data refreshed" : "Waiting for first sync",
+                icon: Cpu
               }
             ]}
           />
@@ -283,19 +318,35 @@ type Stat = {
   description: string;
   meta: string;
   trend: "up" | "down";
+  icon: LucideIcon;
+  tone: "primary" | "accent" | "amber" | "emerald";
 };
 
 function SectionCards({ stats }: { stats: Stat[] }) {
+  const toneStyles: Record<Stat["tone"], string> = {
+    primary: "from-primary/15 via-card to-card",
+    accent: "from-accent/15 via-card to-card",
+    amber: "from-amber-400/15 via-card to-card",
+    emerald: "from-emerald-400/15 via-card to-card"
+  };
+
   return (
     <div className="grid gap-4 px-4 md:grid-cols-2 xl:grid-cols-4 lg:px-6">
       {stats.map((stat) => (
-        <Card key={stat.title} className="@container/card bg-gradient-to-br from-card to-card/80">
+        <Card
+          key={stat.title}
+          className="@container/card relative overflow-hidden bg-gradient-to-br from-card to-card/80 shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-lg"
+        >
+          <div className={`absolute inset-0 bg-gradient-to-br ${toneStyles[stat.tone]}`} />
           <CardHeader className="relative">
             <CardDescription>{stat.title}</CardDescription>
             <CardTitle className="@[250px]/card:text-3xl text-2xl font-semibold tabular-nums">
               {stat.value}
             </CardTitle>
-            <div className="absolute right-4 top-4">
+            <div className="absolute right-4 top-4 flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-background/80 text-foreground shadow-sm">
+                <stat.icon className="h-4 w-4" />
+              </div>
               <Badge variant="outline" className="flex gap-1 rounded-lg text-xs">
                 {stat.trend === "up" ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
                 {stat.trend === "up" ? "Active" : "Idle"}
@@ -305,6 +356,31 @@ function SectionCards({ stats }: { stats: Stat[] }) {
           <CardContent className="flex flex-col gap-1 text-sm text-muted-foreground">
             <span className="font-medium text-foreground">{stat.description}</span>
             <span>{stat.meta}</span>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function SignalStrip({
+  items
+}: {
+  items: { label: string; value: string; detail: string; icon: LucideIcon }[];
+}) {
+  return (
+    <div className="grid gap-4 px-4 md:grid-cols-3 lg:px-6">
+      {items.map((item) => (
+        <Card key={item.label} className="bg-background/70">
+          <CardContent className="flex items-center gap-4 pt-6">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-foreground">
+              <item.icon className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">{item.label}</div>
+              <div className="text-lg font-semibold text-foreground">{item.value}</div>
+              <div className="text-xs text-muted-foreground">{item.detail}</div>
+            </div>
           </CardContent>
         </Card>
       ))}
@@ -336,7 +412,7 @@ function ActivityChart({ sessionCount, cronCount }: { sessionCount: number; cron
   } satisfies ChartConfig;
 
   return (
-    <Card className="@container/card">
+    <Card className="@container/card animate-in fade-in-0 slide-in-from-bottom-2">
       <CardHeader className="relative">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -446,7 +522,7 @@ function InventoryPanel({
   }[];
 }) {
   return (
-    <Card className="flex h-full flex-col">
+    <Card className="flex h-full flex-col animate-in fade-in-0 slide-in-from-bottom-2">
       <CardHeader>
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 text-accent-foreground">
@@ -497,7 +573,7 @@ function InventoryList({ items, empty }: { items: InventoryItem[]; empty: string
 
 function CronPanel({ cron }: { cron: CronTask[] }) {
   return (
-    <Card>
+    <Card className="animate-in fade-in-0 slide-in-from-bottom-2">
       <CardHeader>
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
@@ -543,7 +619,7 @@ function CronPanel({ cron }: { cron: CronTask[] }) {
 
 function SessionsTable({ sessions }: { sessions: Session[] }) {
   return (
-    <Card>
+    <Card className="animate-in fade-in-0 slide-in-from-bottom-2">
       <CardHeader>
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -561,6 +637,7 @@ function SessionsTable({ sessions }: { sessions: Session[] }) {
             <TableHeader>
               <TableRow>
                 <TableHead>Session</TableHead>
+                <TableHead className="hidden md:table-cell">Updated</TableHead>
                 <TableHead className="hidden lg:table-cell">Source</TableHead>
                 <TableHead className="hidden xl:table-cell">Last message</TableHead>
                 <TableHead>Status</TableHead>
@@ -568,7 +645,7 @@ function SessionsTable({ sessions }: { sessions: Session[] }) {
             </TableHeader>
             <TableBody>
               {sessions.map((session) => (
-                <TableRow key={session.sessionId}>
+                <TableRow key={session.sessionId} className="hover:bg-muted/50">
                   <TableCell>
                     {session.storageId ? (
                       <Link
@@ -584,8 +661,13 @@ function SessionsTable({ sessions }: { sessions: Session[] }) {
                       {session.source ?? "unknown"}
                     </div>
                   </TableCell>
+                  <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                    {formatSessionTime(session)}
+                  </TableCell>
                   <TableCell className="hidden lg:table-cell">
-                    {session.source ?? "unknown"}
+                    <Badge variant="outline" className="text-xs">
+                      {session.source ?? "unknown"}
+                    </Badge>
                   </TableCell>
                   <TableCell className="hidden xl:table-cell">
                     <span className="line-clamp-2 text-xs text-muted-foreground">
@@ -612,6 +694,16 @@ function SessionsTable({ sessions }: { sessions: Session[] }) {
 
 function EmptyState({ label }: { label: string }) {
   return <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">{label}</div>;
+}
+
+function formatSessionTime(session: Session) {
+  if (session.updatedAt) {
+    return formatShortDate(session.updatedAt);
+  }
+  if (session.createdAt) {
+    return formatShortDate(session.createdAt);
+  }
+  return "unknown";
 }
 
 function sortSessionsByActivity(sessions: Session[]) {
