@@ -63,10 +63,58 @@ export async function setDefaultProviderCommand(
     return;
   }
 
+  const definition = getProviderDefinition(selected);
+  if (!definition) {
+    outro("Unknown provider selection.");
+    return;
+  }
+
+  const configured = listProviders(settings);
+  const currentProvider = configured.find((provider) => provider.id === selected);
+
+  let selectedModel: string | null = null;
+  if (definition.models && definition.models.length > 0) {
+    const keepValue = "__keep__";
+    const currentModel = currentProvider?.model;
+    const modelChoices = [
+      ...(currentModel
+        ? [
+            {
+              value: keepValue,
+              name: `Keep current model (${currentModel})`
+            }
+          ]
+        : []),
+      ...definition.models.map((model) => ({
+        value: model.id,
+        name: model.name,
+        description:
+          model.size === "unknown" ? model.id : `${model.id} · ${model.size}`
+      }))
+    ];
+
+    const modelSelection = await promptSelect({
+      message: `Select model for ${definition.name}`,
+      choices: modelChoices
+    });
+
+    if (!modelSelection) {
+      outro("Cancelled.");
+      return;
+    }
+
+    if (modelSelection !== keepValue) {
+      selectedModel = modelSelection;
+    }
+  }
+
   await updateSettingsFile(settingsPath, (current) => {
     const providers = listProviders(current);
     const match = providers.find((provider) => provider.id === selected);
     const entry: ProviderSettings = match ?? { id: selected, enabled: true };
+    if (selectedModel) {
+      entry.model = selectedModel;
+    }
     return {
       ...current,
       providers: [entry, ...providers.filter((provider) => provider.id !== selected)]

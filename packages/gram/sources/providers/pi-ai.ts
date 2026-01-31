@@ -1,7 +1,6 @@
 import {
   complete,
   getModel,
-  getModels,
   getOAuthApiKey,
   getOAuthProvider,
   stream,
@@ -13,8 +12,15 @@ import {
 
 import type { AuthStore } from "../auth/store.js";
 import type { ProviderSettings } from "../settings.js";
-import type { ProviderDefinition, ProviderAuth, ProviderContext, ProviderOnboardingApi } from "./types.js";
+import type {
+  ProviderDefinition,
+  ProviderAuth,
+  ProviderContext,
+  ProviderModelInfo,
+  ProviderOnboardingApi
+} from "./types.js";
 import type { ImageGenerationProvider } from "../engine/images/types.js";
+import { listProviderModels } from "./models.js";
 
 export type PiAiProviderConfig = {
   id: string;
@@ -23,14 +29,17 @@ export type PiAiProviderConfig = {
   auth: ProviderAuth;
   optionalApiKey?: boolean;
   imageProvider?: (context: ProviderContext) => ImageGenerationProvider;
+  models?: ProviderModelInfo[];
 };
 
 export function createPiAiProviderDefinition(config: PiAiProviderConfig): ProviderDefinition {
+  const models = resolveProviderModels(config);
   return {
     id: config.id,
     name: config.name,
     description: config.description,
     auth: config.auth,
+    models,
     capabilities: {
       inference: true,
       image: Boolean(config.imageProvider)
@@ -41,7 +50,7 @@ export function createPiAiProviderDefinition(config: PiAiProviderConfig): Provid
           id: config.id,
           label: config.name,
           createClient: async (options) => {
-            const modelId = resolveModelId(config.id, options.model);
+            const modelId = resolveModelId(config.id, models, options.model);
             const model = getModel(config.id as never, modelId as never);
             if (!model) {
               throw new Error(`Unknown ${config.id} model: ${modelId}`);
@@ -121,7 +130,7 @@ async function runPiAiOnboarding(
     }
   }
 
-  const defaultModel = pickDefaultModel(config.id);
+  const defaultModel = pickDefaultModel(resolveProviderModels(config));
   if (!defaultModel) {
     api.note("No models available for this provider.", config.name);
     return null;
@@ -135,8 +144,11 @@ async function runPiAiOnboarding(
   };
 }
 
-function resolveModelId(providerId: string, preferred?: string): string {
-  const models = getSortedModels(providerId);
+function resolveModelId(
+  providerId: string,
+  models: ProviderModelInfo[],
+  preferred?: string
+): string {
   if (models.length === 0) {
     throw new Error(`No models available for provider ${providerId}`);
   }
@@ -148,77 +160,19 @@ function resolveModelId(providerId: string, preferred?: string): string {
     }
   }
 
-  const fallback =
+  return (
     models.find((model) => model.id.endsWith("-latest")) ??
     models.find((model) => model.id.includes("latest")) ??
-    models[0];
-  return fallback!.id;
+    models[0]!
+  ).id;
 }
 
-function pickDefaultModel(providerId: string): Model<Api> | null {
-  const models = getSortedModels(providerId);
+function pickDefaultModel(models: ProviderModelInfo[]): ProviderModelInfo | null {
   return models[0] ?? null;
 }
 
-function getSortedModels(providerId: string): Model<Api>[] {
-  const models = getModels(providerId as never) as Model<Api>[];
-  return [...models].sort(compareModels);
-}
-
-function compareModels(a: Model<Api>, b: Model<Api>): number {
-  if (a.reasoning !== b.reasoning) {
-    return a.reasoning ? -1 : 1;
-  }
-  const tierA = modelTier(a);
-  const tierB = modelTier(b);
-  if (tierA !== tierB) {
-    return tierB - tierA;
-  }
-  if (a.contextWindow !== b.contextWindow) {
-    return b.contextWindow - a.contextWindow;
-  }
-  if (a.maxTokens !== b.maxTokens) {
-    return b.maxTokens - a.maxTokens;
-  }
-  const dateA = parseDateScore(a);
-  const dateB = parseDateScore(b);
-  if (dateA !== dateB) {
-    return dateB - dateA;
-  }
-  return a.id.localeCompare(b.id);
-}
-
-function modelTier(model: Model<Api>): number {
-  const name = `${model.id} ${model.name}`.toLowerCase();
-  let score = 0;
-  if (/(opus|ultra|pro|max|xlarge|xl|plus)/.test(name)) {
-    score += 2;
-  }
-  if (/(medium|standard)/.test(name)) {
-    score += 1;
-  }
-  if (/(mini|small|lite|tiny|nano)/.test(name)) {
-    score -= 2;
-  }
-  return score;
-}
-
-function parseDateScore(model: Model<Api>): number {
-  const value = `${model.id} ${model.name}`;
-  if (/latest/i.test(value)) {
-    return 99999999;
-  }
-  const match = value.match(/(20\\d{2})[-_/]?(\\d{2})(?:[-_/]?(\\d{2}))?/);
-  if (!match) {
-    return 0;
-  }
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3] ?? "01");
-  if (!year || !month) {
-    return 0;
-  }
-  return year * 10000 + month * 100 + day;
+function resolveProviderModels(config: PiAiProviderConfig): ProviderModelInfo[] {
+  return config.models ?? listProviderModels(config.id);
 }
 
 function buildOptions(

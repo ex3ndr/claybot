@@ -7,6 +7,14 @@ import type { InferenceRegistry, ImageGenerationRegistry } from "../engine/modul
 
 export type ProviderAuth = "apiKey" | "oauth" | "mixed" | "none";
 
+export type ProviderModelSize = "unknown" | "large" | "normal" | "small";
+
+export type ProviderModelInfo = {
+  id: string;
+  name: string;
+  size: ProviderModelSize;
+};
+
 export type ProviderPromptChoice<TValue extends string> = {
   value: TValue;
   name: string;
@@ -67,6 +75,7 @@ export type ProviderDefinition = {
   name: string;
   description: string;
   auth: ProviderAuth;
+  models?: ProviderModelInfo[];
   capabilities: {
     inference?: boolean;
     image?: boolean;
