@@ -6,6 +6,7 @@ import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import {
   Activity,
   AlarmClock,
+  ArrowUpRight,
   Boxes,
   Cable,
   Cpu,
@@ -263,6 +264,38 @@ export default function Dashboard() {
               }
             ]}
           />
+          <QuickActions
+            actions={[
+              {
+                label: "Sessions",
+                description: "Inspect active conversations",
+                href: "/sessions",
+                value: `${sessionCount} live`,
+                icon: MessageSquare
+              },
+              {
+                label: "Automations",
+                description: "Review scheduled workflows",
+                href: "/automations",
+                value: `${cronCount} running`,
+                icon: AlarmClock
+              },
+              {
+                label: "Connectors",
+                description: "Manage ingress endpoints",
+                href: "/connectors",
+                value: `${connectorCount} online`,
+                icon: Plug
+              },
+              {
+                label: "Providers",
+                description: "Model and image providers",
+                href: "/providers",
+                value: `${providerCount + imageProviderCount} ready`,
+                icon: Zap
+              }
+            ]}
+          />
           <div className="grid gap-6 px-4 lg:grid-cols-3 lg:px-6">
             <div className="flex flex-col gap-6 lg:col-span-2">
               <ActivityChart sessionCount={sessionCount} cronCount={cronCount} />
@@ -383,6 +416,40 @@ function SignalStrip({
             </div>
           </CardContent>
         </Card>
+      ))}
+    </div>
+  );
+}
+
+function QuickActions({
+  actions
+}: {
+  actions: { label: string; description: string; href: string; value: string; icon: LucideIcon }[];
+}) {
+  return (
+    <div className="grid gap-4 px-4 md:grid-cols-2 lg:grid-cols-4 lg:px-6">
+      {actions.map((action) => (
+        <Link key={action.label} href={action.href} className="group">
+          <Card className="relative overflow-hidden transition duration-300 group-hover:-translate-y-0.5 group-hover:shadow-lg">
+            <div className="absolute inset-0 bg-gradient-to-br from-muted/30 via-transparent to-transparent" />
+            <CardContent className="relative flex items-center justify-between pt-6">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">{action.label}</div>
+                <div className="text-sm font-semibold text-foreground">{action.description}</div>
+                <div className="mt-2 text-xs text-muted-foreground">{action.value}</div>
+              </div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-background text-foreground shadow-sm">
+                <action.icon className="h-4 w-4" />
+              </div>
+            </CardContent>
+            <div className="relative flex items-center justify-end px-6 pb-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                Open view
+                <ArrowUpRight className="h-3 w-3 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+              </span>
+            </div>
+          </Card>
+        </Link>
       ))}
     </div>
   );

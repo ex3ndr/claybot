@@ -54,6 +54,18 @@ flowchart TD
   MainGrid --> Cron[Cron tasks]
 ```
 
+## Quick actions
+
+Action cards jump to the most used operational screens.
+
+```mermaid
+flowchart LR
+  Actions[Quick actions] --> Sessions[Sessions]
+  Actions --> Automations[Automations]
+  Actions --> Connectors[Connectors]
+  Actions --> Providers[Providers]
+```
+
 ## Engine socket resolution
 
 The dashboard proxy prefers an explicit socket override. If none is set, it resolves a default

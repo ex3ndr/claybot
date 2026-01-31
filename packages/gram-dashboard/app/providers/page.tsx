@@ -95,6 +95,31 @@ export default function ProvidersPage() {
           </Card>
         </div>
 
+        <Card className="bg-background/70">
+          <CardHeader>
+            <CardTitle>Provider mix</CardTitle>
+            <CardDescription>Active inference and image services.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {inferenceProviders.length || imageProviders.length ? (
+              <>
+                {inferenceProviders.map((provider) => (
+                  <Badge key={`inference-${provider.id}`} variant="secondary" className="text-xs">
+                    {provider.name ?? provider.id}
+                  </Badge>
+                ))}
+                {imageProviders.map((provider) => (
+                  <Badge key={`image-${provider.id}`} variant="outline" className="text-xs">
+                    {provider.name ?? provider.id}
+                  </Badge>
+                ))}
+              </>
+            ) : (
+              <div className="text-sm text-muted-foreground">No providers detected.</div>
+            )}
+          </CardContent>
+        </Card>
+
         <div className="grid gap-6 lg:grid-cols-2">
           <ProviderList
             title="Inference"

@@ -47,6 +47,7 @@ export default function ToolsPage() {
       items: items.sort()
     }));
   }, [tools]);
+  const topNamespaces = useMemo(() => groupedTools.slice(0, 5), [groupedTools]);
 
   return (
     <DashboardShell
@@ -100,6 +101,27 @@ export default function ToolsPage() {
             <CardContent className="text-xs text-muted-foreground">Tooling availability snapshot.</CardContent>
           </Card>
         </div>
+
+        <Card className="bg-background/70">
+          <CardHeader>
+            <CardTitle>Top namespaces</CardTitle>
+            <CardDescription>Most populated tool groups.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {topNamespaces.length ? (
+              topNamespaces.map((group) => (
+                <Badge key={group.namespace} variant="secondary" className="gap-2 text-xs">
+                  {group.namespace}
+                  <span className="rounded-full bg-background px-2 py-0.5 text-[10px] text-muted-foreground">
+                    {group.items.length}
+                  </span>
+                </Badge>
+              ))
+            ) : (
+              <div className="text-sm text-muted-foreground">No namespaces available.</div>
+            )}
+          </CardContent>
+        </Card>
 
         <Card className="overflow-hidden">
           <CardHeader>
