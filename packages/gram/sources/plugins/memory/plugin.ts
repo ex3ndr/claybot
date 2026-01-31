@@ -7,6 +7,7 @@ import { resolveWorkspaceDir, resolveWorkspacePath } from "../../engine/permissi
 import { MemoryStore } from "./store.js";
 import {
   buildMemoryCreateEntityTool,
+  buildMemoryListEntitiesTool,
   buildMemoryUpsertRecordTool
 } from "./tool.js";
 
@@ -34,10 +35,12 @@ export const plugin = definePlugin({
         await store.ensure();
         api.registrar.registerTool(buildMemoryCreateEntityTool(store));
         api.registrar.registerTool(buildMemoryUpsertRecordTool(store));
+        api.registrar.registerTool(buildMemoryListEntitiesTool(store));
       },
       unload: async () => {
         api.registrar.unregisterTool("memory_create_entity");
         api.registrar.unregisterTool("memory_upsert_record");
+        api.registrar.unregisterTool("memory_list_entities");
       }
     };
   }

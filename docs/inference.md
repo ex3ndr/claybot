@@ -31,8 +31,9 @@ Tools are registered dynamically by plugins and core runtime:
 - `cron_read_memory` reads memory for the current cron task.
 - `cron_write_memory` updates memory for the current cron task.
 - `cron_delete_task` deletes a cron task.
-- `memory_create_entity` creates a memory entity.
+- `memory_create_entity` creates a memory entity (requires name + description).
 - `memory_upsert_record` adds or updates a memory record.
+- `memory_list_entities` lists entity names + descriptions.
 - `web_search` (Brave) performs web search.
 - `generate_image` uses registered image providers and is only added when one is available.
 - `set_reaction` sets connector reactions (Telegram).

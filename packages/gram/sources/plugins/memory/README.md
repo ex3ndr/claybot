@@ -17,9 +17,14 @@ The Memory plugin stores structured entities as Markdown files. Each entity is a
 - project
 ```
 
-Each entity file starts with a heading and uses `##` sections for records:
+Each entity file includes frontmatter plus a heading, and uses `##` sections for records:
 
 ```md
+---
+name: "Ada Lovelace"
+description: "Pioneer of computing."
+---
+
 # person
 
 ## Ada Lovelace
@@ -28,11 +33,19 @@ Pioneer of computing.
 
 ## Tools
 - `memory_create_entity`
-  - Params: `entity`
-  - Creates the entity file and adds it to `INDEX.md`.
+  - Params: `entity`, `name`, `description`
+  - Creates or updates the entity file and adds it to `INDEX.md`.
 - `memory_upsert_record`
   - Params: `entity`, `record`, `content`
   - Adds or updates a `## <record>` section with the given Markdown content.
+- `memory_list_entities`
+  - Params: `limit` (optional)
+  - Lists entities with their short name/description for safe context inclusion.
+
+## Constraints
+- Entity: lowercase a-z only.
+- Name: max 60 characters, single line.
+- Description: max 160 characters, single line.
 
 ## Settings
 - `basePath` (optional): override memory storage directory. Resolved inside the workspace.

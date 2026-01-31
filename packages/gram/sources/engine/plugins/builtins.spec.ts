@@ -85,6 +85,7 @@ describe("built-in plugins", () => {
     expect(registrar.registerTool).toHaveBeenCalledWith(expect.objectContaining({ tool: expect.objectContaining({ name: "search_v2" }) }));
     expect(registrar.registerTool).toHaveBeenCalledWith(expect.objectContaining({ tool: expect.objectContaining({ name: "memory_create_entity" }) }));
     expect(registrar.registerTool).toHaveBeenCalledWith(expect.objectContaining({ tool: expect.objectContaining({ name: "memory_upsert_record" }) }));
+    expect(registrar.registerTool).toHaveBeenCalledWith(expect.objectContaining({ tool: expect.objectContaining({ name: "memory_list_entities" }) }));
   });
 
   it("builds a telegram plugin instance without executing load", async () => {

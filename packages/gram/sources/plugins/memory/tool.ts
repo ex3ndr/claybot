@@ -6,7 +6,9 @@ import type { MemoryStore } from "./store.js";
 
 const createEntitySchema = Type.Object(
   {
-    entity: Type.String({ minLength: 1 })
+    entity: Type.String({ minLength: 1 }),
+    name: Type.String({ minLength: 1, maxLength: 60 }),
+    description: Type.String({ minLength: 1, maxLength: 160 })
   },
   { additionalProperties: false }
 );
@@ -20,20 +22,32 @@ const upsertRecordSchema = Type.Object(
   { additionalProperties: false }
 );
 
+const listEntitiesSchema = Type.Object(
+  {
+    limit: Type.Optional(Type.Number({ minimum: 1, maximum: 200 }))
+  },
+  { additionalProperties: false }
+);
+
 type CreateEntityArgs = Static<typeof createEntitySchema>;
 type UpsertRecordArgs = Static<typeof upsertRecordSchema>;
+type ListEntitiesArgs = Static<typeof listEntitiesSchema>;
 
 export function buildMemoryCreateEntityTool(store: MemoryStore): ToolDefinition {
   return {
     tool: {
       name: "memory_create_entity",
       description:
-        "Create a new memory entity type (lowercase a-z only, no underscores).",
+        "Create or update a memory entity type (lowercase a-z only, no underscores).",
       parameters: createEntitySchema
     },
     execute: async (args, _toolContext, toolCall) => {
       const payload = args as CreateEntityArgs;
-      const result = await store.createEntity(payload.entity);
+      const result = await store.createEntity(
+        payload.entity,
+        payload.name,
+        payload.description
+      );
 
       const toolMessage: ToolResultMessage = {
         role: "toolResult",
@@ -44,7 +58,7 @@ export function buildMemoryCreateEntityTool(store: MemoryStore): ToolDefinition 
             type: "text",
             text: result.created
               ? `Created memory entity ${result.entity}.`
-              : `Memory entity ${result.entity} already exists.`
+              : `Memory entity ${result.entity} updated.`
           }
         ],
         details: {
@@ -94,6 +108,41 @@ export function buildMemoryUpsertRecordTool(store: MemoryStore): ToolDefinition 
           record: result.record,
           created: result.created,
           path: result.path
+        },
+        isError: false,
+        timestamp: Date.now()
+      };
+
+      return { toolMessage };
+    }
+  };
+}
+
+export function buildMemoryListEntitiesTool(store: MemoryStore): ToolDefinition {
+  return {
+    tool: {
+      name: "memory_list_entities",
+      description:
+        "List memory entities with their short name and description.",
+      parameters: listEntitiesSchema
+    },
+    execute: async (args, _toolContext, toolCall) => {
+      const payload = args as ListEntitiesArgs;
+      const entries = await store.listEntitySummaries(payload.limit);
+      const text = entries.length === 0
+        ? "No memory entities."
+        : entries
+            .map((entry) => `- ${entry.entity}: ${entry.name} — ${entry.description}`)
+            .join("\n");
+
+      const toolMessage: ToolResultMessage = {
+        role: "toolResult",
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+        content: [{ type: "text", text }],
+        details: {
+          count: entries.length,
+          entities: entries
         },
         isError: false,
         timestamp: Date.now()

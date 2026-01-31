@@ -6,6 +6,8 @@ import { getLogger } from "../../log.js";
 const logger = getLogger("memory.store");
 const INDEX_FILENAME = "INDEX.md";
 const ENTITY_PATTERN = /^[a-z]+$/;
+const MAX_NAME_LENGTH = 60;
+const MAX_DESC_LENGTH = 160;
 
 export type MemoryEntityResult = {
   entity: string;
@@ -17,6 +19,13 @@ export type MemoryRecordResult = {
   entity: string;
   record: string;
   created: boolean;
+  path: string;
+};
+
+export type MemoryEntitySummary = {
+  entity: string;
+  name: string;
+  description: string;
   path: string;
 };
 
@@ -37,15 +46,29 @@ export class MemoryStore {
     }
   }
 
-  async createEntity(entityInput: string): Promise<MemoryEntityResult> {
+  async createEntity(
+    entityInput: string,
+    nameInput: string,
+    descriptionInput: string
+  ): Promise<MemoryEntityResult> {
     const entity = validateEntity(entityInput);
+    const name = validateShortText(nameInput, "Name", MAX_NAME_LENGTH);
+    const description = validateShortText(descriptionInput, "Description", MAX_DESC_LENGTH);
     await this.ensure();
 
     const entityPath = this.entityPath(entity);
     const exists = await fileExists(entityPath);
-    if (!exists) {
-      await fs.writeFile(entityPath, `# ${entity}\n`, "utf8");
+
+    let body = `# ${entity}`;
+    if (exists) {
+      const raw = await fs.readFile(entityPath, "utf8");
+      const parsed = parseEntityFile(raw);
+      body = parsed.body.trim().length > 0 ? parsed.body.trimEnd() : body;
     }
+
+    const frontmatter: MemoryFrontmatter = { name, description };
+    const content = serializeEntity(frontmatter, body);
+    await fs.writeFile(entityPath, content, "utf8");
 
     const entities = await this.listEntities();
     if (!entities.includes(entity)) {
@@ -82,22 +105,52 @@ export class MemoryStore {
     }
 
     const raw = await fs.readFile(entityPath, "utf8");
-    const parsed = parseRecords(raw, entity);
-    const match = parsed.records.find((entry) => entry.key === record);
+    const parsedFile = parseEntityFile(raw);
+    const frontmatter = normalizeFrontmatter(parsedFile.frontmatter);
+    const parsedRecords = parseRecords(parsedFile.body, entity);
+    const match = parsedRecords.records.find((entry) => entry.key === record);
     const created = !match;
 
     if (match) {
       match.body = content;
     } else {
-      parsed.records.push({ key: record, body: content });
+      parsedRecords.records.push({ key: record, body: content });
     }
 
-    const updated = serializeRecords(parsed.prefix, parsed.records, entity);
+    const updated = serializeEntity(
+      frontmatter,
+      serializeRecords(parsedRecords.prefix, parsedRecords.records, entity)
+    );
     await fs.writeFile(entityPath, updated, "utf8");
 
     logger.info({ entity, record, created }, "Memory record upserted");
 
     return { entity, record, created, path: entityPath };
+  }
+
+  async listEntitySummaries(limit?: number): Promise<MemoryEntitySummary[]> {
+    await this.ensure();
+    const entities = await this.listEntities();
+    const summaries: MemoryEntitySummary[] = [];
+    const max = limit ?? entities.length;
+
+    for (const entity of entities) {
+      if (summaries.length >= max) {
+        break;
+      }
+      const entityPath = this.entityPath(entity);
+      const raw = await fs.readFile(entityPath, "utf8");
+      const parsedFile = parseEntityFile(raw);
+      const frontmatter = normalizeFrontmatter(parsedFile.frontmatter);
+      summaries.push({
+        entity,
+        name: frontmatter.name,
+        description: frontmatter.description,
+        path: entityPath
+      });
+    }
+
+    return summaries;
   }
 
   private indexPath(): string {
@@ -117,9 +170,9 @@ export class MemoryStore {
     for (const line of lines) {
       const match = line.match(/^\s*-\s*([a-z]+)\s*$/);
       if (match) {
-        const entity = match[1];
-        if (entity) {
-          entities.push(entity);
+        const entry = match[1];
+        if (entry) {
+          entities.push(entry);
         }
       }
     }
@@ -137,6 +190,76 @@ type ParsedRecords = {
   records: Array<{ key: string; body: string }>;
 };
 
+type MemoryFrontmatter = {
+  name?: string;
+  description?: string;
+};
+
+type ParsedEntity = {
+  frontmatter: MemoryFrontmatter;
+  body: string;
+};
+
+function parseEntityFile(markdown: string): ParsedEntity {
+  const content = markdown ?? "";
+  const frontmatterMatch = content.match(/^---\s*\r?\n([\s\S]*?)\r?\n---\s*\r?\n?/);
+  if (!frontmatterMatch) {
+    return { frontmatter: {}, body: content };
+  }
+
+  const frontmatterBlock = frontmatterMatch[1] ?? "";
+  const frontmatter = parseFrontmatter(frontmatterBlock);
+  const body = content.slice(frontmatterMatch[0].length);
+  return { frontmatter, body };
+}
+
+function parseFrontmatter(block: string): MemoryFrontmatter {
+  const lines = block.split(/\r?\n/);
+  const frontmatter: MemoryFrontmatter = {};
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+    const separatorIndex = trimmed.indexOf(":");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+    const key = trimmed.slice(0, separatorIndex).trim();
+    let value = trimmed.slice(separatorIndex + 1).trim();
+    value = value.replace(/^"|"$/g, "").replace(/^'|'$/g, "");
+    if (!value) {
+      continue;
+    }
+    if (key === "name") {
+      frontmatter.name = value;
+    }
+    if (key === "description") {
+      frontmatter.description = value;
+    }
+  }
+  return frontmatter;
+}
+
+function normalizeFrontmatter(frontmatter: MemoryFrontmatter): Required<MemoryFrontmatter> {
+  const name = validateShortText(frontmatter.name ?? "", "Name", MAX_NAME_LENGTH);
+  const description = validateShortText(frontmatter.description ?? "", "Description", MAX_DESC_LENGTH);
+  return { name, description };
+}
+
+function serializeEntity(frontmatter: MemoryFrontmatter, body: string): string {
+  const lines = [
+    "---",
+    `name: "${escapeYaml(frontmatter.name ?? "")}"`,
+    `description: "${escapeYaml(frontmatter.description ?? "")}"`,
+    "---",
+    ""
+  ];
+  const trimmedBody = body.trim().length > 0 ? body.trimEnd() : "";
+  const content = `${lines.join("\n")}${trimmedBody}\n`;
+  return content;
+}
+
 function parseRecords(markdown: string, entity: string): ParsedRecords {
   const normalized = markdown ?? "";
   const headerRegex = /^##\s+(.+)$/gm;
@@ -152,6 +275,7 @@ function parseRecords(markdown: string, entity: string): ParsedRecords {
     const prefix = normalized.trim().length > 0 ? normalized.trimEnd() : `# ${entity}`;
     return { prefix, records: [] };
   }
+
   const prefix = normalized.slice(0, firstMatch.index ?? 0).trimEnd();
   const records = matches.map((match, index) => {
     const start = match.index ?? 0;
@@ -202,8 +326,26 @@ function validateRecord(value: string): string {
   return trimmed;
 }
 
+function validateShortText(value: string, label: string, max: number): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw new Error(`${label} is required.`);
+  }
+  if (trimmed.length > max) {
+    throw new Error(`${label} must be at most ${max} characters.`);
+  }
+  if (/\r|\n/.test(trimmed)) {
+    throw new Error(`${label} must be a single line.`);
+  }
+  return trimmed;
+}
+
 function normalizeContent(value: string): string {
   return value.trim();
+}
+
+function escapeYaml(value: string): string {
+  return value.replace(/"/g, "\\\"");
 }
 
 async function fileExists(target: string): Promise<boolean> {
