@@ -232,7 +232,7 @@ export function buildAllowWriteTool(): ToolDefinition {
       }
       const updated = Array.from(next.values());
       permissions.writeDirs = updated;
-      toolContext.session.context.state.permissions.writeDirs = updated;
+      setSessionPermissions(toolContext.session, permissions);
 
       const toolMessage = buildToolMessage(
         toolCall,
@@ -261,11 +261,9 @@ export function buildResetPermissionsTool(): ToolDefinition {
     execute: async (args, toolContext, toolCall) => {
       const _payload = args as ResetArgs;
       toolContext.permissions.writeDirs = [];
-      toolContext.session.context.state.permissions.writeDirs = [];
       toolContext.permissions.readDirs = [];
-      toolContext.session.context.state.permissions.readDirs = [];
       toolContext.permissions.web = false;
-      toolContext.session.context.state.permissions.web = false;
+      setSessionPermissions(toolContext.session, toolContext.permissions);
       const toolMessage = buildToolMessage(
         toolCall,
         "Reset permissions to workspace defaults.",
@@ -485,5 +483,18 @@ function buildSandboxConfig(permissions: SessionPermissions) {
       allowedDomains: [],
       deniedDomains: []
     }
+  };
+}
+
+function setSessionPermissions(
+  session: { context: { state: unknown } },
+  permissions: SessionPermissions
+): void {
+  const state = session.context.state as { permissions?: SessionPermissions };
+  state.permissions = {
+    workingDir: permissions.workingDir,
+    writeDirs: [...permissions.writeDirs],
+    readDirs: [...permissions.readDirs],
+    web: permissions.web
   };
 }
