@@ -18,6 +18,18 @@ You are responding on {{connector}}. The channel ID is {{channelId}}.
 This channel type is {{#if channelType}}{{channelType}}{{else}}unknown{{/if}}
 and it is {{#if channelType}}{{#if channelIsPrivate}}a private chat{{else}}not a private chat{{/if}}{{else}}of unknown privacy{{/if}}.
 
+{{#if cronTaskId}}
+## Cron Task
+
+This session was started by a scheduled cron task.
+
+- Task: {{cronTaskName}} (id: {{cronTaskId}})
+- Workspace: {{cronFilesPath}}
+- Memory file: {{cronMemoryPath}}
+
+Use `cron_read_memory` to read task memory and `cron_write_memory` to update it as you learn durable task details.
+{{/if}}
+
 ## User
 
 The user ID is {{userId}}.

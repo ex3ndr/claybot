@@ -11,9 +11,9 @@ flowchart TD
   Start[gram start] --> Settings[.scout/settings.json]
   Start --> Auth[.scout/auth.json]
   Start --> Soul[.scout/SOUL.md]
+  Start --> Cron[.scout/cron/*]
   Settings --> Plugins
   Settings --> Inference
-  Settings --> Cron
   Soul --> SystemPrompt[Session System Prompt]
 ```
 
@@ -33,19 +33,6 @@ flowchart TD
     { "id": "openai", "enabled": true, "model": "gpt-4o-mini" },
     { "id": "nanobanana", "enabled": false, "image": { "endpoint": "https://api.example.com/images" } }
   ],
-  "cron": {
-    "tasks": [
-      {
-        "id": "heartbeat",
-        "everyMs": 60000,
-        "message": "ping",
-        "action": "send-message",
-        "runOnStart": true,
-        "channelId": "local",
-        "source": "telegram"
-      }
-    ]
-  },
   "memory": {
     "enabled": true,
     "maxEntries": 1000
@@ -55,6 +42,21 @@ flowchart TD
 
 `memory` settings are consumed by the memory plugin (if enabled). Providers are configured
 at the top level; order defines inference priority and `enabled: false` disables a provider.
+
+## Cron tasks
+Cron tasks are stored as markdown files in `<config>/cron/<task-id>/TASK.md` with frontmatter:
+
+```markdown
+---
+name: Weekly Summary
+schedule: "0 9 * * 1"
+enabled: true
+---
+
+Summarize the weekly updates.
+```
+
+Each task directory also contains `MEMORY.md` and a `files/` workspace.
 
 ## `.scout/auth.json`
 Credentials are stored per plugin or provider id:

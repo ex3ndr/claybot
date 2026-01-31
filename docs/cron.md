@@ -1,26 +1,40 @@
 # Cron scheduler
 
-The cron scheduler emits messages on a fixed cadence and can also invoke named actions.
+Cron tasks are stored as markdown files on disk and are loaded at startup. Each task
+has its own session, memory file, and workspace.
 
-## Concepts
-- **Tasks** specify an interval (`everyMs`), optional `message`, and optional `action`.
-- **Actions** are custom handlers invoked by name.
-- **onMessage** is used when a task emits a message payload.
-- **Runtime updates** can add tasks after start with `CronScheduler.addTask`.
+## Task storage
 
-```mermaid
-flowchart TD
-  Task[task config] --> Scheduler[CronScheduler]
-  Scheduler -->|action| Action[action handler]
-  Scheduler -->|message| onMessage
+Tasks live under `<config>/cron/<task-id>/`:
+- `TASK.md` - frontmatter + prompt body
+- `MEMORY.md` - task memory (initialized to `No memory`)
+- `files/` - workspace directory for cron task file operations
+
+Example `TASK.md`:
+```markdown
+---
+name: Daily Report
+schedule: "0 9 * * *"
+enabled: true
+---
+
+Generate the daily status report and summarize any blockers.
 ```
 
-## Task execution rules
-- `runOnStart` triggers an immediate dispatch.
-- `once` schedules a single execution.
-- `message` is required unless `action` is set.
+Frontmatter fields:
+- `name` (required) - human-readable task name
+- `schedule` (required) - 5-field cron expression (`minute hour day month weekday`)
+- `enabled` (optional) - set to `false` to disable a task
 
-## Built-in action
-- `send-message` sends `task.message` to the task's target channel.
-- `task.source` selects the connector (defaults to `telegram`).
-- `channelId` (or `sessionId`) should be set to target a real chat.
+## Execution model
+
+- `CronScheduler` reads tasks from disk and schedules the next run.
+- Each task runs in its own session id: `cron:<task-id>`.
+- When a schedule triggers, the task prompt is sent as a message to that session.
+- The system prompt includes the cron task metadata and the memory file location.
+
+## Tools
+
+- `add_cron` creates a new task on disk under `<config>/cron/`.
+- `cron_read_memory` reads a task's `MEMORY.md`.
+- `cron_write_memory` overwrites (or appends to) a task's `MEMORY.md`.

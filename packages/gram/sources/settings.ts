@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import type { CronTaskConfig } from "./modules/runtime/cron.js";
+import type { CronTaskConfig } from "./engine/cron.js";
 import { resolveScoutPath } from "./paths.js";
 
 export type LegacyPluginSettings = {

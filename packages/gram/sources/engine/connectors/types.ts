@@ -34,6 +34,12 @@ export type MessageContext = {
   sessionId?: string;
   messageId?: string;
   providerId?: string;
+  cron?: {
+    taskId: string;
+    taskName: string;
+    memoryPath: string;
+    filesPath: string;
+  };
 };
 
 export type ConnectorCommand = {
