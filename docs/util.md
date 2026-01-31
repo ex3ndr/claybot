@@ -1,6 +1,6 @@
 # Utility helpers
 
-Claybot includes a small set of general-purpose helpers in `sources/util/`.
+ClayBot includes a small set of general-purpose helpers in `sources/util/`.
 
 ## Included helpers
 - `lock.ts` - async mutual exclusion via `AsyncLock`.

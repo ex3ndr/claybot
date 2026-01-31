@@ -1,6 +1,6 @@
 # Architecture
 
-Claybot is a plugin-driven engine that routes connector traffic through sessions, inference, tools, and memory.
+ClayBot is a plugin-driven engine that routes connector traffic through sessions, inference, tools, and memory.
 
 Key pieces:
 - **CLI** (`sources/main.ts`) starts the engine and manages plugins/auth.

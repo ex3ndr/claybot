@@ -1,6 +1,6 @@
 # Connectors
 
-Connectors are plugin modules that bridge Claybot to external systems.
+Connectors are plugin modules that bridge ClayBot to external systems.
 They emit messages (text + files) into sessions and send responses back.
 
 ## Connector interface

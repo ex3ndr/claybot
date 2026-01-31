@@ -1,6 +1,6 @@
 # Engine updates
 
-Claybot updates engine settings using a three-step strategy:
+ClayBot updates engine settings using a three-step strategy:
 
 1. **Local server running**: send a mutation request over the local HTTP socket
    at `.claybot/claybot.sock`.

@@ -1,6 +1,6 @@
 # Configuration
 
-Claybot now reads from a single settings file plus the auth store.
+ClayBot now reads from a single settings file plus the auth store.
 
 - `.claybot/settings.json` (or the path passed to `claybot start --settings`)
 - `.claybot/auth.json` for credentials

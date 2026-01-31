@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" alt="Claybot" width="200" />
+  <img src="logo.png" alt="ClayBot" width="200" />
 </p>
 
 <h1 align="center">claybot</h1>
@@ -50,7 +50,7 @@ yarn claybot start
 
 ## Configuration
 
-Claybot uses two configuration files in `.claybot/`:
+ClayBot uses two configuration files in `.claybot/`:
 
 **settings.json** - Engine and plugin configuration
 ```json

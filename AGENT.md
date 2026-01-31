@@ -24,7 +24,7 @@
 - Add brief code comments for tricky or non-obvious logic.
 - Keep files concise; extract helpers instead of "V2" copies.
 - Aim to keep files under ~700 LOC; guideline only (not a hard guardrail). Split/refactor when it improves clarity or testability.
-- Naming: use **Claybot** for product/app/docs headings; use `claybot` for CLI command, package/binary, paths, and config keys.
+- Naming: use **ClayBot** for product/app/docs headings; use `claybot` for CLI command, package/binary, paths, and config keys.
 
 ## Plugin vs monolith
 - If it is something contained - new inference provider, new API, memory engine. It should be a plugin.

@@ -1,6 +1,6 @@
 # Auth Store
 
-Claybot stores credentials in `.claybot/auth.json`.
+ClayBot stores credentials in `.claybot/auth.json`.
 The file is read by the engine on startup and on demand by plugins.
 
 ## Structure

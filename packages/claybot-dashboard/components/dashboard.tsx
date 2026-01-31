@@ -175,7 +175,7 @@ export default function Dashboard() {
   return (
     <DashboardShell
       title="Engine Overview"
-      subtitle="Monitor the Claybot runtime, providers, and sessions."
+      subtitle="Monitor the ClayBot runtime, providers, and sessions."
       toolbar={
         <>
           <Badge variant={connected ? "default" : "outline"} className={connected ? "bg-emerald-500 text-white" : ""}>

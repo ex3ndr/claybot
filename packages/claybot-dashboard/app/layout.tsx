@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata = {
-  title: "Claybot Dashboard",
+  title: "ClayBot Dashboard",
   description: "Live status for plugins, sessions, and cron tasks from the local engine socket."
 };
 

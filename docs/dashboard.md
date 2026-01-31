@@ -1,4 +1,4 @@
-# Claybot dashboard
+# ClayBot dashboard
 
 `claybot-dashboard` is a Next.js app router UI styled with shadcn components.
 API route handlers proxy `/api/*` requests to the local engine socket.

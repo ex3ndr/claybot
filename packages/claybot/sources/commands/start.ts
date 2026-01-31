@@ -22,7 +22,7 @@ export type StartOptions = {
 export async function startCommand(options: StartOptions): Promise<void> {
   const settingsPath = path.resolve(options.settings ?? DEFAULT_SETTINGS_PATH);
   const settings = await readSettingsFile(settingsPath);
-  logger.info({ settings: settingsPath }, "Starting claybot");
+  logger.info({ settings: settingsPath }, "Starting ClayBot");
 
   const dataDir = path.resolve(settings.engine?.dataDir ?? DEFAULT_CLAYBOT_DIR);
   const authPath = path.join(dataDir, "auth.json");

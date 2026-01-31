@@ -1,6 +1,6 @@
-# Claybot documentation
+# ClayBot documentation
 
-This folder documents the current Claybot CLI, plugins, sessions, and runtime.
+This folder documents the current ClayBot CLI, plugins, sessions, and runtime.
 
 ## Index
 - `architecture.md` - system overview and message flow

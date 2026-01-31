@@ -30,7 +30,7 @@ import {
 
 const data = {
   user: {
-    name: "Claybot Operator",
+    name: "ClayBot Operator",
     email: "engine@local",
     avatar: "https://ui.shadcn.com/avatars/shadcn.jpg"
   },
@@ -116,7 +116,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenuButton asChild className="data-[slot=sidebar-menu-button]:!p-1.5">
               <a href="#">
                 <Sparkles className="h-5 w-5" />
-                <span className="text-base font-semibold">Claybot</span>
+                <span className="text-base font-semibold">ClayBot</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
