@@ -80,6 +80,20 @@ export async function startEngineServer(
     return reply.send({ ok: true, tasks });
   });
 
+  app.get("/v1/engine/heartbeat/tasks", async (_request, reply) => {
+    logger.debug("GET /v1/engine/heartbeat/tasks");
+    const tasks = await options.runtime.getHeartbeatTasks();
+    logger.debug(`Heartbeat tasks retrieved taskCount=${tasks.length}`);
+    return reply.send({ ok: true, tasks });
+  });
+
+  app.get("/v1/engine/agents/background", async (_request, reply) => {
+    logger.debug("GET /v1/engine/agents/background");
+    const agents = options.runtime.getBackgroundAgents();
+    logger.debug(`Background agents retrieved agentCount=${agents.length}`);
+    return reply.send({ ok: true, agents });
+  });
+
   app.get("/v1/engine/sessions", async (_request, reply) => {
     logger.debug("GET /v1/engine/sessions");
     const sessions = await options.runtime.getSessionStore().listSessions();
@@ -266,7 +280,9 @@ export async function startEngineServer(
       type: "init",
       payload: {
         status: options.runtime.getStatus(),
-        cron: options.runtime.getCronTasks()
+        cron: options.runtime.getCronTasks(),
+        heartbeat: await options.runtime.getHeartbeatTasks(),
+        backgroundAgents: options.runtime.getBackgroundAgents()
       },
       timestamp: new Date().toISOString()
     });

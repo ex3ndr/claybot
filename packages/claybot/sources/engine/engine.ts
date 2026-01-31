@@ -57,7 +57,7 @@ import type { AgentRuntime, ToolExecutionResult } from "./tools/types.js";
 import { CronScheduler } from "./cron.js";
 import { CronStore } from "./cron-store.js";
 import { HeartbeatScheduler } from "./heartbeat.js";
-import { HeartbeatStore } from "./heartbeat-store.js";
+import { HeartbeatStore, type HeartbeatDefinition } from "./heartbeat-store.js";
 import { EngineEventBus } from "./ipc/events.js";
 import { ProviderManager } from "../providers/manager.js";
 import { DEFAULT_SOUL_PATH, DEFAULT_USER_PATH } from "../paths.js";
@@ -83,6 +83,16 @@ type SessionState = {
     parentSessionId?: string;
     name?: string;
   };
+};
+
+type BackgroundAgentState = {
+  sessionId: string;
+  storageId: string;
+  name?: string;
+  parentSessionId?: string;
+  status: "running" | "queued" | "idle";
+  pending: number;
+  updatedAt?: string;
 };
 
 export type EngineOptions = {
@@ -371,6 +381,9 @@ export class Engine {
       },
       onError: (error, taskId) => {
         logger.warn({ taskId, error }, "Cron task failed");
+      },
+      onTaskComplete: (task, runAt) => {
+        this.eventBus.emit("cron.task.ran", { taskId: task.id, runAt: runAt.toISOString() });
       }
     });
 
@@ -390,6 +403,9 @@ export class Engine {
       },
       onError: (error, taskId) => {
         logger.warn({ taskId, error }, "Heartbeat task failed");
+      },
+      onTaskComplete: (task, runAt) => {
+        this.eventBus.emit("heartbeat.task.ran", { taskId: task.id, runAt: runAt.toISOString() });
       }
     });
 
@@ -428,6 +444,8 @@ export class Engine {
     if (this.heartbeat) {
       logger.debug("Starting heartbeat scheduler");
       await this.heartbeat.start();
+      const heartbeatTasks = await this.heartbeat.listTasks();
+      this.eventBus.emit("heartbeat.started", { tasks: heartbeatTasks });
     }
     logger.debug("Engine.start() complete");
   }
@@ -482,6 +500,36 @@ export class Engine {
 
   getCronTasks() {
     return this.cron?.listTasks() ?? [];
+  }
+
+  async getHeartbeatTasks(): Promise<HeartbeatDefinition[]> {
+    if (this.heartbeat) {
+      return this.heartbeat.listTasks();
+    }
+    if (this.heartbeatStore) {
+      return this.heartbeatStore.listTasks();
+    }
+    return [];
+  }
+
+  getBackgroundAgents(): BackgroundAgentState[] {
+    return this.sessionManager
+      .listSessions()
+      .filter((session) => session.context.state.agent?.kind === "background")
+      .map((session) => {
+        const pending = session.size;
+        const processing = session.isProcessing();
+        const status = processing ? "running" : pending > 0 ? "queued" : "idle";
+        return {
+          sessionId: session.id,
+          storageId: session.storageId,
+          name: session.context.state.agent?.name,
+          parentSessionId: session.context.state.agent?.parentSessionId,
+          status,
+          pending,
+          updatedAt: session.context.updatedAt?.toISOString()
+        };
+      });
   }
 
   getSessionStore(): SessionStore<SessionState> {

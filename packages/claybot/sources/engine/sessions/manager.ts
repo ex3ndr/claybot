@@ -155,6 +155,10 @@ export class SessionManager<State = Record<string, unknown>> {
     return this.sessions.get(sessionId) ?? null;
   }
 
+  listSessions(): Session<State>[] {
+    return Array.from(this.sessions.values());
+  }
+
   resetSession(sessionId: string): boolean {
     const session = this.sessions.get(sessionId);
     if (!session) {

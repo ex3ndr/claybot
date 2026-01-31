@@ -19,6 +19,11 @@ export type CronTaskWithPaths = CronTaskDefinition & {
   taskPath: string;
   memoryPath: string;
   filesPath: string;
+  lastRunAt?: string;
+};
+
+type CronTaskState = {
+  lastRunAt?: string;
 };
 
 /**
@@ -73,6 +78,7 @@ export class CronStore {
     const taskPath = path.join(taskDir, "TASK.md");
     const memoryPath = path.join(taskDir, "MEMORY.md");
     const filesPath = path.join(taskDir, "files");
+    const state = await this.readState(taskId);
 
     try {
       const content = await fs.readFile(taskPath, "utf8");
@@ -103,7 +109,8 @@ export class CronStore {
         deleteAfterRun: deleteAfterRun === true,
         taskPath,
         memoryPath,
-        filesPath
+        filesPath,
+        lastRunAt: state.lastRunAt
       };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
@@ -153,7 +160,8 @@ export class CronStore {
       deleteAfterRun: definition.deleteAfterRun ?? false,
       taskPath,
       memoryPath,
-      filesPath
+      filesPath,
+      lastRunAt: undefined
     };
   }
 
@@ -196,7 +204,8 @@ export class CronStore {
       ...updated,
       taskPath: existing.taskPath,
       memoryPath: existing.memoryPath,
-      filesPath: existing.filesPath
+      filesPath: existing.filesPath,
+      lastRunAt: existing.lastRunAt
     };
   }
 
@@ -237,6 +246,13 @@ export class CronStore {
     logger.debug({ taskId }, "Cron task memory updated");
   }
 
+  async recordRun(taskId: string, runAt: Date): Promise<void> {
+    await this.ensureDir();
+    const state = await this.readState(taskId);
+    state.lastRunAt = runAt.toISOString();
+    await this.writeState(taskId, state);
+  }
+
   getTaskPaths(taskId: string): { taskPath: string; memoryPath: string; filesPath: string } {
     const taskDir = path.join(this.basePath, taskId);
     return {
@@ -267,6 +283,39 @@ export class CronStore {
         return true;
       }
       throw error;
+    }
+  }
+
+  private getStatePath(taskId: string): string {
+    return path.join(this.basePath, taskId, "STATE.json");
+  }
+
+  private async readState(taskId: string): Promise<CronTaskState> {
+    const statePath = this.getStatePath(taskId);
+    try {
+      const raw = await fs.readFile(statePath, "utf8");
+      const parsed = JSON.parse(raw) as CronTaskState;
+      if (parsed && typeof parsed === "object") {
+        return {
+          lastRunAt: typeof parsed.lastRunAt === "string" ? parsed.lastRunAt : undefined
+        };
+      }
+      return {};
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return {};
+      }
+      logger.warn({ taskId, error }, "Failed to read cron task state");
+      return {};
+    }
+  }
+
+  private async writeState(taskId: string, state: CronTaskState): Promise<void> {
+    const statePath = this.getStatePath(taskId);
+    try {
+      await fs.writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+    } catch (error) {
+      logger.warn({ taskId, error }, "Failed to write cron task state");
     }
   }
 }

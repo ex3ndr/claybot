@@ -29,7 +29,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { fetchCronTasks, fetchEngineStatus, fetchSessions, type CronTask, type EngineEvent, type EngineStatus, type Session } from "@/lib/engine-client";
+import {
+  fetchBackgroundAgents,
+  fetchCronTasks,
+  fetchEngineStatus,
+  fetchHeartbeatTasks,
+  fetchSessions,
+  type BackgroundAgentState,
+  type CronTask,
+  type EngineEvent,
+  type EngineStatus,
+  type HeartbeatTask,
+  type Session
+} from "@/lib/engine-client";
 import type { LucideIcon } from "lucide-react";
 
 type InventoryItem = {
@@ -40,6 +52,8 @@ type InventoryItem = {
 export default function Dashboard() {
   const [status, setStatus] = useState<EngineStatus | null>(null);
   const [cron, setCron] = useState<CronTask[]>([]);
+  const [heartbeats, setHeartbeats] = useState<HeartbeatTask[]>([]);
+  const [backgroundAgents, setBackgroundAgents] = useState<BackgroundAgentState[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -56,6 +70,16 @@ export default function Dashboard() {
     setCron(tasks);
   }, []);
 
+  const fetchHeartbeats = useCallback(async () => {
+    const tasks = await fetchHeartbeatTasks();
+    setHeartbeats(tasks);
+  }, []);
+
+  const fetchBackgroundAgentsData = useCallback(async () => {
+    const agents = await fetchBackgroundAgents();
+    setBackgroundAgents(agents);
+  }, []);
+
   const fetchSessionsData = useCallback(async () => {
     const data = await fetchSessions();
     setSessions(data);
@@ -65,7 +89,7 @@ export default function Dashboard() {
     setLoading(true);
     setError(null);
     try {
-      await Promise.all([fetchStatus(), fetchCron(), fetchSessionsData()]);
+      await Promise.all([fetchStatus(), fetchCron(), fetchHeartbeats(), fetchBackgroundAgentsData(), fetchSessionsData()]);
       setLastUpdated(new Date());
     } catch (err) {
       const message = err instanceof Error ? err.message : "Refresh failed";
@@ -73,7 +97,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [fetchCron, fetchSessionsData, fetchStatus]);
+  }, [fetchBackgroundAgentsData, fetchCron, fetchHeartbeats, fetchSessionsData, fetchStatus]);
 
   useEffect(() => {
     void refreshAll();
@@ -95,6 +119,8 @@ export default function Dashboard() {
       if (payload.type === "init") {
         setStatus(payload.payload?.status ?? null);
         setCron(payload.payload?.cron ?? []);
+        setHeartbeats(payload.payload?.heartbeat ?? []);
+        setBackgroundAgents(payload.payload?.backgroundAgents ?? []);
         void fetchSessionsData();
         return;
       }
@@ -103,10 +129,16 @@ export default function Dashboard() {
         case "session.created":
         case "session.updated":
           void fetchSessionsData();
+          void fetchBackgroundAgentsData();
           break;
         case "cron.task.added":
         case "cron.started":
+        case "cron.task.ran":
           void fetchCron();
+          break;
+        case "heartbeat.started":
+        case "heartbeat.task.ran":
+          void fetchHeartbeats();
           break;
         case "plugin.loaded":
         case "plugin.unloaded":
@@ -120,11 +152,13 @@ export default function Dashboard() {
     return () => {
       source.close();
     };
-  }, [fetchCron, fetchSessionsData, fetchStatus]);
+  }, [fetchBackgroundAgentsData, fetchCron, fetchHeartbeats, fetchSessionsData, fetchStatus]);
 
   const pluginCount = status?.plugins?.length ?? 0;
   const sessionCount = sessions.length;
   const cronCount = cron.length;
+  const heartbeatCount = heartbeats.length;
+  const backgroundAgentCount = backgroundAgents.length;
   const connectorCount = status?.connectors?.length ?? 0;
   const providerCount = status?.inferenceProviders?.length ?? 0;
   const imageProviderCount = status?.imageProviders?.length ?? 0;
@@ -224,10 +258,10 @@ export default function Dashboard() {
               },
               {
                 title: "Automations",
-                value: cronCount,
+                value: cronCount + heartbeatCount,
                 description: "Scheduled tasks",
-                meta: cronCount ? "Pipelines queued" : "Idle",
-                trend: cronCount > 0 ? "up" : "down",
+                meta: `${cronCount} cron · ${heartbeatCount} heartbeat`,
+                trend: cronCount + heartbeatCount > 0 ? "up" : "down",
                 icon: AlarmClock,
                 tone: "amber"
               },
@@ -277,7 +311,7 @@ export default function Dashboard() {
                 label: "Automations",
                 description: "Review scheduled workflows",
                 href: "/automations",
-                value: `${cronCount} running`,
+                value: `${cronCount + heartbeatCount} running`,
                 icon: AlarmClock
               },
               {
@@ -337,6 +371,8 @@ export default function Dashboard() {
                 ]}
               />
               <CronPanel cron={cron} />
+              <HeartbeatPanel heartbeats={heartbeats} />
+              <BackgroundAgentsPanel agents={backgroundAgents} />
             </div>
           </div>
         </div>
@@ -656,28 +692,129 @@ function CronPanel({ cron }: { cron: CronTask[] }) {
         {cron.length ? (
           cron.map((task, index) => (
             <div
-              key={task.id ?? task.message ?? task.action ?? `cron-${index}`}
+              key={task.id ?? `cron-${index}`}
               className="rounded-lg border bg-background/60 px-4 py-3"
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <div className="text-sm font-medium text-foreground">{task.id ?? "task"}</div>
+                  <div className="text-sm font-medium text-foreground">{task.name ?? task.id ?? "task"}</div>
                   <div className="text-xs text-muted-foreground">
-                    {task.message ?? task.action ?? "custom"}
+                    {task.description ?? task.prompt ?? "custom"}
                   </div>
                 </div>
-                <Badge variant="outline" className="text-xs">
-                  {task.once ? "once" : "repeat"}
-                </Badge>
+                <div className="flex flex-col items-end gap-1 text-xs">
+                  <Badge variant="outline" className="text-xs">
+                    {task.deleteAfterRun ? "once" : "repeat"}
+                  </Badge>
+                  {task.enabled === false ? (
+                    <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+                      disabled
+                    </Badge>
+                  ) : null}
+                </div>
               </div>
               <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                 <Cable className="h-3 w-3" />
-                <span>{formatInterval(task.everyMs)}</span>
+                <span>{task.schedule ?? "custom schedule"}</span>
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <Activity className="h-3 w-3" />
+                <span>{task.lastRunAt ? `Last run ${formatShortDate(task.lastRunAt)}` : "Never run"}</span>
               </div>
             </div>
           ))
         ) : (
           <EmptyState label="No cron tasks scheduled." />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function HeartbeatPanel({ heartbeats }: { heartbeats: HeartbeatTask[] }) {
+  return (
+    <Card className="animate-in fade-in-0 slide-in-from-bottom-2">
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
+            <Activity className="h-4 w-4" />
+          </div>
+          <div>
+            <CardTitle className="text-lg">Heartbeats</CardTitle>
+            <CardDescription>Periodic check-ins that keep context fresh.</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {heartbeats.length ? (
+          heartbeats.map((task) => (
+            <div key={task.id} className="rounded-lg border bg-background/60 px-4 py-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="text-sm font-medium text-foreground">{task.title}</div>
+                  <div className="text-xs text-muted-foreground">{task.id}</div>
+                </div>
+                <Badge variant="outline" className="text-xs">
+                  heartbeat
+                </Badge>
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <Activity className="h-3 w-3" />
+                <span>{task.lastRunAt ? `Last run ${formatShortDate(task.lastRunAt)}` : "Never run"}</span>
+              </div>
+            </div>
+          ))
+        ) : (
+          <EmptyState label="No heartbeat files found." />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function BackgroundAgentsPanel({ agents }: { agents: BackgroundAgentState[] }) {
+  return (
+    <Card className="animate-in fade-in-0 slide-in-from-bottom-2">
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
+            <Sparkles className="h-4 w-4" />
+          </div>
+          <div>
+            <CardTitle className="text-lg">Background agents</CardTitle>
+            <CardDescription>Autonomous sessions running behind the scenes.</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {agents.length ? (
+          agents.map((agent) => (
+            <div key={agent.sessionId} className="rounded-lg border bg-background/60 px-4 py-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="text-sm font-medium text-foreground">
+                    {agent.name ?? agent.sessionId}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {agent.parentSessionId ? `Parent ${agent.parentSessionId}` : agent.sessionId}
+                  </div>
+                </div>
+                <Badge variant={agent.status === "running" ? "default" : "outline"} className="text-xs capitalize">
+                  {agent.status}
+                </Badge>
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <Cable className="h-3 w-3" />
+                <span>{agent.pending > 0 ? `${agent.pending} pending` : "No pending work"}</span>
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <Activity className="h-3 w-3" />
+                <span>{agent.updatedAt ? `Updated ${formatShortDate(agent.updatedAt)}` : "No updates yet"}</span>
+              </div>
+            </div>
+          ))
+        ) : (
+          <EmptyState label="No background agents running." />
         )}
       </CardContent>
     </Card>

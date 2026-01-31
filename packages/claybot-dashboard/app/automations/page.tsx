@@ -34,8 +34,8 @@ export default function AutomationsPage() {
     void refresh();
   }, [refresh]);
 
-  const recurring = useMemo(() => tasks.filter((task) => !task.once).length, [tasks]);
-  const oneOff = useMemo(() => tasks.filter((task) => task.once).length, [tasks]);
+  const recurring = useMemo(() => tasks.filter((task) => !task.deleteAfterRun).length, [tasks]);
+  const oneOff = useMemo(() => tasks.filter((task) => task.deleteAfterRun).length, [tasks]);
 
   return (
     <DashboardShell
@@ -108,18 +108,20 @@ export default function AutomationsPage() {
                 </TableHeader>
                 <TableBody>
                   {tasks.map((task, index) => (
-                    <TableRow key={task.id ?? task.message ?? task.action ?? `task-${index}`}>
+                    <TableRow key={task.id ?? `task-${index}`}>
                       <TableCell>
-                        <div className="text-sm font-medium text-foreground">{task.id ?? "task"}</div>
+                        <div className="text-sm font-medium text-foreground">{task.name ?? task.id ?? "task"}</div>
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{formatInterval(task.everyMs)}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{task.schedule ?? "custom"}</TableCell>
                       <TableCell className="hidden lg:table-cell">
                         <span className="text-xs text-muted-foreground">
-                          {task.message ?? task.action ?? "custom"}
+                          {task.description ?? task.prompt ?? "custom"}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={task.once ? "outline" : "secondary"}>{task.once ? "once" : "repeat"}</Badge>
+                        <Badge variant={task.deleteAfterRun ? "outline" : "secondary"}>
+                          {task.deleteAfterRun ? "once" : "repeat"}
+                        </Badge>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -135,20 +137,4 @@ export default function AutomationsPage() {
       </div>
     </DashboardShell>
   );
-}
-
-function formatInterval(ms?: number) {
-  if (!ms) {
-    return "on demand";
-  }
-  if (ms < 1000) {
-    return `${ms}ms`;
-  }
-  if (ms < 60000) {
-    return `${Math.round(ms / 1000)}s`;
-  }
-  if (ms < 3600000) {
-    return `${Math.round(ms / 60000)}m`;
-  }
-  return `${Math.round(ms / 3600000)}h`;
 }

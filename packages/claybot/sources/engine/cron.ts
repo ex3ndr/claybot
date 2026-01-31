@@ -23,6 +23,7 @@ export type CronSchedulerOptions = {
     messageContext: MessageContext
   ) => void | Promise<void>;
   onError?: (error: unknown, taskId: string) => void | Promise<void>;
+  onTaskComplete?: (task: CronTaskWithPaths, runAt: Date) => void | Promise<void>;
 };
 
 type ScheduledTask = {
@@ -38,6 +39,7 @@ export class CronScheduler {
   private stopped = false;
   private onTask: CronSchedulerOptions["onTask"];
   private onError?: CronSchedulerOptions["onError"];
+  private onTaskComplete?: CronSchedulerOptions["onTaskComplete"];
   private tickTimer: NodeJS.Timeout | null = null;
   private runningTasks = new Set<string>();
 
@@ -45,6 +47,7 @@ export class CronScheduler {
     this.store = options.store;
     this.onTask = options.onTask;
     this.onError = options.onError;
+    this.onTaskComplete = options.onTaskComplete;
     logger.debug("CronScheduler initialized");
   }
 
@@ -191,6 +194,8 @@ export class CronScheduler {
       return;
     }
 
+    const runAt = new Date();
+
     const context: MessageContext = {
       channelId: `cron:${task.id}`,
       userId: "cron",
@@ -212,6 +217,10 @@ export class CronScheduler {
     } catch (error) {
       logger.warn({ taskId: task.id, error }, "Cron task execution failed");
       await this.reportError(error, task.id);
+    } finally {
+      task.lastRunAt = runAt.toISOString();
+      await this.store.recordRun(task.id, runAt);
+      await this.onTaskComplete?.(task, runAt);
     }
   }
 

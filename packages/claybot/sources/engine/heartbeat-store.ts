@@ -11,7 +11,10 @@ export type HeartbeatDefinition = {
   title: string;
   prompt: string;
   filePath: string;
+  lastRunAt?: string;
 };
+
+type HeartbeatState = Record<string, { lastRunAt?: string }>;
 
 export class HeartbeatStore {
   private basePath: string;
@@ -29,13 +32,14 @@ export class HeartbeatStore {
 
     const entries = await fs.readdir(this.basePath, { withFileTypes: true });
     const tasks: HeartbeatDefinition[] = [];
+    const state = await this.readState();
 
     for (const entry of entries) {
       if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".md")) {
         continue;
       }
       const filePath = path.join(this.basePath, entry.name);
-      const task = await this.loadTask(filePath);
+      const task = await this.loadTask(filePath, state);
       if (task) {
         tasks.push(task);
       }
@@ -44,7 +48,7 @@ export class HeartbeatStore {
     return tasks;
   }
 
-  async loadTask(filePath: string): Promise<HeartbeatDefinition | null> {
+  async loadTask(filePath: string, state?: HeartbeatState): Promise<HeartbeatDefinition | null> {
     try {
       const content = await fs.readFile(filePath, "utf8");
       const parsed = parseFrontmatter(content);
@@ -57,11 +61,13 @@ export class HeartbeatStore {
         return null;
       }
 
+      const lastRunAt = state?.[id]?.lastRunAt;
       return {
         id,
         title,
         prompt,
-        filePath
+        filePath,
+        lastRunAt: typeof lastRunAt === "string" ? lastRunAt : undefined
       };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
@@ -69,6 +75,49 @@ export class HeartbeatStore {
       }
       logger.warn({ filePath, error }, "Failed to load heartbeat file");
       return null;
+    }
+  }
+
+  async recordRun(taskId: string, runAt: Date): Promise<void> {
+    const state = await this.readState();
+    state[taskId] = { lastRunAt: runAt.toISOString() };
+    await this.writeState(state);
+  }
+
+  private getStatePath(): string {
+    return path.join(this.basePath, ".heartbeat-state.json");
+  }
+
+  private async readState(): Promise<HeartbeatState> {
+    const statePath = this.getStatePath();
+    try {
+      const raw = await fs.readFile(statePath, "utf8");
+      const parsed = JSON.parse(raw) as HeartbeatState;
+      if (!parsed || typeof parsed !== "object") {
+        return {};
+      }
+      return Object.fromEntries(
+        Object.entries(parsed).map(([key, value]) => [
+          key,
+          { lastRunAt: typeof value?.lastRunAt === "string" ? value.lastRunAt : undefined }
+        ])
+      );
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return {};
+      }
+      logger.warn({ error }, "Failed to read heartbeat state");
+      return {};
+    }
+  }
+
+  private async writeState(state: HeartbeatState): Promise<void> {
+    await this.ensureDir();
+    const statePath = this.getStatePath();
+    try {
+      await fs.writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+    } catch (error) {
+      logger.warn({ error }, "Failed to write heartbeat state");
     }
   }
 }

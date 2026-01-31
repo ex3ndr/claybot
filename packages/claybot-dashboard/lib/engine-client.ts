@@ -8,11 +8,33 @@ export type EngineStatus = {
 };
 
 export type CronTask = {
-  id?: string;
-  everyMs?: number;
-  once?: boolean;
-  message?: string;
-  action?: string;
+  id: string;
+  name?: string;
+  description?: string;
+  schedule?: string;
+  prompt?: string;
+  enabled?: boolean;
+  deleteAfterRun?: boolean;
+  lastRunAt?: string;
+  taskPath?: string;
+  memoryPath?: string;
+  filesPath?: string;
+};
+
+export type HeartbeatTask = {
+  id: string;
+  title: string;
+  lastRunAt?: string;
+};
+
+export type BackgroundAgentState = {
+  sessionId: string;
+  storageId: string;
+  name?: string;
+  parentSessionId?: string;
+  status: "running" | "queued" | "idle";
+  pending: number;
+  updatedAt?: string;
 };
 
 export type Session = {
@@ -80,6 +102,8 @@ export type EngineEvent = {
   payload?: {
     status?: EngineStatus;
     cron?: CronTask[];
+    heartbeat?: HeartbeatTask[];
+    backgroundAgents?: BackgroundAgentState[];
   };
 };
 
@@ -89,6 +113,14 @@ type EngineStatusResponse = {
 
 type CronResponse = {
   tasks?: CronTask[];
+};
+
+type HeartbeatResponse = {
+  tasks?: HeartbeatTask[];
+};
+
+type BackgroundAgentsResponse = {
+  agents?: BackgroundAgentState[];
 };
 
 type SessionsResponse = {
@@ -115,6 +147,16 @@ export async function fetchEngineStatus() {
 export async function fetchCronTasks() {
   const data = await fetchJSON<CronResponse>("/api/v1/engine/cron/tasks");
   return data.tasks ?? [];
+}
+
+export async function fetchHeartbeatTasks() {
+  const data = await fetchJSON<HeartbeatResponse>("/api/v1/engine/heartbeat/tasks");
+  return data.tasks ?? [];
+}
+
+export async function fetchBackgroundAgents() {
+  const data = await fetchJSON<BackgroundAgentsResponse>("/api/v1/engine/agents/background");
+  return data.agents ?? [];
 }
 
 export async function fetchSessions() {

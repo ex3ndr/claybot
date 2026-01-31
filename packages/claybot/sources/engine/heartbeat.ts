@@ -9,6 +9,7 @@ export type HeartbeatSchedulerOptions = {
   intervalMs?: number;
   onTask: (task: HeartbeatDefinition) => void | Promise<void>;
   onError?: (error: unknown, taskId?: string) => void | Promise<void>;
+  onTaskComplete?: (task: HeartbeatDefinition, runAt: Date) => void | Promise<void>;
 };
 
 export class HeartbeatScheduler {
@@ -16,6 +17,7 @@ export class HeartbeatScheduler {
   private intervalMs: number;
   private onTask: HeartbeatSchedulerOptions["onTask"];
   private onError?: HeartbeatSchedulerOptions["onError"];
+  private onTaskComplete?: HeartbeatSchedulerOptions["onTaskComplete"];
   private timer: NodeJS.Timeout | null = null;
   private started = false;
   private stopped = false;
@@ -26,6 +28,7 @@ export class HeartbeatScheduler {
     this.intervalMs = options.intervalMs ?? 30 * 60 * 1000;
     this.onTask = options.onTask;
     this.onError = options.onError;
+    this.onTaskComplete = options.onTaskComplete;
     logger.debug("HeartbeatScheduler initialized");
   }
 
@@ -98,12 +101,17 @@ export class HeartbeatScheduler {
         return { ran: 0, taskIds: [] };
       }
       for (const task of filtered) {
+        const runAt = new Date();
         try {
           logger.info({ taskId: task.id, title: task.title }, "Executing heartbeat task");
           await this.onTask(task);
         } catch (error) {
           logger.warn({ taskId: task.id, error }, "Heartbeat task failed");
           await this.onError?.(error, task.id);
+        } finally {
+          task.lastRunAt = runAt.toISOString();
+          await this.store.recordRun(task.id, runAt);
+          await this.onTaskComplete?.(task, runAt);
         }
       }
       return { ran: filtered.length, taskIds: filtered.map((task) => task.id) };
