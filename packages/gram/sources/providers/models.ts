@@ -1,9 +1,13 @@
 // This file is auto-generated from pi-ai models.generated.js
 // Do not edit manually.
 
+import type { KnownProvider } from "@mariozechner/pi-ai";
+
 import type { ProviderModelInfo } from "./types.js";
 
-export const PROVIDER_MODELS: Record<string, ProviderModelInfo[]> = {
+type ProviderModelRegistry = { [K in KnownProvider]: ProviderModelInfo[] };
+
+export const PROVIDER_MODELS = {
   "amazon-bedrock": [
     {"id":"eu.anthropic.claude-opus-4-5-20251101-v1:0","name":"Claude Opus 4.5 (EU)","size":"large"},
     {"id":"global.anthropic.claude-opus-4-5-20251101-v1:0","name":"Claude Opus 4.5","size":"large"},
@@ -732,7 +736,12 @@ export const PROVIDER_MODELS: Record<string, ProviderModelInfo[]> = {
     {"id":"glm-4.6v","name":"GLM-4.6V","size":"normal"},
     {"id":"glm-4.5v","name":"GLM-4.5V","size":"normal"},
   ],
-};
+} as const satisfies ProviderModelRegistry;
+
+type ProviderModelKeys = keyof typeof PROVIDER_MODELS;
+type ExtraProviderKeys = Exclude<ProviderModelKeys, KnownProvider>;
+const _assertNoExtraProviders: ExtraProviderKeys extends never ? true : never = true;
+void _assertNoExtraProviders;
 
 const SIZE_ORDER: Record<ProviderModelInfo["size"], number> = {
   large: 3,
@@ -742,7 +751,8 @@ const SIZE_ORDER: Record<ProviderModelInfo["size"], number> = {
 };
 
 export function listProviderModels(providerId: string): ProviderModelInfo[] {
-  const models = PROVIDER_MODELS[providerId] ?? [];
+  const models =
+    (PROVIDER_MODELS as Record<string, ProviderModelInfo[]>)[providerId] ?? [];
   return [...models].sort(compareProviderModels);
 }
 
