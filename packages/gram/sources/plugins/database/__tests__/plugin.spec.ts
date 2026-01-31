@@ -22,6 +22,11 @@ describe("database plugin", () => {
   });
 
   it("creates db files, runs SQL, and updates db.md", async () => {
+    const sqliteAvailable = await canImportSqlite();
+    if (!sqliteAvailable) {
+      return;
+    }
+
     const auth = new AuthStore(path.join(baseDir, "auth.json"));
     const fileStore = new FileStore({ basePath: path.join(baseDir, "files") });
     const connectorRegistry = new ConnectorRegistry({ onMessage: async () => undefined });
@@ -113,3 +118,12 @@ describe("database plugin", () => {
     await instance.unload?.();
   });
 });
+
+async function canImportSqlite(): Promise<boolean> {
+  try {
+    await import("node:sqlite");
+    return true;
+  } catch {
+    return false;
+  }
+}
