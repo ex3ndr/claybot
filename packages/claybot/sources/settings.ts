@@ -127,13 +127,30 @@ export function upsertPlugin(
   return [...filtered, entry];
 }
 
+export type NextPluginInstanceIdOptions = {
+  exclusive?: boolean;
+};
+
 export function nextPluginInstanceId(
   pluginId: string,
-  plugins: Array<PluginInstanceSettings | LegacyPluginSettings> | undefined
+  plugins: Array<PluginInstanceSettings | LegacyPluginSettings> | undefined,
+  options?: NextPluginInstanceIdOptions
 ): string {
+  // Exclusive plugins can only be installed once - always use bare pluginId
+  if (options?.exclusive) {
+    return pluginId;
+  }
+
   const list = normalizePlugins(plugins ?? []);
   const used = new Set(list.map((plugin) => plugin.instanceId));
-  let index = 1;
+
+  // First instance uses bare pluginId without suffix
+  if (!used.has(pluginId)) {
+    return pluginId;
+  }
+
+  // Subsequent instances use -2, -3, etc.
+  let index = 2;
   while (used.has(`${pluginId}-${index}`)) {
     index += 1;
   }

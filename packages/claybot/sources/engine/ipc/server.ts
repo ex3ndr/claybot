@@ -151,8 +151,11 @@ export async function startEngineServer(
     }
 
     const currentSettings = await readSettingsFile(options.settingsPath);
+    const definition = pluginCatalog.get(pluginId);
     const instanceId =
-      requestedInstanceId ?? nextPluginInstanceId(pluginId, currentSettings.plugins);
+      requestedInstanceId ?? nextPluginInstanceId(pluginId, currentSettings.plugins, {
+        exclusive: definition?.descriptor.exclusive
+      });
     logger.info({ plugin: pluginId, instance: instanceId }, "Plugin load requested");
     logger.debug(`Processing plugin load pluginId=${pluginId} instanceId=${instanceId} hasSettings=${!!payload.settings}`);
 

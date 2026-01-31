@@ -48,7 +48,7 @@ Every plugin requires a JSON descriptor:
 | `name` | string | yes | Display name |
 | `description` | string | yes | Brief explanation |
 | `entry` | string | yes | Path to compiled entry point |
-| `exclusive` | boolean | no | When `true`, only this plugin can be enabled |
+| `exclusive` | boolean | no | When `true`, only this plugin can be enabled; exclusive plugins always use bare `id` as `instanceId` |
 
 ## Plugin Module
 
@@ -415,7 +415,7 @@ Plugins are configured in `.claybot/settings.json`:
 {
   "plugins": [
     {
-      "instanceId": "my-plugin-1",
+      "instanceId": "my-plugin",
       "pluginId": "my-plugin",
       "enabled": true,
       "settings": {
@@ -425,6 +425,11 @@ Plugins are configured in `.claybot/settings.json`:
   ]
 }
 ```
+
+**Instance ID naming:**
+- First instance uses bare `pluginId` (e.g., `"my-plugin"`)
+- Subsequent instances use `-2`, `-3`, etc. (e.g., `"my-plugin-2"`)
+- Exclusive plugins always use bare `pluginId`
 
 Multiple instances of the same plugin are fully independent, each with:
 - Separate `instanceId`

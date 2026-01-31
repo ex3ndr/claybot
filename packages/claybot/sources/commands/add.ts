@@ -96,7 +96,9 @@ async function addPlugin(
     return;
   }
 
-  const instanceId = nextPluginInstanceId(pluginId, settings.plugins);
+  const instanceId = nextPluginInstanceId(pluginId, settings.plugins, {
+    exclusive: definition.descriptor.exclusive
+  });
   let settingsConfig: Record<string, unknown> = {};
 
   const exclusiveCheck = resolveExclusivePlugins(
