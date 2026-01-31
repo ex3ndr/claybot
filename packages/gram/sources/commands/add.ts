@@ -4,6 +4,7 @@ import { AuthStore } from "../auth/store.js";
 import { promptConfirm, promptInput, promptSelect } from "./prompts.js";
 import { ConnectorRegistry, ImageGenerationRegistry, InferenceRegistry, ToolResolver } from "../engine/modules.js";
 import { FileStore } from "../files/store.js";
+import { InferenceRouter } from "../engine/inference/router.js";
 import { PluginManager } from "../engine/plugins/manager.js";
 import { buildPluginCatalog, type PluginDefinition } from "../engine/plugins/catalog.js";
 import { PluginEventQueue } from "../engine/plugins/events.js";
@@ -21,7 +22,7 @@ import {
   type PluginInstanceSettings,
   type ProviderSettings
 } from "../settings.js";
-import { listProviderDefinitions, getProviderDefinition } from "../providers/catalog.js";
+import { listActiveInferenceProviders, listProviderDefinitions, getProviderDefinition } from "../providers/catalog.js";
 import type { ProviderDefinition } from "../providers/types.js";
 import { getLogger } from "../log.js";
 import { DEFAULT_SCOUT_DIR } from "../paths.js";
@@ -267,6 +268,11 @@ async function validatePluginLoad(
   );
   const pluginEventQueue = new PluginEventQueue();
   const fileStore = new FileStore({ basePath: `${dataDir}/files` });
+  const inferenceRouter = new InferenceRouter({
+    providers: listActiveInferenceProviders(settings),
+    registry: inferenceRegistry,
+    auth: authStore
+  });
   const pluginManager = new PluginManager({
     settings,
     registry: pluginRegistry,
@@ -275,6 +281,7 @@ async function validatePluginLoad(
     pluginCatalog: buildPluginCatalog(),
     dataDir,
     eventQueue: pluginEventQueue,
+    inferenceRouter,
     mode: "validate"
   });
 

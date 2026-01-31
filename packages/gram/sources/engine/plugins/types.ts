@@ -7,6 +7,7 @@ import type { PluginInstanceSettings, SettingsConfig } from "../../settings.js";
 import type { PluginEventInput } from "./events.js";
 import type { PluginRegistrar } from "./registry.js";
 import type { EngineEventBus } from "../ipc/events.js";
+import type { PluginInference } from "./inference.js";
 
 export type PluginApi<TSettings = unknown> = {
   instance: PluginInstanceSettings;
@@ -17,6 +18,7 @@ export type PluginApi<TSettings = unknown> = {
   dataDir: string;
   registrar: PluginRegistrar;
   fileStore: FileStore;
+  inference: PluginInference;
   mode: "runtime" | "validate";
   engineEvents?: EngineEventBus;
   events: {

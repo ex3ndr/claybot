@@ -149,6 +149,11 @@ export class Engine {
     this.inferenceRegistry = new InferenceRegistry();
     this.imageRegistry = new ImageGenerationRegistry();
     this.toolResolver = new ToolResolver();
+    this.inferenceRouter = new InferenceRouter({
+      providers: listActiveInferenceProviders(this.settings),
+      registry: this.inferenceRegistry,
+      auth: this.authStore
+    });
 
     this.pluginRegistry = new PluginRegistry(
       this.connectorRegistry,
@@ -165,6 +170,7 @@ export class Engine {
       pluginCatalog: buildPluginCatalog(),
       dataDir: this.dataDir,
       eventQueue: this.pluginEventQueue,
+      inferenceRouter: this.inferenceRouter,
       engineEvents: this.eventBus
     });
 
@@ -297,11 +303,6 @@ export class Engine {
       logger.debug(`Session manager completed: source=${payload.source}`);
     });
 
-    this.inferenceRouter = new InferenceRouter({
-      providers: listActiveInferenceProviders(this.settings),
-      registry: this.inferenceRegistry,
-      auth: this.authStore
-    });
   }
 
   async start(): Promise<void> {

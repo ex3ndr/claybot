@@ -13,6 +13,8 @@ import type { PluginApi, PluginInstance, PluginModule } from "./types.js";
 import type { PluginRegistry } from "./registry.js";
 import type { EngineEventBus } from "../ipc/events.js";
 import { resolveExclusivePlugins } from "./exclusive.js";
+import type { InferenceRouter } from "../inference/router.js";
+import { PluginInferenceService } from "./inference.js";
 
 export type PluginManagerOptions = {
   settings: SettingsConfig;
@@ -22,6 +24,7 @@ export type PluginManagerOptions = {
   pluginCatalog: Map<string, PluginDefinition>;
   dataDir: string;
   eventQueue: PluginEventQueue;
+  inferenceRouter: InferenceRouter;
   mode?: "runtime" | "validate";
   engineEvents?: EngineEventBus;
 };
@@ -45,6 +48,7 @@ export class PluginManager {
   private eventQueue: PluginEventQueue;
   private mode: "runtime" | "validate";
   private engineEvents?: EngineEventBus;
+  private inference: PluginInferenceService;
   private loaded = new Map<string, LoadedPlugin>();
   private logger = getLogger("plugins.manager");
 
@@ -58,6 +62,10 @@ export class PluginManager {
     this.eventQueue = options.eventQueue;
     this.mode = options.mode ?? "runtime";
     this.engineEvents = options.engineEvents;
+    this.inference = new PluginInferenceService({
+      router: options.inferenceRouter,
+      getSettings: () => this.settings
+    });
     this.logger.debug(`PluginManager initialized catalogSize=${options.pluginCatalog.size} dataDir=${options.dataDir} mode=${this.mode}`);
   }
 
@@ -206,6 +214,7 @@ export class PluginManager {
       dataDir,
       registrar,
       fileStore: this.fileStore,
+      inference: this.inference.createClient(instanceId),
       mode: this.mode,
       engineEvents: this.engineEvents,
       events: {

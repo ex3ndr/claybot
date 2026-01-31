@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { ConnectorRegistry, ImageGenerationRegistry, InferenceRegistry, ToolResolver } from "../modules.js";
+import { InferenceRouter } from "../inference/router.js";
 import { FileStore } from "../../files/store.js";
 import { PluginEventQueue } from "./events.js";
 import { PluginManager } from "./manager.js";
@@ -46,6 +47,11 @@ function createManager(
   const authPath = path.join(rootDir, "auth.json");
   const auth = new AuthStore(authPath);
   const fileStore = new FileStore({ basePath: path.join(rootDir, "files") });
+  const inferenceRouter = new InferenceRouter({
+    providers: [],
+    registry: inferenceRegistry,
+    auth
+  });
   const catalog = new Map([
     [
       pluginId,
@@ -70,7 +76,8 @@ function createManager(
     fileStore,
     pluginCatalog: catalog,
     dataDir: rootDir,
-    eventQueue: queue
+    eventQueue: queue,
+    inferenceRouter
   });
 }
 

@@ -23,10 +23,17 @@ The plugin API surface is intentionally narrow:
 - `api.registrar`: connector/inference/tool/image registration
 - `api.auth`: auth store (providers use the provider/plugin id; other plugins typically use instance id)
 - `api.fileStore`: shared file store
+- `api.inference.complete({ systemPrompt, messages, providerId?, strategy? })`: run a single inference without tools
 - `api.logger`: per-plugin logger
 - `api.mode`: `"runtime"` or `"validate"` (used during `gram add` validation)
 - `api.engineEvents`: engine event bus (optional)
 - `api.events.emit({ type, payload })`: enqueue plugin events
+
+Inference strategies:
+- `default`: use the provider defaults from settings.
+- `small`: prefer the newest small model; fall back to normal, then large.
+- `normal`: prefer the newest normal model; fall back to large, then small.
+- `large`: prefer the newest large model; fall back to normal, then small.
 
 Load/unload is internal: the plugin manager reconciles enabled instances from
 `.scout/settings.json` and loads or unloads instances to match.

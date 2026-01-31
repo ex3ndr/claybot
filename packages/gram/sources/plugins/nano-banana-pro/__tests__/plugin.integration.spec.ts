@@ -64,6 +64,11 @@ describeIf("nano-banana-pro image generation", () => {
     } as unknown as PluginRegistrar;
 
     const settings = nanoBananaPro.settingsSchema.parse({ api: "gemini" });
+    const inference = {
+      complete: async () => {
+        throw new Error("Inference not available in tests");
+      }
+    };
     const api: PluginApi<typeof settings> = {
       instance: { instanceId: "nano-banana-pro", pluginId: "nano-banana-pro", enabled: true },
       settings,
@@ -73,6 +78,7 @@ describeIf("nano-banana-pro image generation", () => {
       dataDir: dir,
       registrar,
       fileStore,
+      inference,
       mode: "runtime",
       events: { emit: () => undefined }
     };

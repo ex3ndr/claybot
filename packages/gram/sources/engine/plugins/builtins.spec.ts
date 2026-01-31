@@ -44,6 +44,11 @@ async function createApi<TSettings>(
   const authPath = path.join(dir, "auth.json");
   const auth = new AuthStore(authPath);
   const fileStore = new FileStore({ basePath: path.join(dir, "files") });
+  const inference = {
+    complete: async () => {
+      throw new Error("Inference not available in tests");
+    }
+  };
   return {
     instance: { instanceId, pluginId, enabled: true },
     settings,
@@ -53,6 +58,7 @@ async function createApi<TSettings>(
     dataDir: dir,
     registrar,
     fileStore,
+    inference,
     mode: "runtime",
     events: { emit: vi.fn() }
   };
