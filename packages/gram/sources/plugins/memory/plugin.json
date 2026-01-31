@@ -1,6 +1,6 @@
 {
   "id": "memory",
   "name": "Memory",
-  "description": "Conversation memory storage and search.",
+  "description": "Structured memory entities stored as markdown.",
   "entry": "./plugin.js"
 }

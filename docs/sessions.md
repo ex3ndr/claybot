@@ -15,9 +15,9 @@ sequenceDiagram
 ```
 
 ## Session rules
-- Session id defaults to `${providerId}:${userId}` (falls back to `channelId` when `userId` is missing).
+- Session ids are cuid2 values mapped to `connector + channelId + userId`.
+- Connectors must provide `channelId` and `userId` for mapping.
 - A connector or scheduler can override with `context.sessionId`.
-- Each session is bound to a single provider id and keeps context per provider.
 - Messages (and files) are queued and processed in order.
 
 ## Session persistence
@@ -28,17 +28,6 @@ sequenceDiagram
 ## Resetting sessions
 - Sessions can be reset without changing the session id.
 - Reset clears the stored context messages but keeps the provider binding intact.
-
-## Memory integration
-Session updates are mirrored into the memory plugin (if enabled).
-
-```mermaid
-flowchart TD
-  Incoming[Session incoming] --> Store[SessionStore]
-  Incoming --> Memory[Memory plugin]
-  Outgoing[Session outgoing] --> Store
-  Outgoing --> Memory
-```
 
 ## Key types
 - `SessionMessage` stores message, context, and timestamps.

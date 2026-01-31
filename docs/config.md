@@ -27,20 +27,16 @@ flowchart TD
   "plugins": [
     { "instanceId": "telegram", "pluginId": "telegram", "enabled": true, "settings": { "polling": true } },
     { "instanceId": "brave-search", "pluginId": "brave-search", "enabled": true },
-    { "instanceId": "memory", "pluginId": "memory", "enabled": true }
+    { "instanceId": "memory", "pluginId": "memory", "enabled": true, "settings": { "basePath": ".scout/memory" } }
   ],
   "providers": [
     { "id": "openai", "enabled": true, "model": "gpt-4o-mini" },
     { "id": "nanobanana", "enabled": false, "image": { "endpoint": "https://api.example.com/images" } }
-  ],
-  "memory": {
-    "enabled": true,
-    "maxEntries": 1000
-  }
+  ]
 }
 ```
 
-`memory` settings are consumed by the memory plugin (if enabled). Providers are configured
+Memory settings are configured per plugin instance. Providers are configured
 at the top level; order defines inference priority and `enabled: false` disables a provider.
 
 ## Cron tasks

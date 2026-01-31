@@ -1,14 +1,15 @@
 # Memory plugin
 
-The memory plugin records session updates and supports keyword queries.
+The memory plugin manages structured entities stored as Markdown files. Each entity is a lowercase English word (a-z only, no underscores). An `INDEX.md` file lists all entity types.
 
-- Stored in `.scout/memory/memory.jsonl` (default).
-- Each entry includes session id, role, text, and file references.
-- Memory can read session logs via the session store API.
+- Stored under `.scout/memory/` by default.
+- `INDEX.md` enumerates entity types.
+- `<entity>.md` contains `##` sections, one per record.
 
 ```mermaid
-flowchart LR
-  Sessions[Session updates] --> Memory[Memory plugin]
-  Memory --> Search[memory_search tool]
-  Memory --> API[GET /v1/engine/memory/search]
+flowchart TD
+  Create[memory_create_entity] --> Store[MemoryStore]
+  Upsert[memory_upsert_record] --> Store
+  Store --> Index[INDEX.md]
+  Store --> Entity[<entity>.md]
 ```

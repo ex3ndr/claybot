@@ -8,7 +8,7 @@ This folder documents the current Grambot CLI, plugins, sessions, and runtime.
 - `connectors.md` - connector abstraction and telegram connector
 - `plugins.md` - plugin system and built-in plugins
 - `dashboard.md` - gram-dashboard SPA + proxy
-- `memory.md` - memory plugin and search
+- `memory.md` - memory plugin and entities
 - `cron.md` - cron scheduler tasks and actions
 - `auth.md` - auth store and helper commands
 - `inference.md` - inference runtime helpers

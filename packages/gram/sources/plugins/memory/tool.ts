@@ -2,45 +2,98 @@ import { Type, type Static } from "@sinclair/typebox";
 import type { ToolResultMessage } from "@mariozechner/pi-ai";
 
 import type { ToolDefinition } from "../../engine/tools/types.js";
-import type { MemoryEngine } from "./engine.js";
+import type { MemoryStore } from "./store.js";
 
-const memorySchema = Type.Object(
+const createEntitySchema = Type.Object(
   {
-    query: Type.String({ minLength: 1 }),
-    limit: Type.Optional(Type.Number({ minimum: 1, maximum: 50 }))
+    entity: Type.String({ minLength: 1 })
   },
   { additionalProperties: false }
 );
 
-type MemoryArgs = Static<typeof memorySchema>;
+const upsertRecordSchema = Type.Object(
+  {
+    entity: Type.String({ minLength: 1 }),
+    record: Type.String({ minLength: 1 }),
+    content: Type.String({ minLength: 1 })
+  },
+  { additionalProperties: false }
+);
 
-export function buildMemoryTool(memory: MemoryEngine): ToolDefinition {
+type CreateEntityArgs = Static<typeof createEntitySchema>;
+type UpsertRecordArgs = Static<typeof upsertRecordSchema>;
+
+export function buildMemoryCreateEntityTool(store: MemoryStore): ToolDefinition {
   return {
     tool: {
-      name: "memory_search",
-      description: "Search memory entries by keyword.",
-      parameters: memorySchema
+      name: "memory_create_entity",
+      description:
+        "Create a new memory entity type (lowercase a-z only, no underscores).",
+      parameters: createEntitySchema
     },
     execute: async (args, _toolContext, toolCall) => {
-      const payload = args as MemoryArgs;
-      const results = await memory.query(payload.query, payload.limit ?? 10);
-      const text = results.length === 0
-        ? "No memory matches."
-        : results
-            .map((entry) => {
-              const line = entry.text ?? "";
-              return `[${entry.sessionId}] ${line}`.trim();
-            })
-            .join("\n");
+      const payload = args as CreateEntityArgs;
+      const result = await store.createEntity(payload.entity);
 
       const toolMessage: ToolResultMessage = {
         role: "toolResult",
         toolCallId: toolCall.id,
         toolName: toolCall.name,
-        content: [{ type: "text", text }],
+        content: [
+          {
+            type: "text",
+            text: result.created
+              ? `Created memory entity ${result.entity}.`
+              : `Memory entity ${result.entity} already exists.`
+          }
+        ],
         details: {
-          count: results.length,
-          entries: results
+          entity: result.entity,
+          created: result.created,
+          path: result.path
+        },
+        isError: false,
+        timestamp: Date.now()
+      };
+
+      return { toolMessage };
+    }
+  };
+}
+
+export function buildMemoryUpsertRecordTool(store: MemoryStore): ToolDefinition {
+  return {
+    tool: {
+      name: "memory_upsert_record",
+      description:
+        "Add or update a memory record as markdown under an entity.",
+      parameters: upsertRecordSchema
+    },
+    execute: async (args, _toolContext, toolCall) => {
+      const payload = args as UpsertRecordArgs;
+      const result = await store.upsertRecord(
+        payload.entity,
+        payload.record,
+        payload.content
+      );
+
+      const toolMessage: ToolResultMessage = {
+        role: "toolResult",
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+        content: [
+          {
+            type: "text",
+            text: result.created
+              ? `Added record ${result.record} to ${result.entity}.`
+              : `Updated record ${result.record} in ${result.entity}.`
+          }
+        ],
+        details: {
+          entity: result.entity,
+          record: result.record,
+          created: result.created,
+          path: result.path
         },
         isError: false,
         timestamp: Date.now()
