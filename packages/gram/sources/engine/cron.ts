@@ -33,8 +33,6 @@ type ScheduledTask = {
   timer: NodeJS.Timeout | null;
 };
 
-const MAX_TIMEOUT_MS = 0x7fffffff;
-
 export class CronScheduler {
   private store: CronStore;
   private tasks = new Map<string, ScheduledTask>();
@@ -42,6 +40,8 @@ export class CronScheduler {
   private stopped = false;
   private onTask: CronSchedulerOptions["onTask"];
   private onError?: CronSchedulerOptions["onError"];
+  private tickTimer: NodeJS.Timeout | null = null;
+  private tickInterval: NodeJS.Timeout | null = null;
 
   constructor(options: CronSchedulerOptions) {
     this.store = options.store;
@@ -72,6 +72,7 @@ export class CronScheduler {
       this.scheduleTask(task);
     }
 
+    this.startTicker();
     logger.debug("All tasks scheduled");
   }
 
@@ -85,10 +86,13 @@ export class CronScheduler {
     this.stopped = true;
     logger.debug(`Clearing timers taskCount=${this.tasks.size}`);
 
-    for (const scheduled of this.tasks.values()) {
-      if (scheduled.timer) {
-        clearTimeout(scheduled.timer);
-      }
+    if (this.tickTimer) {
+      clearTimeout(this.tickTimer);
+      this.tickTimer = null;
+    }
+    if (this.tickInterval) {
+      clearInterval(this.tickInterval);
+      this.tickInterval = null;
     }
     this.tasks.clear();
     logger.debug("CronScheduler stopped");
@@ -97,12 +101,6 @@ export class CronScheduler {
   async reload(): Promise<void> {
     logger.debug("Reloading tasks from disk");
 
-    // Cancel all existing timers
-    for (const scheduled of this.tasks.values()) {
-      if (scheduled.timer) {
-        clearTimeout(scheduled.timer);
-      }
-    }
     this.tasks.clear();
 
     if (!this.started || this.stopped) {
@@ -159,10 +157,6 @@ export class CronScheduler {
   }
 
   private scheduleTask(task: CronTaskWithPaths): void {
-    const existing = this.tasks.get(task.id);
-    if (existing?.timer) {
-      clearTimeout(existing.timer);
-    }
     const nextRun = getNextCronTime(task.schedule);
     if (!nextRun) {
       logger.warn({ taskId: task.id, schedule: task.schedule }, "Invalid cron schedule");
@@ -172,40 +166,12 @@ export class CronScheduler {
       );
       return;
     }
-
-    this.scheduleAt(task, nextRun);
-  }
-
-  private scheduleAt(task: CronTaskWithPaths, nextRun: Date): void {
-    const now = new Date();
-    const delay = nextRun.getTime() - now.getTime();
-
     logger.debug({
       taskId: task.id,
       schedule: task.schedule,
-      nextRun: nextRun.toISOString(),
-      delayMs: delay
+      nextRun: nextRun.toISOString()
     }, "Scheduling task");
-
-    if (delay <= 0) {
-      this.tasks.set(task.id, { task, nextRun, timer: null });
-      void this.executeTask(task);
-      return;
-    }
-
-    const timeout = Math.min(delay, MAX_TIMEOUT_MS);
-    const timer = setTimeout(() => {
-      if (this.stopped) {
-        return;
-      }
-      if (delay > MAX_TIMEOUT_MS) {
-        this.scheduleAt(task, nextRun);
-        return;
-      }
-      void this.executeTask(task);
-    }, timeout);
-
-    this.tasks.set(task.id, { task, nextRun, timer });
+    this.tasks.set(task.id, { task, nextRun, timer: null });
   }
 
   private async executeTask(task: CronTaskWithPaths): Promise<void> {
@@ -238,11 +204,6 @@ export class CronScheduler {
       logger.warn({ taskId: task.id, error }, "Cron task execution failed");
       await this.reportError(error, task.id);
     }
-
-    // Reschedule for next run
-    if (!this.stopped) {
-      this.scheduleTask(task);
-    }
   }
 
   private async reportError(error: unknown, taskId: string): Promise<void> {
@@ -250,6 +211,54 @@ export class CronScheduler {
       return;
     }
     await this.onError(error, taskId);
+  }
+
+  private startTicker(): void {
+    if (this.tickTimer || this.tickInterval) {
+      return;
+    }
+
+    const now = new Date();
+    const delay =
+      (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
+
+    this.tickTimer = setTimeout(() => {
+      this.tickTimer = null;
+      this.runTick();
+      this.tickInterval = setInterval(() => {
+        this.runTick();
+      }, 60 * 1000);
+    }, Math.max(delay, 0));
+  }
+
+  private runTick(): void {
+    if (this.stopped) {
+      return;
+    }
+
+    const now = new Date();
+    for (const scheduled of this.tasks.values()) {
+      if (now.getTime() < scheduled.nextRun.getTime()) {
+        continue;
+      }
+
+      const nextRun = getNextCronTime(scheduled.task.schedule, now);
+      if (!nextRun) {
+        logger.warn(
+          { taskId: scheduled.task.id, schedule: scheduled.task.schedule },
+          "Invalid cron schedule"
+        );
+        void this.reportError(
+          new Error(`Invalid cron schedule: ${scheduled.task.schedule}`),
+          scheduled.task.id
+        );
+        continue;
+      }
+
+      scheduled.nextRun = nextRun;
+      this.tasks.set(scheduled.task.id, scheduled);
+      void this.executeTask(scheduled.task);
+    }
   }
 }
 
