@@ -18,6 +18,7 @@ export type ConnectorCapabilities = {
 
 export type ConnectorMessage = {
   text: string | null;
+  rawText?: string | null;
   files?: ConnectorFile[];
   replyToMessageId?: string;
 };
@@ -29,9 +30,16 @@ export type MessageContext = {
   userFirstName?: string;
   userLastName?: string;
   username?: string;
+  commands?: ConnectorCommand[];
   sessionId?: string;
   messageId?: string;
   providerId?: string;
+};
+
+export type ConnectorCommand = {
+  name: string;
+  raw: string;
+  args?: string;
 };
 
 export type MessageHandler = (

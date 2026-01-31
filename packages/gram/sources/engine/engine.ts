@@ -9,7 +9,7 @@ import {
   InferenceRegistry,
   ToolResolver
 } from "./modules.js";
-import type { ConnectorMessage, MessageContext } from "./connectors/types.js";
+import type { Connector, ConnectorMessage, MessageContext } from "./connectors/types.js";
 import { FileStore } from "../files/store.js";
 import type { FileReference } from "../files/types.js";
 import { InferenceRouter } from "./inference/router.js";
@@ -456,6 +456,133 @@ export class Engine {
     return filterConnectorTools(tools, supportsFiles, supportsReactions);
   }
 
+  private async handleSlashCommand(
+    command: ResolvedCommand,
+    entry: SessionMessage,
+    session: Session<SessionState>,
+    source: string,
+    connector: Connector
+  ): Promise<boolean> {
+    const name = command.name.toLowerCase();
+    if (name !== "reset" && name !== "compact") {
+      return false;
+    }
+
+    if (name === "reset") {
+      const ok = this.resetSession(session.id);
+      const message = ok ? "Session reset." : "Failed to reset session.";
+      await this.replyToCommand(connector, entry, session, source, message);
+      return true;
+    }
+
+    const result = await this.compactSession(session, entry, source);
+    await this.replyToCommand(
+      connector,
+      entry,
+      session,
+      source,
+      result.ok ? "Compaction complete." : `Compaction failed: ${result.error}`
+    );
+    return true;
+  }
+
+  private async replyToCommand(
+    connector: Connector,
+    entry: SessionMessage,
+    session: Session<SessionState>,
+    source: string,
+    text: string
+  ): Promise<void> {
+    try {
+      await connector.sendMessage(entry.context.channelId, {
+        text,
+        replyToMessageId: entry.context.messageId
+      });
+      await recordOutgoingEntry(this.sessionStore, session, source, entry.context, text);
+    } catch (error) {
+      logger.warn({ connector: source, error }, "Failed to send command reply");
+    } finally {
+      await recordSessionState(this.sessionStore, session, source);
+    }
+  }
+
+  private async compactSession(
+    session: Session<SessionState>,
+    entry: SessionMessage,
+    source: string
+  ): Promise<{ ok: true; summary: string } | { ok: false; error: string }> {
+    const history = session.context.state.context.messages;
+    if (!history || history.length === 0) {
+      return { ok: false, error: "No conversation history to compact." };
+    }
+
+    const providerId = this.resolveSessionProvider(session, entry.context);
+    const providersForSession = providerId
+      ? listActiveInferenceProviders(this.settings).filter((provider) => provider.id === providerId)
+      : [];
+
+    const compactContext: Context = {
+      messages: [
+        ...history,
+        {
+          role: "user",
+          content:
+            "Summarize the conversation so far for future context. " +
+            "Include key facts, decisions, tasks, preferences, and any important identifiers. " +
+            "Be concise and factual.",
+          timestamp: Date.now()
+        }
+      ],
+      tools: [],
+      systemPrompt:
+        "You are a compaction assistant. Return a concise summary of the conversation for reuse."
+    };
+
+    try {
+      const result = await this.inferenceRouter.complete(compactContext, session.id, {
+        providersOverride: providersForSession
+      });
+      const summary = extractAssistantText(result.message);
+      if (!summary || summary.trim().length === 0) {
+        return { ok: false, error: "No summary produced." };
+      }
+      session.context.state.context.messages = [
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "text",
+              text: `Conversation summary:\n${summary.trim()}`
+            }
+          ],
+          api: "compaction",
+          provider: "system",
+          model: "summary",
+          usage: {
+            input: 0,
+            output: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 0,
+            cost: {
+              input: 0,
+              output: 0,
+              cacheRead: 0,
+              cacheWrite: 0,
+              total: 0
+            }
+          },
+          stopReason: "stop",
+          timestamp: Date.now()
+        }
+      ];
+      await recordSessionState(this.sessionStore, session, source);
+      return { ok: true, summary };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
   async executeTool(
     name: string,
     args: Record<string, unknown>,
@@ -637,6 +764,14 @@ export class Engine {
       return;
     }
     logger.debug(`Connector found source=${source}`);
+
+    const command = resolveIncomingCommand(entry);
+    if (command) {
+      const handled = await this.handleSlashCommand(command, entry, session, source, connector);
+      if (handled) {
+        return;
+      }
+    }
 
     const sessionContext = session.context.state.context;
     const providerId = this.resolveSessionProvider(session, entry.context);
@@ -991,7 +1126,46 @@ function formatIncomingMessage(
     : "";
   return {
     ...message,
+    rawText: message.rawText ?? message.text,
     text: `<time>${time}</time>${messageIdTag}<message>${text}</message>`
+  };
+}
+
+type ResolvedCommand = {
+  name: string;
+  raw: string;
+  args?: string;
+};
+
+function resolveIncomingCommand(entry: SessionMessage): ResolvedCommand | null {
+  const contextCommands = entry.context.commands ?? [];
+  if (contextCommands.length > 0) {
+    const first = contextCommands[0]!;
+    return {
+      name: first.name,
+      raw: first.raw,
+      args: first.args
+    };
+  }
+
+  const rawText = entry.message.rawText ?? entry.message.text ?? "";
+  const trimmed = rawText.trim();
+  if (!trimmed.startsWith("/")) {
+    return null;
+  }
+  const [head, ...rest] = trimmed.split(/\s+/);
+  if (!head) {
+    return null;
+  }
+  const name = head.slice(1).split("@")[0] ?? "";
+  if (!name) {
+    return null;
+  }
+  const args = rest.join(" ").trim();
+  return {
+    name,
+    raw: head,
+    args: args.length > 0 ? args : undefined
   };
 }
 
