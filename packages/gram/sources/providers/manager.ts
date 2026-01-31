@@ -39,6 +39,16 @@ export class ProviderManager {
     return Array.from(this.loaded.keys());
   }
 
+  listLoadedDetails(): Array<{ id: string; name: string }> {
+    return Array.from(this.loaded.keys()).map((id) => {
+      const definition = getProviderDefinition(id);
+      return {
+        id,
+        name: definition?.name ?? id
+      };
+    });
+  }
+
   async sync(settings: SettingsConfig): Promise<void> {
     logger.debug(`sync() starting loadedCount=${this.loaded.size}`);
     const activeProviders = listProviders(settings).filter(

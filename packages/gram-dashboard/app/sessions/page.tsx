@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MessageSquare, RefreshCw, Search } from "lucide-react";
 
@@ -9,17 +10,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fetchSessions, type Session } from "@/lib/engine-client";
+import { fetchSessions, type EngineEvent, type Session } from "@/lib/engine-client";
 
 export default function SessionsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const syncSessions = useCallback(async (options: { silent?: boolean } = {}) => {
+    const silent = options.silent ?? false;
+    if (!silent) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const data = await fetchSessions();
@@ -28,34 +33,80 @@ export default function SessionsPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load sessions");
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    void syncSessions();
+  }, [syncSessions]);
+
+  useEffect(() => {
+    const source = new EventSource("/api/v1/engine/events");
+
+    source.onopen = () => {
+      setConnected(true);
+    };
+
+    source.onerror = () => {
+      setConnected(false);
+    };
+
+    source.onmessage = (event) => {
+      const payload = JSON.parse(event.data) as EngineEvent;
+      if (payload.type === "init") {
+        void syncSessions({ silent: true });
+        return;
+      }
+
+      if (payload.type === "session.created" || payload.type === "session.updated") {
+        void syncSessions({ silent: true });
+      }
+    };
+
+    return () => {
+      source.close();
+    };
+  }, [syncSessions]);
+
+  const orderedSessions = useMemo(() => {
+    const sessionTimestamp = (session: Session) => {
+      const updated = session.updatedAt ? Date.parse(session.updatedAt) : Number.NaN;
+      if (!Number.isNaN(updated)) {
+        return updated;
+      }
+      const created = session.createdAt ? Date.parse(session.createdAt) : Number.NaN;
+      if (!Number.isNaN(created)) {
+        return created;
+      }
+      return 0;
+    };
+
+    return [...sessions].sort((a, b) => sessionTimestamp(b) - sessionTimestamp(a));
+  }, [sessions]);
 
   const filtered = useMemo(() => {
     if (!query.trim()) {
-      return sessions;
+      return orderedSessions;
     }
     const q = query.toLowerCase();
-    return sessions.filter((session) => {
+    return orderedSessions.filter((session) => {
       return (
         session.sessionId.toLowerCase().includes(q) ||
         (session.source ?? "").toLowerCase().includes(q) ||
         (session.lastMessage ?? "").toLowerCase().includes(q)
       );
     });
-  }, [query, sessions]);
+  }, [query, orderedSessions]);
 
   const sources = useMemo(() => new Set(sessions.map((session) => session.source ?? "unknown")), [sessions]);
 
   return (
     <DashboardShell
       title="Sessions"
-      subtitle="Inspect live conversation threads and recent messages."
+      subtitle="Inspect live conversation threads and active sessions."
       toolbar={
         <>
           <div className="relative hidden w-56 items-center md:flex">
@@ -68,7 +119,10 @@ export default function SessionsPage() {
               aria-label="Search sessions"
             />
           </div>
-          <Button onClick={() => void refresh()} disabled={loading} className="gap-2">
+          <Badge variant={connected ? "default" : "outline"} className={connected ? "bg-emerald-500 text-white" : ""}>
+            {connected ? "Live" : "Offline"}
+          </Badge>
+          <Button onClick={() => void syncSessions()} disabled={loading} className="gap-2">
             <RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
             Refresh
           </Button>
@@ -123,8 +177,8 @@ export default function SessionsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Recent sessions</CardTitle>
-            <CardDescription>Newest session activity from the engine.</CardDescription>
+          <CardTitle>Active sessions</CardTitle>
+          <CardDescription>All active session activity from the engine.</CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
             {filtered.length ? (
@@ -141,7 +195,16 @@ export default function SessionsPage() {
                   {filtered.map((session) => (
                     <TableRow key={session.sessionId}>
                       <TableCell>
-                        <div className="text-sm font-medium text-foreground">{session.sessionId}</div>
+                        {session.storageId ? (
+                          <Link
+                            href={`/sessions/${session.storageId}`}
+                            className="text-sm font-medium text-foreground hover:underline"
+                          >
+                            {session.sessionId}
+                          </Link>
+                        ) : (
+                          <div className="text-sm font-medium text-foreground">{session.sessionId}</div>
+                        )}
                         <div className="text-xs text-muted-foreground lg:hidden">{session.source ?? "unknown"}</div>
                       </TableCell>
                       <TableCell className="hidden lg:table-cell">{session.source ?? "unknown"}</TableCell>

@@ -65,6 +65,18 @@ export class PluginManager {
     return Array.from(this.loaded.keys());
   }
 
+  listLoadedDetails(): Array<{ id: string; pluginId: string; name: string }> {
+    return Array.from(this.loaded.entries()).map(([instanceId, entry]) => {
+      const pluginId = entry.config.pluginId;
+      const name = this.pluginCatalog.get(pluginId)?.descriptor.name ?? pluginId;
+      return {
+        id: instanceId,
+        pluginId,
+        name
+      };
+    });
+  }
+
   listAvailable(): string[] {
     return Array.from(this.pluginCatalog.keys());
   }

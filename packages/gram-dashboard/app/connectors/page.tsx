@@ -43,6 +43,11 @@ export default function ConnectorsPage() {
     return latest ? latest.toLocaleTimeString() : "Unknown";
   }, [connectors]);
 
+  const connectorNames = useMemo(
+    () => connectors.map((connector) => connector.name ?? connector.id),
+    [connectors]
+  );
+
   return (
     <DashboardShell
       title="Connectors"
@@ -78,7 +83,9 @@ export default function ConnectorsPage() {
                 <Cable className="h-5 w-5" />
               </div>
             </CardHeader>
-            <CardContent className="text-xs text-muted-foreground">Live connector endpoints feeding the engine.</CardContent>
+            <CardContent className="text-xs text-muted-foreground">
+              {connectorNames.slice(0, 2).join(", ") || "Live connector endpoints feeding the engine."}
+            </CardContent>
           </Card>
           <Card>
             <CardHeader>
@@ -105,7 +112,12 @@ export default function ConnectorsPage() {
             {connectors.length ? (
               connectors.map((connector) => (
                 <div key={connector.id} className="rounded-lg border bg-background/60 px-4 py-3">
-                  <div className="text-sm font-medium text-foreground">{connector.id}</div>
+                  <div className="text-sm font-medium text-foreground">
+                    {connector.name ?? connector.id}
+                  </div>
+                  {connector.name && connector.name !== connector.id ? (
+                    <div className="text-xs text-muted-foreground">Instance: {connector.id}</div>
+                  ) : null}
                   <div className="text-xs text-muted-foreground">
                     Loaded at {new Date(connector.loadedAt).toLocaleTimeString()}
                   </div>

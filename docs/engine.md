@@ -28,6 +28,39 @@ Plugin mutations accept:
 - `POST /v1/engine/plugins/load` payload `{ "pluginId": "...", "instanceId": "...", "settings": { ... } }`
 - `POST /v1/engine/plugins/unload` payload `{ "instanceId": "..." }`
 
+## Status payload (named entities)
+The status response returns display names alongside ids for use in the dashboard.
+
+```mermaid
+classDiagram
+  class EngineStatus {
+    plugins: PluginSummary[]
+    connectors: ConnectorSummary[]
+    providers: ProviderSummary[]
+    inferenceProviders: ProviderSummary[]
+    imageProviders: ProviderSummary[]
+  }
+  class PluginSummary {
+    id: string
+    pluginId: string
+    name: string
+  }
+  class ConnectorSummary {
+    id: string
+    pluginId: string
+    name: string
+    loadedAt: string
+  }
+  class ProviderSummary {
+    id: string
+    name: string
+    label: string
+  }
+  EngineStatus --> PluginSummary
+  EngineStatus --> ConnectorSummary
+  EngineStatus --> ProviderSummary
+```
+
 ```mermaid
 sequenceDiagram
   participant Client

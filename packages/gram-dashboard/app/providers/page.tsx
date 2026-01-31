@@ -35,7 +35,10 @@ export default function ProvidersPage() {
 
   const inferenceProviders = status?.inferenceProviders ?? [];
   const imageProviders = status?.imageProviders ?? [];
-  const inferenceLabels = useMemo(() => inferenceProviders.map((provider) => provider.label).filter(Boolean), [inferenceProviders]);
+  const inferenceNames = useMemo(
+    () => inferenceProviders.map((provider) => provider.name ?? provider.id),
+    [inferenceProviders]
+  );
 
   return (
     <DashboardShell
@@ -73,7 +76,7 @@ export default function ProvidersPage() {
               </div>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground">
-              {inferenceLabels.slice(0, 2).join(", ") || "No inference labels"}
+              {inferenceNames.slice(0, 2).join(", ") || "No inference providers"}
             </CardContent>
           </Card>
           <Card>
@@ -87,7 +90,7 @@ export default function ProvidersPage() {
               </div>
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground">
-              {imageProviders.map((provider) => provider.label ?? provider.id).slice(0, 2).join(", ") || "No image providers"}
+              {imageProviders.map((provider) => provider.name ?? provider.id).slice(0, 2).join(", ") || "No image providers"}
             </CardContent>
           </Card>
         </div>
@@ -97,16 +100,16 @@ export default function ProvidersPage() {
             title="Inference"
             description="LLM providers currently available."
             items={inferenceProviders.map((provider) => ({
-              title: provider.id,
-              meta: provider.label ?? ""
+              title: provider.name ?? provider.id,
+              meta: provider.label ?? provider.id
             }))}
           />
           <ProviderList
             title="Image Generation"
             description="Image models and services."
             items={imageProviders.map((provider) => ({
-              title: provider.id,
-              meta: provider.label ?? ""
+              title: provider.name ?? provider.id,
+              meta: provider.label ?? provider.id
             }))}
           />
         </div>

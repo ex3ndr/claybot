@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import {
@@ -122,11 +123,12 @@ export default function Dashboard() {
   const providerCount = status?.inferenceProviders?.length ?? 0;
   const imageProviderCount = status?.imageProviders?.length ?? 0;
   const toolCount = status?.tools?.length ?? 0;
+  const orderedSessions = useMemo(() => sortSessionsByActivity(sessions), [sessions]);
 
   const connectorTiles = useMemo(
     () =>
       status?.connectors?.map((connector) => ({
-        title: connector.id,
+        title: connector.name ?? connector.id,
         meta: formatTime(connector.loadedAt)
       })) ?? [],
     [status?.connectors]
@@ -135,8 +137,8 @@ export default function Dashboard() {
   const providerTiles = useMemo(
     () =>
       status?.inferenceProviders?.map((provider) => ({
-        title: provider.id,
-        meta: provider.label ?? ""
+        title: provider.name ?? provider.id,
+        meta: provider.label ?? provider.id
       })) ?? [],
     [status?.inferenceProviders]
   );
@@ -144,14 +146,18 @@ export default function Dashboard() {
   const imageTiles = useMemo(
     () =>
       status?.imageProviders?.map((provider) => ({
-        title: provider.id,
-        meta: provider.label ?? ""
+        title: provider.name ?? provider.id,
+        meta: provider.label ?? provider.id
       })) ?? [],
     [status?.imageProviders]
   );
 
   const pluginTiles = useMemo(
-    () => status?.plugins?.map((plugin) => ({ title: plugin, meta: "loaded" })) ?? [],
+    () =>
+      status?.plugins?.map((plugin) => ({
+        title: plugin.name ?? plugin.id,
+        meta: plugin.id === plugin.pluginId ? "loaded" : plugin.id
+      })) ?? [],
     [status?.plugins]
   );
 
@@ -225,7 +231,7 @@ export default function Dashboard() {
           <div className="grid gap-6 px-4 lg:grid-cols-3 lg:px-6">
             <div className="flex flex-col gap-6 lg:col-span-2">
               <ActivityChart sessionCount={sessionCount} cronCount={cronCount} />
-              <SessionsTable sessions={sessions} />
+              <SessionsTable sessions={orderedSessions} />
             </div>
             <div className="flex flex-col gap-6">
               <InventoryPanel
@@ -544,8 +550,8 @@ function SessionsTable({ sessions }: { sessions: Session[] }) {
             <Sparkles className="h-4 w-4" />
           </div>
           <div>
-            <CardTitle className="text-lg">Recent sessions</CardTitle>
-            <CardDescription>Active conversation threads and their latest activity.</CardDescription>
+            <CardTitle className="text-lg">Active sessions</CardTitle>
+            <CardDescription>Live conversation threads and their latest activity.</CardDescription>
           </div>
         </div>
       </CardHeader>
@@ -564,7 +570,16 @@ function SessionsTable({ sessions }: { sessions: Session[] }) {
               {sessions.map((session) => (
                 <TableRow key={session.sessionId}>
                   <TableCell>
-                    <div className="text-sm font-medium text-foreground">{session.sessionId}</div>
+                    {session.storageId ? (
+                      <Link
+                        href={`/sessions/${session.storageId}`}
+                        className="text-sm font-medium text-foreground hover:underline"
+                      >
+                        {session.sessionId}
+                      </Link>
+                    ) : (
+                      <div className="text-sm font-medium text-foreground">{session.sessionId}</div>
+                    )}
                     <div className="text-xs text-muted-foreground lg:hidden">
                       {session.source ?? "unknown"}
                     </div>
@@ -597,6 +612,22 @@ function SessionsTable({ sessions }: { sessions: Session[] }) {
 
 function EmptyState({ label }: { label: string }) {
   return <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">{label}</div>;
+}
+
+function sortSessionsByActivity(sessions: Session[]) {
+  const sessionTimestamp = (session: Session) => {
+    const updated = session.updatedAt ? Date.parse(session.updatedAt) : Number.NaN;
+    if (!Number.isNaN(updated)) {
+      return updated;
+    }
+    const created = session.createdAt ? Date.parse(session.createdAt) : Number.NaN;
+    if (!Number.isNaN(created)) {
+      return created;
+    }
+    return 0;
+  };
+
+  return [...sessions].sort((a, b) => sessionTimestamp(b) - sessionTimestamp(a));
 }
 
 function buildActivitySeries(range: string, sessionCount: number, cronCount: number) {

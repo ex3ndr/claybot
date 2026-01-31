@@ -1,8 +1,9 @@
 export type EngineStatus = {
-  plugins?: string[];
-  connectors?: { id: string; loadedAt: string }[];
-  inferenceProviders?: { id: string; label?: string }[];
-  imageProviders?: { id: string; label?: string }[];
+  plugins?: { id: string; pluginId: string; name: string }[];
+  providers?: { id: string; name: string }[];
+  connectors?: { id: string; name: string; pluginId?: string; loadedAt: string }[];
+  inferenceProviders?: { id: string; name: string; label?: string }[];
+  imageProviders?: { id: string; name: string; label?: string }[];
   tools?: string[];
 };
 
@@ -16,9 +17,63 @@ export type CronTask = {
 
 export type Session = {
   sessionId: string;
+  storageId: string;
   source?: string;
-  lastMessage?: string;
+  lastMessage?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 };
+
+export type SessionEntry =
+  | {
+      type: "session_created";
+      sessionId: string;
+      storageId: string;
+      source: string;
+      context: Record<string, unknown>;
+      createdAt: string;
+    }
+  | {
+      type: "incoming";
+      sessionId: string;
+      storageId: string;
+      source: string;
+      messageId: string;
+      context: Record<string, unknown>;
+      text: string | null;
+      files?: Array<{
+        id: string;
+        name: string;
+        mimeType: string;
+        size: number;
+        path: string;
+      }>;
+      receivedAt: string;
+    }
+  | {
+      type: "outgoing";
+      sessionId: string;
+      storageId: string;
+      source: string;
+      messageId: string;
+      context: Record<string, unknown>;
+      text: string | null;
+      files?: Array<{
+        id: string;
+        name: string;
+        mimeType: string;
+        size: number;
+        path: string;
+      }>;
+      sentAt: string;
+    }
+  | {
+      type: "state";
+      sessionId: string;
+      storageId: string;
+      updatedAt: string;
+      state: Record<string, unknown>;
+    };
 
 export type EngineEvent = {
   type: string;
@@ -38,6 +93,10 @@ type CronResponse = {
 
 type SessionsResponse = {
   sessions?: Session[];
+};
+
+type SessionEntriesResponse = {
+  entries?: SessionEntry[];
 };
 
 async function fetchJSON<T>(url: string): Promise<T> {
@@ -61,4 +120,10 @@ export async function fetchCronTasks() {
 export async function fetchSessions() {
   const data = await fetchJSON<SessionsResponse>("/api/v1/engine/sessions");
   return data.sessions ?? [];
+}
+
+export async function fetchSessionEntries(storageId: string) {
+  const encoded = encodeURIComponent(storageId);
+  const data = await fetchJSON<SessionEntriesResponse>(`/api/v1/engine/sessions/${encoded}`);
+  return data.entries ?? [];
 }

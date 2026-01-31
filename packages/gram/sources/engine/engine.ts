@@ -34,7 +34,7 @@ import {
   type SessionPermissions
 } from "./permissions.js";
 import { createSystemPrompt } from "./createSystemPrompt.js";
-import { listActiveInferenceProviders } from "../providers/catalog.js";
+import { getProviderDefinition, listActiveInferenceProviders } from "../providers/catalog.js";
 import { SessionManager } from "./sessions/manager.js";
 import { SessionStore } from "./sessions/store.js";
 import { Session } from "./sessions/session.js";
@@ -388,18 +388,37 @@ export class Engine {
   }
 
   getStatus() {
+    const plugins = this.pluginManager.listLoadedDetails();
+    const pluginByInstance = new Map(plugins.map((plugin) => [plugin.id, plugin]));
+
     return {
-      plugins: this.pluginManager.listLoaded(),
-      providers: this.providerManager.listLoaded(),
-      connectors: this.connectorRegistry.listStatus(),
-      inferenceProviders: this.inferenceRegistry.list().map((provider) => ({
-        id: provider.id,
-        label: provider.label
-      })),
-      imageProviders: this.imageRegistry.list().map((provider) => ({
-        id: provider.id,
-        label: provider.label
-      })),
+      plugins,
+      providers: this.providerManager.listLoadedDetails(),
+      connectors: this.connectorRegistry.listStatus().map((connector) => {
+        const plugin = pluginByInstance.get(connector.id);
+        return {
+          id: connector.id,
+          name: plugin?.name ?? connector.id,
+          pluginId: plugin?.pluginId,
+          loadedAt: connector.loadedAt
+        };
+      }),
+      inferenceProviders: this.inferenceRegistry.list().map((provider) => {
+        const definition = getProviderDefinition(provider.id);
+        return {
+          id: provider.id,
+          name: provider.label ?? definition?.name ?? provider.id,
+          label: provider.label
+        };
+      }),
+      imageProviders: this.imageRegistry.list().map((provider) => {
+        const definition = getProviderDefinition(provider.id);
+        return {
+          id: provider.id,
+          name: provider.label ?? definition?.name ?? provider.id,
+          label: provider.label
+        };
+      }),
       tools: this.listContextTools().map((tool) => tool.name)
     };
   }
