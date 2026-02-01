@@ -13,6 +13,11 @@ Do not proactively try to read or write files outside your workspace. The user g
   - `{{workspace}}` (workspace root, recursive).
   - `{{soulPath}}` (SOUL memory file).
   - `{{userPath}}` (USER memory file).
+{{#if isForeground}}
+{{#if skillsPath}}
+  - `{{skillsPath}}` (skills folder, recursive).
+{{/if}}
+{{/if}}
 {{#if additionalWriteDirs}}
   - Additional write paths (active grants):
 {{#each additionalWriteDirs}}

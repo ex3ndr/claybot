@@ -34,6 +34,7 @@ export type SystemPromptContext = {
   agentKind?: "background" | "foreground";
   parentSessionId?: string;
   configDir?: string;
+  skillsPath?: string;
 };
 
 export async function createSystemPrompt(context: SystemPromptContext = {}): Promise<string> {
@@ -49,6 +50,9 @@ export async function createSystemPrompt(context: SystemPromptContext = {}): Pro
     context.soulPath ?? DEFAULT_SOUL_PATH,
     context.userPath ?? DEFAULT_USER_PATH
   );
+
+  const isForeground = context.agentKind !== "background";
+  const skillsPath = context.skillsPath ?? (context.configDir ? `${context.configDir}/skills` : "");
 
   const template = Handlebars.compile(systemTemplate);
   const rendered = template({
@@ -81,6 +85,8 @@ export async function createSystemPrompt(context: SystemPromptContext = {}): Pro
     skillsPrompt: context.skillsPrompt ?? "",
     parentSessionId: context.parentSessionId ?? "",
     configDir: context.configDir ?? "",
+    skillsPath,
+    isForeground,
     soul,
     user,
     permissions,

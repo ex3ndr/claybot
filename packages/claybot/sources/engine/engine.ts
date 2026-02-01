@@ -2011,10 +2011,15 @@ function buildDefaultPermissions(
   configDir: string
 ): SessionPermissions {
   const heartbeatDir = configDir ? path.resolve(configDir, "heartbeat") : null;
+  const skillsDir = configDir ? path.resolve(configDir, "skills") : null;
   const writeDefaults = [DEFAULT_SOUL_PATH, DEFAULT_USER_PATH].map((entry) =>
     path.resolve(entry)
   );
-  const writeDirs = heartbeatDir ? [...writeDefaults, heartbeatDir] : writeDefaults;
+  const writeDirs = [
+    ...writeDefaults,
+    ...(heartbeatDir ? [heartbeatDir] : []),
+    ...(skillsDir ? [skillsDir] : [])
+  ];
   const readDirs = [...writeDirs];
   return {
     workingDir: path.resolve(workingDir),

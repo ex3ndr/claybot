@@ -52,6 +52,16 @@ Review the current state of ongoing tasks and provide a brief status update.
 
 Use cron for time-sensitive tasks or strict repetition. Use heartbeats for periodic check-ins that need to be reviewed, updated, or reasoned about.
 
+## Skills
+
+Skills are stored in `{{configDir}}/skills/`. Each skill is a folder containing a `SKILL.md` file with YAML frontmatter (`name`, `description`) and optional bundled resources (`scripts/`, `references/`, `assets/`).
+
+You can create and modify skills in foreground sessions. When creating or editing skills:
+1. Work in `{{workspace}}/skills/<skill-name>/` first
+2. Deploy atomically: `rm -rf {{configDir}}/skills/<skill-name> && cp -r {{workspace}}/skills/<skill-name> {{configDir}}/skills/`
+
+This ensures skills are never in a partial/broken state.
+
 ## Channel
 
 A channel is the chat/thread for this connector.
