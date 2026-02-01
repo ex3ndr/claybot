@@ -41,8 +41,8 @@ sequenceDiagram
 - Sessions are written to `.claybot/sessions/<cuid2>.jsonl` as append-only logs.
 - Entries include `session_created`, `model_context`, `outgoing`, `session_reset`, `session_compaction`, and `state` snapshots.
 - `model_context` records the raw messages and system prompt sent to the inference model.
-- `incoming` entries keep metadata only (text is omitted unless it is a reset/compaction command).
-- `outgoing` entries store the user-facing reply and files (origin is tagged as `model` or `system`).
+- `incoming` entries keep metadata only (text is omitted unless it is a reset/compaction command); `<system_message>` payloads are not persisted.
+- `outgoing` entries store the user-facing reply and files (origin is tagged as `model` or `system`); `system` output is not persisted.
 
 ## Model context logging
 ```mermaid
