@@ -38,8 +38,9 @@ import { SessionManager } from "./sessions/manager.js";
 import { SessionStore } from "./sessions/store.js";
 import {
   normalizeSessionDescriptor,
-  sessionDescriptorMatches,
-  type SessionDescriptor
+  sessionDescriptorMatchesStrategy,
+  type SessionDescriptor,
+  type SessionFetchStrategy
 } from "./sessions/descriptor.js";
 import { Session } from "./sessions/session.js";
 import type { SessionMessage } from "./sessions/types.js";
@@ -76,21 +77,15 @@ import { HeartbeatStore, type HeartbeatDefinition } from "./heartbeat-store.js";
 import { EngineEventBus } from "./ipc/events.js";
 import { ProviderManager } from "../providers/manager.js";
 import { DEFAULT_SOUL_PATH, DEFAULT_USER_PATH } from "../paths.js";
-import {
-  formatSkillsPrompt,
-  listConfigSkills,
-  listCoreSkills,
-  listRegisteredSkills
-} from "./skills/catalog.js";
+import { formatSkillsPrompt, listCoreSkills, listRegisteredSkills } from "./skills/catalog.js";
 
 const logger = getLogger("engine.runtime");
-const MAX_TOOL_ITERATIONS = 500;
+const MAX_TOOL_ITERATIONS = 5;
 const BACKGROUND_TOOL_DENYLIST = new Set([
   "request_permission",
   "set_reaction",
   "send_file"
 ]);
-const HEARTBEAT_SESSION_ID = "all";
 
 type SessionState = {
   context: Context;
@@ -441,15 +436,8 @@ export class Engine {
       store: this.heartbeatStore,
       intervalMs: 30 * 60 * 1000,
       onRun: async (tasks) => {
-        const heartbeatKey = buildSessionKeyFromDescriptor({
-          type: "heartbeat",
-          id: HEARTBEAT_SESSION_ID
-        });
-        const descriptor: SessionDescriptor = {
-          type: "heartbeat",
-          id: HEARTBEAT_SESSION_ID
-        };
-        const resolved = this.resolveMostRecentSessionId(descriptor);
+        const heartbeatKey = buildSessionKeyFromDescriptor({ type: "heartbeat" });
+        const resolved = this.resolveSessionId("heartbeat");
         const sessionId = resolved ?? (heartbeatKey ? this.getOrCreateSessionId(heartbeatKey) : createId());
         const batch = buildHeartbeatBatchPrompt(tasks);
         await this.startBackgroundAgent({
@@ -458,7 +446,7 @@ export class Engine {
           name: batch.title,
           context: {
             userId: "heartbeat",
-            heartbeat: { taskId: HEARTBEAT_SESSION_ID, title: batch.title }
+            heartbeat: { title: batch.title }
           }
         });
       },
@@ -937,10 +925,16 @@ export class Engine {
       throw new Error("Background agent prompt is required");
     }
     const sessionId = isCuid2(args.sessionId ?? null) ? args.sessionId! : createId();
+    const isSubagent = !args.context?.cron && !args.context?.heartbeat;
+    const agentParent = args.parentSessionId ?? args.context?.agent?.parentSessionId;
+    const agentName = args.name ?? args.context?.agent?.name ?? "subagent";
+    if (isSubagent && !agentParent) {
+      throw new Error("Subagent parent session is required");
+    }
     const agentContext = {
       kind: "background" as const,
-      parentSessionId: args.parentSessionId ?? args.context?.agent?.parentSessionId,
-      name: args.name ?? args.context?.agent?.name
+      parentSessionId: agentParent,
+      name: agentName
     };
     const messageContext: MessageContext = {
       channelId: sessionId,
@@ -967,9 +961,9 @@ export class Engine {
     text: string;
     origin?: "background" | "system";
   }): Promise<void> {
-    const targetSessionId = args.sessionId ?? await this.findMostRecentNonBackgroundSessionId();
+    const targetSessionId = args.sessionId ?? this.resolveSessionId("most-recent-foreground");
     if (!targetSessionId) {
-      throw new Error("No recent non-background session found.");
+      throw new Error("No recent foreground session found.");
     }
     const session = this.sessionManager.getById(targetSessionId);
     if (!session) {
@@ -995,34 +989,47 @@ export class Engine {
     );
   }
 
-  private async findMostRecentNonBackgroundSessionId(): Promise<string | null> {
-    const sessions = await this.sessionStore.listSessions();
-    const candidates = sessions.filter((session) =>
-      isNonBackgroundSession(session.source, session.context)
-    );
-    if (candidates.length === 0) {
-      return null;
+  private async notifySubagentFailure(
+    session: Session<SessionState>,
+    reason: string,
+    error?: unknown
+  ): Promise<void> {
+    const descriptor = session.context.state.session;
+    if (descriptor?.type !== "subagent") {
+      return;
     }
-    candidates.sort((a, b) => {
-      const aTime = getSessionTimestamp(a.updatedAt ?? a.createdAt);
-      const bTime = getSessionTimestamp(b.updatedAt ?? b.createdAt);
-      return bTime - aTime;
-    });
-    return candidates[0]?.sessionId ?? null;
+    const parentSessionId =
+      descriptor.parentSessionId ?? session.context.state.agent?.parentSessionId;
+    if (!parentSessionId) {
+      logger.warn({ sessionId: session.id }, "Subagent missing parent session");
+      return;
+    }
+    const name = descriptor.name ?? session.context.state.agent?.name ?? "subagent";
+    const errorText =
+      error instanceof Error ? error.message : error ? String(error) : "";
+    const detail = errorText ? `${reason} (${errorText})` : reason;
+    try {
+      await this.sendSessionMessage({
+        sessionId: parentSessionId,
+        text: `Subagent ${name} (${session.id}) failed: ${detail}.`,
+        origin: "background"
+      });
+    } catch (sendError) {
+      logger.warn(
+        { sessionId: session.id, parentSessionId, error: sendError },
+        "Subagent failure notification failed"
+      );
+    }
   }
 
-  private resolveMostRecentSessionId(descriptor: SessionDescriptor): string | null {
-    if (descriptor.type === "background") {
-      const session = this.sessionManager.getById(descriptor.id);
-      return session?.id ?? null;
-    }
+  private resolveSessionId(strategy: SessionFetchStrategy): string | null {
     const sessions = this.sessionManager.listSessions();
     const candidates = sessions.filter((session) => {
       const sessionDescriptor = session.context.state.session;
       if (!sessionDescriptor) {
         return false;
       }
-      return sessionDescriptorMatches(sessionDescriptor, descriptor);
+      return sessionDescriptorMatchesStrategy(sessionDescriptor, strategy);
     });
     if (candidates.length === 0) {
       return null;
@@ -1250,6 +1257,7 @@ export class Engine {
       source: string;
       context: MessageContext;
     }> = [];
+    const pendingSubagentFailures: Session<SessionState>[] = [];
 
     for (const restored of restoredSessions) {
       const restoredSessionId = isCuid2(restored.sessionId ?? null)
@@ -1265,15 +1273,8 @@ export class Engine {
       const restoredDescriptor = restored.descriptor
         ? normalizeSessionDescriptor(restored.descriptor)
         : undefined;
-      if (!session.context.state.session && restoredDescriptor) {
+      if (restoredDescriptor) {
         session.context.state.session = restoredDescriptor;
-      }
-      if (!session.context.state.session) {
-        session.context.state.session = buildSessionDescriptor(
-          restored.source,
-          restored.context,
-          session.id
-        );
       }
       if (!session.context.state.providerId) {
         const providerId = this.resolveProviderId(restored.context);
@@ -1287,7 +1288,7 @@ export class Engine {
       );
       const sessionKey = session.context.state.session
         ? buildSessionKeyFromDescriptor(session.context.state.session)
-        : this.buildSessionKey(restored.source, restored.context);
+        : null;
       if (sessionKey) {
         this.sessionKeyMap.set(sessionKey, session.id);
       }
@@ -1297,16 +1298,31 @@ export class Engine {
         });
       }
       if (restored.lastEntryType === "incoming") {
-        pendingInternalErrors.push({
-          sessionId: session.id,
-          source: restored.source,
-          context: restored.context
-        });
+        if (session.context.state.session?.type === "subagent") {
+          pendingSubagentFailures.push(session);
+        } else {
+          pendingInternalErrors.push({
+            sessionId: session.id,
+            source: restored.source,
+            context: restored.context
+          });
+        }
       }
     }
 
+    if (pendingSubagentFailures.length > 0) {
+      await this.notifyPendingSubagentFailures(pendingSubagentFailures);
+    }
     if (pendingInternalErrors.length > 0) {
       await this.sendPendingInternalErrors(pendingInternalErrors);
+    }
+  }
+
+  private async notifyPendingSubagentFailures(
+    pending: Session<SessionState>[]
+  ): Promise<void> {
+    for (const session of pending) {
+      await this.notifySubagentFailure(session, "Restored with pending work");
     }
   }
 
@@ -1404,9 +1420,8 @@ export class Engine {
     const pluginPrompts = await this.pluginManager.getSystemPrompts();
     const pluginPrompt = pluginPrompts.length > 0 ? pluginPrompts.join("\n\n") : "";
     const coreSkills = await listCoreSkills();
-    const configSkills = await listConfigSkills(path.join(this.configDir, "skills"));
     const pluginSkills = await listRegisteredSkills(this.pluginManager.listRegisteredSkills());
-    const skills = [...coreSkills, ...configSkills, ...pluginSkills];
+    const skills = [...coreSkills, ...pluginSkills];
     const skillsPrompt = formatSkillsPrompt(skills);
     const agentKind = session.context.state.agent?.kind ?? entry.context.agent?.kind;
     const allowCronTools = isCronContext(entry.context, session.context.state.session);
@@ -1567,6 +1582,7 @@ export class Engine {
           ? "No inference provider available."
           : "Inference failed.";
       logger.debug(`Sending error message to user message=${message}`);
+      await this.notifySubagentFailure(session, "Inference failed", error);
       if (connector) {
         await connector.sendMessage(entry.context.channelId, {
           text: message,
@@ -1597,6 +1613,7 @@ export class Engine {
       logger.warn(
         `Inference returned error response provider=${response.providerId} model=${response.modelId} stopReason=${response.message.stopReason} error=${errorDetail}`
       );
+      await this.notifySubagentFailure(session, "Inference failed", response.message.errorMessage);
       try {
         if (connector) {
           await connector.sendMessage(entry.context.channelId, {
@@ -1638,6 +1655,7 @@ export class Engine {
         } catch (error) {
           logger.warn({ connector: source, error }, "Failed to send tool error");
         }
+        await this.notifySubagentFailure(session, "Tool execution limit reached");
       }
       await recordSessionState(this.sessionStore, session, source);
       logger.debug("handleSessionMessage completed with no response text");
@@ -1692,8 +1710,8 @@ export class Engine {
       }
       return null;
     }
-    if (context.heartbeat?.taskId) {
-      return `heartbeat:${context.heartbeat.taskId}`;
+    if (context.heartbeat) {
+      return "heartbeat";
     }
     if (!context.userId || !context.channelId) {
       logger.warn(
@@ -1844,21 +1862,6 @@ function buildSystemMessageText(text: string, origin?: "background" | "system"):
   return `<system_message${originTag}>${trimmed}</system_message>`;
 }
 
-function isNonBackgroundSession(source: string, context: MessageContext): boolean {
-  const blockedSources = new Set(["system", "cron", "background"]);
-  if (blockedSources.has(source)) {
-    return false;
-  }
-  if (context.agent?.kind === "background") {
-    return false;
-  }
-  const userId = context.userId?.toLowerCase();
-  if (!userId || ["system", "cron", "background", "heartbeat"].includes(userId)) {
-    return false;
-  }
-  return true;
-}
-
 function getSessionTimestamp(value?: Date | string): number {
   if (!value) {
     return 0;
@@ -1993,13 +1996,12 @@ function buildDefaultPermissions(
   const writeDefaults = [DEFAULT_SOUL_PATH, DEFAULT_USER_PATH].map((entry) =>
     path.resolve(entry)
   );
-  const filesystemRoot = path.parse(workingDir).root;
   const writeDirs = [
     ...writeDefaults,
     ...(heartbeatDir ? [heartbeatDir] : []),
     ...(skillsDir ? [skillsDir] : [])
   ];
-  const readDirs = [...writeDirs, ...(filesystemRoot ? [filesystemRoot] : [])];
+  const readDirs = [...writeDirs];
   return {
     workingDir: path.resolve(workingDir),
     writeDirs: Array.from(new Set(writeDirs)),
@@ -2060,8 +2062,8 @@ function buildSessionDescriptor(
       return { type: "cron", id: taskUid };
     }
   }
-  if (context.heartbeat?.taskId) {
-    return { type: "heartbeat", id: context.heartbeat.taskId };
+  if (context.heartbeat) {
+    return { type: "heartbeat" };
   }
   if (
     source &&
@@ -2079,15 +2081,29 @@ function buildSessionDescriptor(
     };
   }
   if (context.agent?.kind === "background") {
+    if (!context.agent.parentSessionId) {
+      throw new Error("Subagent parent session is required");
+    }
+    if (!context.agent.name) {
+      throw new Error("Subagent name is required");
+    }
     return {
-      type: "background",
+      type: "subagent",
       id: sessionId,
       parentSessionId: context.agent.parentSessionId,
       name: context.agent.name
     };
   }
+  if (source === "system") {
+    return {
+      type: "subagent",
+      id: sessionId,
+      parentSessionId: "system",
+      name: "system"
+    };
+  }
   // No system sessions; internal work still needs a typed session descriptor.
-  return { type: "background", id: sessionId };
+  return { type: "subagent", id: sessionId, parentSessionId: "system", name: "system" };
 }
 
 function buildSessionKeyFromDescriptor(descriptor: SessionDescriptor): string | null {
@@ -2095,7 +2111,7 @@ function buildSessionKeyFromDescriptor(descriptor: SessionDescriptor): string | 
     case "cron":
       return `cron:${descriptor.id}`;
     case "heartbeat":
-      return `heartbeat:${descriptor.id}`;
+      return "heartbeat";
     case "user":
       return `user:${descriptor.connector}:${descriptor.channelId}:${descriptor.userId}`;
     default:
@@ -2108,7 +2124,7 @@ function isCronContext(context: MessageContext, session?: SessionDescriptor): bo
 }
 
 function isHeartbeatContext(context: MessageContext, session?: SessionDescriptor): boolean {
-  return !!context.heartbeat?.taskId || session?.type === "heartbeat";
+  return !!context.heartbeat || session?.type === "heartbeat";
 }
 
 function buildHeartbeatBatchPrompt(

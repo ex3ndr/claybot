@@ -66,7 +66,7 @@ export function buildSendSessionMessageTool(): ToolDefinition {
     tool: {
       name: "send_session_message",
       description:
-        "Send a system message to another session (defaults to the most recent non-background session) so a user-facing agent can respond.",
+        "Send a system message to another session (defaults to the most recent foreground session) so a user-facing agent can respond.",
       parameters: sendSchema
     },
     execute: async (args, toolContext, toolCall) => {

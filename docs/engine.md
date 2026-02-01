@@ -78,6 +78,7 @@ flowchart TD
 
 Each session writes a type descriptor into the first `session_created` log entry. On startup, the engine restores
 that descriptor into session state and uses it to resolve the most recent matching session when needed.
+Fetch strategies are limited to `most-recent-foreground` and `heartbeat`.
 
 ```mermaid
 flowchart TD

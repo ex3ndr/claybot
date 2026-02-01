@@ -4,6 +4,8 @@ export type SessionDescriptor =
   | { type: "heartbeat"; id: string }
   | { type: "background"; id: string; parentSessionId?: string; name?: string };
 
+export type SessionFetchStrategy = "most-recent-foreground" | "heartbeat";
+
 export function normalizeSessionDescriptor(value: unknown): SessionDescriptor | undefined {
   if (!value || typeof value !== "object") {
     return undefined;
@@ -56,33 +58,18 @@ export function normalizeSessionDescriptor(value: unknown): SessionDescriptor | 
       name: typeof candidate.name === "string" ? candidate.name : undefined
     };
   }
-  if (candidate.type === "system") {
-    if (typeof candidate.id === "string") {
-      return { type: "background", id: candidate.id };
-    }
-    return undefined;
-  }
   return undefined;
 }
 
-export function sessionDescriptorMatches(
-  left: SessionDescriptor,
-  right: SessionDescriptor
+export function sessionDescriptorMatchesStrategy(
+  descriptor: SessionDescriptor,
+  strategy: SessionFetchStrategy
 ): boolean {
-  if (left.type !== right.type) {
-    return false;
-  }
-  switch (left.type) {
-    case "user":
-      return (
-        left.connector === (right as typeof left).connector &&
-        left.userId === (right as typeof left).userId &&
-        left.channelId === (right as typeof left).channelId
-      );
-    case "cron":
+  switch (strategy) {
+    case "most-recent-foreground":
+      return descriptor.type === "user";
     case "heartbeat":
-    case "background":
-      return left.id === (right as typeof left).id;
+      return descriptor.type === "heartbeat";
     default:
       return false;
   }
