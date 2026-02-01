@@ -7,6 +7,7 @@ import { listActiveInferenceProviders } from "../../providers/catalog.js";
 import { cuid2Is } from "../../utils/cuid2Is.js";
 import { assumeWorkspace, createSystemPrompt } from "../createSystemPrompt.js";
 import type { MessageContext } from "../connectors/types.js";
+import type { Engine } from "../engine.js";
 import { messageBuildUser } from "../messages/messageBuildUser.js";
 import { permissionBuildCron } from "../permissions/permissionBuildCron.js";
 import { permissionEnsureDefaultFile } from "../permissions/permissionEnsureDefaultFile.js";
@@ -25,7 +26,6 @@ import type { SessionMessage } from "../sessions/types.js";
 import { toolListContextBuild } from "../tools/toolListContextBuild.js";
 import type {
   AgentDescriptor,
-  AgentEngine,
   AgentInboundMessage,
   AgentReceiveResult
 } from "./agentTypes.js";
@@ -36,13 +36,13 @@ const logger = getLogger("engine.agent");
 export class Agent {
   readonly session: Session<SessionState>;
   readonly descriptor: SessionDescriptor;
-  private engine: AgentEngine;
-  private sessionStore: ReturnType<AgentEngine["getSessionStore"]>;
+  private engine: Engine;
+  private sessionStore: ReturnType<Engine["getSessionStore"]>;
 
   private constructor(
     session: Session<SessionState>,
     descriptor: SessionDescriptor,
-    engine: AgentEngine
+    engine: Engine
   ) {
     this.session = session;
     this.descriptor = descriptor;
@@ -57,7 +57,7 @@ export class Agent {
   static async load(
     descriptor: AgentDescriptor,
     id: string,
-    engine: AgentEngine
+    engine: Engine
   ): Promise<Agent> {
     if (!cuid2Is(id)) {
       throw new Error("Agent session id must be a cuid2 value.");
@@ -100,7 +100,7 @@ export class Agent {
   static async create(
     descriptor: AgentDescriptor,
     id: string,
-    engine: AgentEngine
+    engine: Engine
   ): Promise<Agent> {
     if (!cuid2Is(id)) {
       throw new Error("Agent session id must be a cuid2 value.");
@@ -140,7 +140,7 @@ export class Agent {
     session: Session<SessionState>,
     source: string,
     context: MessageContext,
-    engine: AgentEngine
+    engine: Engine
   ): Agent {
     const descriptor =
       session.context.state.session ?? sessionDescriptorBuild(source, context, session.id);
@@ -154,7 +154,7 @@ export class Agent {
    * Wraps an existing session that already has a descriptor.
    * Expects: session context includes a session descriptor.
    */
-  static fromSession(session: Session<SessionState>, engine: AgentEngine): Agent {
+  static fromSession(session: Session<SessionState>, engine: Engine): Agent {
     const descriptor = session.context.state.session;
     if (!descriptor) {
       throw new Error(`Agent session missing descriptor: ${session.id}`);

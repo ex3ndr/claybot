@@ -5,7 +5,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { Agent } from "./agent.js";
-import type { AgentEngine } from "./agentTypes.js";
+import type { Engine } from "../engine.js";
 import type { AgentRuntime } from "../tools/types.js";
 import { SessionStore } from "../sessions/store.js";
 import type { SessionPermissions } from "../permissions.js";
@@ -45,14 +45,14 @@ const stubRuntime = (): AgentRuntime =>
 const stub = <T>(): T => ({} as unknown as T);
 
 async function createEngine(): Promise<{
-  engine: AgentEngine;
+  engine: Engine;
   store: SessionStore;
   dir: string;
   cleanup: () => Promise<void>;
 }> {
   const dir = await mkdtemp(path.join(tmpdir(), "claybot-agent-"));
   const store = new SessionStore<SessionState>({ basePath: dir });
-  const engine: AgentEngine = {
+  const engine = {
     getSessionStore: () => store,
     getDefaultPermissions: () => ({
       ...defaultPermissions,
@@ -73,7 +73,7 @@ async function createEngine(): Promise<{
     getCronScheduler: () => null as CronScheduler | null,
     getAgentRuntime: () => stubRuntime(),
     isVerbose: () => false
-  };
+  } as unknown as Engine;
   return {
     engine,
     store,
