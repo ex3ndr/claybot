@@ -692,6 +692,18 @@ export class Engine {
     return this.inferenceRouter;
   }
 
+  /**
+   * Returns a cloned default permissions object for new sessions.
+   * Expects: callers treat the return value as mutable session-scoped state.
+   */
+  getDefaultPermissions(): SessionPermissions {
+    return {
+      ...this.defaultPermissions,
+      writeDirs: [...this.defaultPermissions.writeDirs],
+      readDirs: [...this.defaultPermissions.readDirs]
+    };
+  }
+
   private listContextTools(
     source?: string,
     options?: { agentKind?: "background" | "foreground"; allowCronTools?: boolean }
