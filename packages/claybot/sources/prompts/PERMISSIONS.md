@@ -21,6 +21,23 @@ Do not proactively try to read or write files outside your workspace. The user g
 {{/if}}
 - **Web search**: {{#if web}}enabled{{else}}not enabled{{/if}}.
 
+## Running `exec` with Network Access
+
+Use the `exec` tool's `allowedDomains` argument only when you need outbound network access from a command. It is an allowlist, not an "allow all."
+
+1. Ensure `@web` permission is enabled. If it is not enabled, request it before running `exec` with `allowedDomains`.
+2. Provide `allowedDomains` as a non-empty list of domains. Subdomain wildcards are allowed (for example, `*.example.com`), but a global wildcard (`*`) is rejected.
+3. List every domain you need explicitly. If you discover new domains later, request permission and rerun the command with the updated list.
+
+Example:
+
+```json
+{
+  "command": "curl -s https://api.example.com/health",
+  "allowedDomains": ["api.example.com", "*.example.net"]
+}
+```
+
 ## Multi-Agent Workspace Etiquette
 
 Your workspace may be shared with other agents working in parallel. Treat it like a shared office:

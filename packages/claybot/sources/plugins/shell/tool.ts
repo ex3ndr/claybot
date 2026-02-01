@@ -59,7 +59,10 @@ const execSchema = Type.Object(
     command: Type.String({ minLength: 1 }),
     cwd: Type.Optional(Type.String({ minLength: 1 })),
     timeoutMs: Type.Optional(Type.Number({ minimum: 100, maximum: 300_000 })),
-    env: Type.Optional(Type.Record(Type.String({ minLength: 1 }), Type.String()))
+    env: Type.Optional(Type.Record(Type.String({ minLength: 1 }), Type.String())),
+    allowedDomains: Type.Optional(
+      Type.Array(Type.String({ minLength: 1 }), { minItems: 1 })
+    )
   },
   { additionalProperties: false }
 );
@@ -140,7 +143,7 @@ export function buildExecTool(): ToolDefinition {
     tool: {
       name: "exec",
       description:
-        "Execute a shell command inside the session workspace (or a subdirectory). The cwd, if provided, must be an absolute path that resolves inside the workspace. Writes are sandboxed to the allowed write directories. Returns stdout/stderr and failure details.",
+        "Execute a shell command inside the session workspace (or a subdirectory). The cwd, if provided, must be an absolute path that resolves inside the workspace. Writes are sandboxed to the allowed write directories. Optional allowedDomains enables outbound access to specific domains (supports subdomain wildcards like *.example.com, no global wildcard). Returns stdout/stderr and failure details.",
       parameters: execSchema
     },
     execute: async (args, toolContext, toolCall) => {
@@ -155,9 +158,17 @@ export function buildExecTool(): ToolDefinition {
       const cwd = payload.cwd
         ? resolveWorkspacePath(workingDir, payload.cwd)
         : workingDir;
+      const allowedDomains = normalizeAllowedDomains(payload.allowedDomains);
+      const domainIssues = validateAllowedDomains(
+        allowedDomains,
+        toolContext.permissions.web
+      );
+      if (domainIssues.length > 0) {
+        throw new Error(domainIssues.join(" "));
+      }
       const env = payload.env ? { ...process.env, ...payload.env } : process.env;
       const timeout = payload.timeoutMs ?? DEFAULT_EXEC_TIMEOUT;
-      const sandboxConfig = buildSandboxConfig(toolContext.permissions);
+      const sandboxConfig = buildSandboxConfig(toolContext.permissions, allowedDomains);
       const sandboxedCommand = await wrapWithSandbox(payload.command, sandboxConfig);
 
       try {
@@ -391,7 +402,7 @@ function formatDisplayPath(workingDir: string, target: string): string {
   return target;
 }
 
-function buildSandboxConfig(permissions: SessionPermissions) {
+function buildSandboxConfig(permissions: SessionPermissions, allowedDomains: string[]) {
   const allowWrite = Array.from(
     new Set([permissions.workingDir, ...permissions.writeDirs])
   );
@@ -402,8 +413,51 @@ function buildSandboxConfig(permissions: SessionPermissions) {
       denyWrite: []
     },
     network: {
-      allowedDomains: [],
+      allowedDomains,
       deniedDomains: []
     }
+  };
+}
+
+function normalizeAllowedDomains(entries?: string[]): string[] {
+  if (!entries) {
+    return [];
+  }
+  const next: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of entries) {
+    const trimmed = entry.trim();
+    if (!trimmed) {
+      throw new Error("allowedDomains entries cannot be blank.");
+    }
+    if (!seen.has(trimmed)) {
+      seen.add(trimmed);
+      next.push(trimmed);
+    }
+  }
+  return next;
+}
+
+function validateAllowedDomains(allowedDomains: string[], webAllowed: boolean): string[] {
+  const issues: string[] = [];
+  if (allowedDomains.includes("*")) {
+    issues.push("Wildcard \"*\" is not allowed in allowedDomains.");
+  }
+  if (allowedDomains.length > 0 && !webAllowed) {
+    issues.push("Web permission is required to set allowedDomains.");
+  }
+  return issues;
+}
+
+function setSessionPermissions(
+  session: { context: { state: unknown } },
+  permissions: SessionPermissions
+): void {
+  const state = session.context.state as { permissions?: SessionPermissions };
+  state.permissions = {
+    workingDir: permissions.workingDir,
+    writeDirs: [...permissions.writeDirs],
+    readDirs: [...permissions.readDirs],
+    web: permissions.web
   };
 }
