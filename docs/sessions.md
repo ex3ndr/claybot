@@ -81,6 +81,21 @@ sequenceDiagram
   Engine->>ParentSession: send_session_message(failure)
 ```
 
+## Background agent start
+Starting a subagent enqueues work and returns immediately; the background session continues processing asynchronously.
+
+```mermaid
+sequenceDiagram
+  participant Foreground
+  participant Engine
+  participant SessionManager
+  participant Subagent
+  Foreground->>Engine: start_background_agent(prompt)
+  Engine->>SessionManager: enqueue(message)
+  Engine-->>Foreground: tool result (session id)
+  SessionManager->>Subagent: process queue
+```
+
 ## Resetting sessions
 - Sessions can be reset without changing the session id.
 - Reset clears the stored context messages but keeps the provider binding intact.

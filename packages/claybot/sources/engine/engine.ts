@@ -827,12 +827,15 @@ export class Engine {
     messageContext.sessionId = sessionId;
     messageContext.agent = { ...agentContext, ...(args.context?.agent ?? {}) };
     const message: ConnectorMessage = { text: prompt };
-    await this.sessionManager.handleMessage(
+    const startPromise = this.sessionManager.handleMessage(
       "system",
       message,
       messageContext,
       (session, entry) => this.handleSessionMessage(entry, session, "system")
     );
+    startPromise.catch((error) => {
+      logger.warn({ sessionId, error }, "Background agent start failed");
+    });
     return { sessionId };
   }
 
