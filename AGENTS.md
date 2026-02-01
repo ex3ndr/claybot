@@ -147,3 +147,44 @@ When refactoring large files:
 3. Write unit tests for extracted functions
 4. Keep the orchestrating class/function that wires everything together
 5. The orchestrator imports small, tested pieces
+
+## Central Types: `@/types`
+
+### Purpose
+Consolidate shared type definitions in `sources/types.ts`, accessible via the `@/types` path alias. This provides a single import point for types used across plugins, engine, permissions, connectors, etc.
+
+### Usage
+```typescript
+import type { SessionPermissions, MessageContext, PluginConfig } from "@/types";
+```
+
+### What Goes in `@/types`
+- **Cross-cutting types**: types used by 3+ modules (e.g., `SessionPermissions`, `MessageContext`)
+- **Public plugin API types**: types plugins need to implement or consume
+- **Re-exports from domain modules**: aggregate exports for convenience
+
+### What Stays in Domain Modules
+- **Internal types**: types used only within a single domain folder
+- **Implementation details**: types that are not part of the public API
+
+### Structure
+```typescript
+// sources/types.ts
+export type { SessionPermissions } from "./engine/permissions.js";
+export type { MessageContext, ConnectorMessage } from "./engine/connectors/types.js";
+export type { PluginConfig, PluginContext } from "./engine/plugins/types.js";
+export type { FileReference } from "./files/types.js";
+// ... more re-exports
+```
+
+### Path Alias Configuration
+The `@/types` alias is configured in `tsconfig.json`:
+```json
+{
+  "compilerOptions": {
+    "paths": {
+      "@/types": ["./sources/types.ts"]
+    }
+  }
+}
+```

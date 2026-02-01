@@ -9,6 +9,10 @@
     "sourceMap": true,
     "outDir": "dist",
     "rootDir": "sources",
+    "baseUrl": ".",
+    "paths": {
+      "@/types": ["./sources/types.ts"]
+    },
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "esModuleInterop": true,
