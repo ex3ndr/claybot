@@ -3,7 +3,7 @@ import type { Session } from "./engine-client";
 export type SessionType =
   | { type: "connection"; connector: string; userId: string; channelId: string }
   | { type: "cron"; id: string; name?: string }
-  | { type: "heartbeat"; id: string; title?: string }
+  | { type: "heartbeat"; title?: string }
   | { type: "background_agent"; id: string; parentSessionId: string; name?: string }
   | { type: "background"; id: string };
 
@@ -19,12 +19,10 @@ export function buildSessionType(session: Session): SessionType {
       name: context?.cron?.taskName
     };
   }
-  const heartbeatId = context?.heartbeat?.taskId;
-  if (heartbeatId) {
+  if (context?.heartbeat) {
     return {
       type: "heartbeat",
-      id: heartbeatId,
-      title: context?.heartbeat?.title
+      title: context.heartbeat.title
     };
   }
   if (context?.agent?.kind === "background") {

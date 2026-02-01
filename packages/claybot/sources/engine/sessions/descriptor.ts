@@ -1,7 +1,7 @@
 export type SessionDescriptor =
   | { type: "user"; connector: string; userId: string; channelId: string }
   | { type: "cron"; id: string }
-  | { type: "heartbeat"; id: string }
+  | { type: "heartbeat" }
   | { type: "subagent"; id: string; parentSessionId: string; name: string };
 
 export type SessionFetchStrategy = "most-recent-foreground" | "heartbeat";
@@ -41,10 +41,7 @@ export function normalizeSessionDescriptor(value: unknown): SessionDescriptor | 
     return undefined;
   }
   if (candidate.type === "heartbeat") {
-    if (typeof candidate.id === "string") {
-      return { type: "heartbeat", id: candidate.id };
-    }
-    return undefined;
+    return { type: "heartbeat" };
   }
   if (candidate.type === "subagent") {
     if (

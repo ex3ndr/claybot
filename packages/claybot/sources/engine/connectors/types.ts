@@ -48,7 +48,6 @@ export type MessageContext = {
     filesPath: string;
   };
   heartbeat?: {
-    taskId: string;
     title: string;
   };
 };

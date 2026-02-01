@@ -35,7 +35,7 @@ and background agent children.
 ```mermaid
 flowchart TD
   Context[MessageContext] --> Cron{cron.taskUid or taskId}
-  Context --> Heartbeat{heartbeat.taskId}
+  Context --> Heartbeat{heartbeat present}
   Context --> Agent{agent.kind=background}
   Context --> Connection{connector source + userId + channelId}
   Cron -->|yes| CronType[Type: cron]

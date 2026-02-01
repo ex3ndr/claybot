@@ -22,14 +22,14 @@ first `session_created` log entry.
 type SessionDescriptor =
   | { type: "user"; connector: string; userId: string; channelId: string }
   | { type: "cron"; id: string }
-  | { type: "heartbeat"; id: string }
+  | { type: "heartbeat" }
   | { type: "subagent"; id: string; parentSessionId: string; name: string };
 ```
 
 Notes:
 - `user` is a foreground connector conversation.
 - `cron` maps to a scheduled task id.
-- `heartbeat` maps to the single heartbeat batch session (`id` is usually `all`).
+- `heartbeat` maps to the single heartbeat batch session.
 - `subagent` is any background agent and always includes a parent + name.
 
 ## Persistence rules

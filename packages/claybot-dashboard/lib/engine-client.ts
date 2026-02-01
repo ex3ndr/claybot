@@ -60,7 +60,6 @@ export type SessionContext = {
     filesPath: string;
   };
   heartbeat?: {
-    taskId: string;
     title: string;
   };
 };
