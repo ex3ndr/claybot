@@ -38,6 +38,7 @@ type LoadedPlugin = {
   registrar: ReturnType<PluginRegistry["createRegistrar"]>;
   dataDir: string;
   settings: unknown;
+  pluginDir: string;
 };
 
 export class PluginManager {
@@ -89,6 +90,20 @@ export class PluginManager {
 
   listAvailable(): string[] {
     return Array.from(this.pluginCatalog.keys());
+  }
+
+  listSkillDirs(): Array<{ pluginId: string; dir: string }> {
+    const seen = new Set<string>();
+    const dirs: Array<{ pluginId: string; dir: string }> = [];
+    for (const entry of this.loaded.values()) {
+      const dir = path.join(entry.pluginDir, "skills");
+      if (seen.has(dir)) {
+        continue;
+      }
+      seen.add(dir);
+      dirs.push({ pluginId: entry.config.pluginId, dir });
+    }
+    return dirs;
   }
 
   async getSystemPrompts(): Promise<string[]> {
@@ -274,7 +289,8 @@ export class PluginManager {
         config: pluginConfig,
         registrar,
         dataDir,
-        settings: parsedSettings
+        settings: parsedSettings,
+        pluginDir: definition.pluginDir
       });
       this.logger.debug(`Plugin registered in loaded map instanceId=${instanceId} loadedCount=${this.loaded.size}`);
       this.logger.info(

@@ -54,6 +54,10 @@ Use `cron_read_memory` to read task memory and `cron_write_memory` to update it 
 Incoming messages are wrapped as `<time>...</time><message_id>...</message_id><message>...</message>`.
 Messages wrapped in `<system_message ...>...</system_message>` are internal updates from other agents.
 
+{{#if skillsPrompt}}
+{{{skillsPrompt}}}
+{{/if}}
+
 {{#if pluginPrompt}}
 ## Plugin Context
 

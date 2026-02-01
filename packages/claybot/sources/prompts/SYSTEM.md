@@ -104,6 +104,10 @@ You can edit these files directly to update long-term memory:
 - SOUL: {{soulPath}}
 - USER: {{userPath}}
 
+{{#if skillsPrompt}}
+{{{skillsPrompt}}}
+{{/if}}
+
 {{#if pluginPrompt}}
 ## Plugin Context
 

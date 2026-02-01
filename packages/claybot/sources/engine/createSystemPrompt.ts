@@ -30,6 +30,7 @@ export type SystemPromptContext = {
   soulPath?: string;
   userPath?: string;
   pluginPrompt?: string;
+  skillsPrompt?: string;
   agentKind?: "background" | "foreground";
   parentSessionId?: string;
   configDir?: string;
@@ -77,6 +78,7 @@ export async function createSystemPrompt(context: SystemPromptContext = {}): Pro
     soulPath: context.soulPath ?? DEFAULT_SOUL_PATH,
     userPath: context.userPath ?? DEFAULT_USER_PATH,
     pluginPrompt: context.pluginPrompt ?? "",
+    skillsPrompt: context.skillsPrompt ?? "",
     parentSessionId: context.parentSessionId ?? "",
     configDir: context.configDir ?? "",
     soul,
