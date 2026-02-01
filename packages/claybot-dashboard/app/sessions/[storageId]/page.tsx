@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fetchSessionEntries, fetchSessions, type EngineEvent, type Session, type SessionEntry } from "@/lib/engine-client";
+import { buildSessionType, formatSessionTypeLabel, formatSessionTypeObject } from "@/lib/session-types";
 
 type SessionDetailPageProps = {
   params: {
@@ -127,6 +128,13 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
     return "Unknown";
   }, [orderedEntries, summary]);
 
+  const sessionType = useMemo(() => {
+    if (!summary) {
+      return null;
+    }
+    return buildSessionType(summary);
+  }, [summary]);
+
   return (
     <DashboardShell
       title={summary?.sessionId ?? storageId}
@@ -162,7 +170,7 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
       }
     >
       <div className="flex flex-1 flex-col gap-6 px-4 py-6 lg:px-6">
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
           <Card className="bg-gradient-to-br from-primary/10 via-card to-card/80">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -182,6 +190,15 @@ export default function SessionDetailPage({ params }: SessionDetailPageProps) {
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground">
               {summary?.createdAt ? `Created ${formatDateTime(Date.parse(summary.createdAt))}` : "Creation time unknown"}
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-slate-100/60 via-card to-card/80">
+            <CardHeader>
+              <CardDescription>Session type</CardDescription>
+              <CardTitle className="text-xl">{sessionType ? formatSessionTypeLabel(sessionType) : "Unknown"}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-[11px] text-muted-foreground">
+              <span className="font-mono">{sessionType ? formatSessionTypeObject(sessionType) : "No context"}</span>
             </CardContent>
           </Card>
           <Card className="bg-gradient-to-br from-secondary/30 via-card to-card/80">

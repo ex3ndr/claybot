@@ -37,10 +37,39 @@ export type BackgroundAgentState = {
   updatedAt?: string;
 };
 
+export type SessionContext = {
+  channelId: string;
+  channelType?: "private" | "group" | "supergroup" | "channel" | "unknown";
+  userId: string;
+  userFirstName?: string;
+  userLastName?: string;
+  username?: string;
+  sessionId?: string;
+  messageId?: string;
+  providerId?: string;
+  agent?: {
+    kind: "background";
+    parentSessionId?: string;
+    name?: string;
+  };
+  cron?: {
+    taskId: string;
+    taskUid: string;
+    taskName: string;
+    memoryPath: string;
+    filesPath: string;
+  };
+  heartbeat?: {
+    taskId: string;
+    title: string;
+  };
+};
+
 export type Session = {
   sessionId: string;
   storageId: string;
   source?: string;
+  context?: SessionContext;
   lastMessage?: string | null;
   createdAt?: string;
   updatedAt?: string;

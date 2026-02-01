@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fetchSessions, type EngineEvent, type Session } from "@/lib/engine-client";
+import { buildSessionType, formatSessionTypeLabel, formatSessionTypeObject } from "@/lib/session-types";
 
 export default function SessionsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -232,47 +233,64 @@ export default function SessionsPage() {
                     <TableHead>Session</TableHead>
                     <TableHead className="hidden md:table-cell">Updated</TableHead>
                     <TableHead className="hidden lg:table-cell">Source</TableHead>
+                    <TableHead className="hidden xl:table-cell">Type</TableHead>
                     <TableHead className="hidden xl:table-cell">Last message</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((session) => (
-                    <TableRow key={session.sessionId} className="hover:bg-muted/50">
-                      <TableCell>
-                        {session.storageId ? (
-                          <Link
-                            href={`/sessions/${session.storageId}`}
-                            className="text-sm font-medium text-foreground hover:underline"
-                          >
-                            {session.sessionId}
-                          </Link>
-                        ) : (
-                          <div className="text-sm font-medium text-foreground">{session.sessionId}</div>
-                        )}
-                        <div className="text-xs text-muted-foreground lg:hidden">{session.source ?? "unknown"}</div>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
-                        {formatSessionTime(session)}
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        <Badge variant="outline" className="text-xs">
-                          {session.source ?? "unknown"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="hidden xl:table-cell">
-                        <span className="line-clamp-2 text-xs text-muted-foreground">
-                          {session.lastMessage ?? "No message yet"}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="gap-1">
-                          <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                          Active
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filtered.map((session) => {
+                    const sessionType = buildSessionType(session);
+                    return (
+                      <TableRow key={session.sessionId} className="hover:bg-muted/50">
+                        <TableCell>
+                          {session.storageId ? (
+                            <Link
+                              href={`/sessions/${session.storageId}`}
+                              className="text-sm font-medium text-foreground hover:underline"
+                            >
+                              {session.sessionId}
+                            </Link>
+                          ) : (
+                            <div className="text-sm font-medium text-foreground">{session.sessionId}</div>
+                          )}
+                          <div className="text-xs text-muted-foreground lg:hidden">{session.source ?? "unknown"}</div>
+                          <div className="mt-1 text-[11px] text-muted-foreground lg:hidden">
+                            {formatSessionTypeLabel(sessionType)}
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                          {formatSessionTime(session)}
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          <Badge variant="outline" className="text-xs">
+                            {session.source ?? "unknown"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="hidden xl:table-cell">
+                          <div className="flex flex-col gap-1">
+                            <Badge variant="outline" className="text-[11px]">
+                              {formatSessionTypeLabel(sessionType)}
+                            </Badge>
+                            <span className="line-clamp-2 font-mono text-[10px] text-muted-foreground">
+                              {formatSessionTypeObject(sessionType)}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden xl:table-cell">
+                          <span className="line-clamp-2 text-xs text-muted-foreground">
+                            {session.lastMessage ?? "No message yet"}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="gap-1">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                            Active
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             ) : (

@@ -27,6 +27,26 @@ flowchart LR
   UI -->|fetch /api/v1/engine/sessions| Proxy
 ```
 
+## Session type object
+
+Sessions display a computed session type object so the UI can distinguish connections, scheduled work,
+and background agent children.
+
+```mermaid
+flowchart TD
+  Context[MessageContext] --> Cron{cron.taskUid or taskId}
+  Context --> Heartbeat{heartbeat.taskId}
+  Context --> Agent{agent.kind=background}
+  Context --> Connection{connector source + userId + channelId}
+  Cron -->|yes| CronType[Type: cron]
+  Heartbeat -->|yes| HeartbeatType[Type: heartbeat]
+  Agent --> Parent{agent.parentSessionId}
+  Parent -->|yes| BackgroundAgent[Type: background_agent]
+  Parent -->|no| Background[Type: background]
+  Connection -->|yes| ConnectionType[Type: connection]
+  Connection -->|no| Background
+```
+
 ## Session detail navigation
 
 Session rows link to a dedicated detail page that loads the full log for that session.
