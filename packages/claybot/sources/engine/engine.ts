@@ -443,10 +443,9 @@ export class Engine {
         await this.startBackgroundAgent({
           prompt: batch.prompt,
           sessionId,
-          name: batch.title,
           context: {
             userId: "heartbeat",
-            heartbeat: { title: batch.title }
+            heartbeat: {}
           }
         });
       },
@@ -927,7 +926,7 @@ export class Engine {
     const sessionId = isCuid2(args.sessionId ?? null) ? args.sessionId! : createId();
     const isSubagent = !args.context?.cron && !args.context?.heartbeat;
     const agentParent = args.parentSessionId ?? args.context?.agent?.parentSessionId;
-    const agentName = args.name ?? args.context?.agent?.name ?? "subagent";
+    const agentName = args.name ?? args.context?.agent?.name ?? (isSubagent ? "subagent" : undefined);
     if (isSubagent && !agentParent) {
       throw new Error("Subagent parent session is required");
     }
@@ -1346,26 +1345,6 @@ export class Engine {
         });
       } catch (error) {
         logger.warn({ sessionId: entry.sessionId, source: entry.source, error }, "Pending reply failed");
-      }
-    }
-  }
-
-  private async notifyPendingSubagentFailures(
-    pending: Array<{ sessionId: string; parentSessionId: string; name: string }>
-  ): Promise<void> {
-    for (const entry of pending) {
-      const message = `Subagent ${entry.name} (${entry.sessionId}) failed: Internal error.`;
-      try {
-        await this.sendSessionMessage({
-          sessionId: entry.parentSessionId,
-          text: message,
-          origin: "background"
-        });
-      } catch (error) {
-        logger.warn(
-          { sessionId: entry.sessionId, parentSessionId: entry.parentSessionId, error },
-          "Failed to notify subagent parent after restore"
-        );
       }
     }
   }

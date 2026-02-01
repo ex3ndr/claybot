@@ -47,9 +47,8 @@ export type MessageContext = {
     memoryPath: string;
     filesPath: string;
   };
-  heartbeat?: {
-    title: string;
-  };
+  // Presence marks a heartbeat context; no extra fields.
+  heartbeat?: Record<string, never>;
 };
 
 export type ConnectorCommand = {
