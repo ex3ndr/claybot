@@ -11,7 +11,7 @@ import { SessionStore } from "../sessions/store.js";
 import type { SessionPermissions } from "../permissions.js";
 import type { SessionDescriptor } from "../sessions/descriptor.js";
 import type { SessionState } from "../sessions/sessionStateTypes.js";
-import type { ConnectorRegistry, ImageGenerationRegistry, ToolResolver } from "../modules.js";
+import type { ConnectorRegistry, ImageGenerationRegistry, ToolResolver } from "../modules/_registry.js";
 import type { InferenceRouter } from "../inference/router.js";
 import type { FileStore } from "../../files/store.js";
 import type { AuthStore } from "../../auth/store.js";

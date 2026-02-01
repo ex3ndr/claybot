@@ -6,7 +6,7 @@ import type { FileReference } from "../../files/types.js";
 import type { AuthStore } from "../../auth/store.js";
 import type { AssistantSettings, ProviderSettings } from "../../settings.js";
 import type { Connector } from "../connectors/types.js";
-import type { ConnectorRegistry, ToolResolver } from "../modules.js";
+import type { ConnectorRegistry, ToolResolver } from "../modules/_registry.js";
 import type { InferenceRouter } from "../inference/router.js";
 import type { Session } from "../sessions/session.js";
 import type { SessionStore } from "../sessions/store.js";

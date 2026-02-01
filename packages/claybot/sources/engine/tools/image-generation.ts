@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { ToolResultMessage } from "@mariozechner/pi-ai";
 
-import type { ImageGenerationRegistry } from "../modules.js";
+import type { ImageGenerationRegistry } from "../modules/_registry.js";
 import type { ImageGenerationRequest } from "../images/types.js";
 import type { ToolDefinition } from "./types.js";
 

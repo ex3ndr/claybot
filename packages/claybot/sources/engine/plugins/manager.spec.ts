@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { ConnectorRegistry, ImageGenerationRegistry, InferenceRegistry, ToolResolver } from "../modules.js";
+import { ConnectorRegistry, ImageGenerationRegistry, InferenceRegistry, ToolResolver } from "../modules/_registry.js";
 import { InferenceRouter } from "../inference/router.js";
 import { FileStore } from "../../files/store.js";
 import { PluginEventQueue } from "./events.js";

@@ -4,7 +4,7 @@ import type { Context, AssistantMessage } from "@mariozechner/pi-ai";
 
 import { AuthStore } from "../auth/store.js";
 import { FileStore } from "../files/store.js";
-import { ImageGenerationRegistry, InferenceRegistry } from "../engine/modules.js";
+import { ImageGenerationRegistry, InferenceRegistry } from "../engine/modules/_registry.js";
 import { InferenceRouter } from "../engine/inference/router.js";
 import {
   DEFAULT_SETTINGS_PATH,

@@ -3,7 +3,7 @@ import type { Logger } from "pino";
 import type { AuthStore } from "../auth/store.js";
 import type { ProviderSettings } from "../settings.js";
 import type { FileStore } from "../files/store.js";
-import type { InferenceRegistry, ImageGenerationRegistry } from "../engine/modules.js";
+import type { InferenceRegistry, ImageGenerationRegistry } from "../engine/modules/_registry.js";
 
 export type ProviderAuth = "apiKey" | "oauth" | "mixed" | "none";
 

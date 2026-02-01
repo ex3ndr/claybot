@@ -2,7 +2,7 @@ import path from "node:path";
 
 import { AuthStore } from "../auth/store.js";
 import { promptConfirm, promptInput, promptSelect } from "./prompts.js";
-import { ConnectorRegistry, ImageGenerationRegistry, InferenceRegistry, ToolResolver } from "../engine/modules.js";
+import { ConnectorRegistry, ImageGenerationRegistry, InferenceRegistry, ToolResolver } from "../engine/modules/_registry.js";
 import { FileStore } from "../files/store.js";
 import { InferenceRouter } from "../engine/inference/router.js";
 import { PluginManager } from "../engine/plugins/manager.js";

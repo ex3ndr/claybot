@@ -9,7 +9,7 @@ import {
   ImageGenerationRegistry,
   InferenceRegistry,
   ToolResolver
-} from "./modules.js";
+} from "./modules/_registry.js";
 import type {
   ConnectorMessage,
   MessageContext,
