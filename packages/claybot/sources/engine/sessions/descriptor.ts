@@ -2,7 +2,7 @@ export type SessionDescriptor =
   | { type: "user"; connector: string; userId: string; channelId: string }
   | { type: "cron"; id: string }
   | { type: "heartbeat"; id: string }
-  | { type: "background"; id: string; parentSessionId?: string; name?: string };
+  | { type: "subagent"; id: string; parentSessionId: string; name: string };
 
 export type SessionFetchStrategy = "most-recent-foreground" | "heartbeat";
 
@@ -46,17 +46,20 @@ export function normalizeSessionDescriptor(value: unknown): SessionDescriptor | 
     }
     return undefined;
   }
-  if (candidate.type === "background") {
-    if (typeof candidate.id !== "string") {
-      return undefined;
+  if (candidate.type === "subagent") {
+    if (
+      typeof candidate.id === "string" &&
+      typeof candidate.parentSessionId === "string" &&
+      typeof candidate.name === "string"
+    ) {
+      return {
+        type: "subagent",
+        id: candidate.id,
+        parentSessionId: candidate.parentSessionId,
+        name: candidate.name
+      };
     }
-    return {
-      type: "background",
-      id: candidate.id,
-      parentSessionId:
-        typeof candidate.parentSessionId === "string" ? candidate.parentSessionId : undefined,
-      name: typeof candidate.name === "string" ? candidate.name : undefined
-    };
+    return undefined;
   }
   return undefined;
 }

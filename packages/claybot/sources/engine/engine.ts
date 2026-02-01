@@ -2094,15 +2094,7 @@ function buildSessionDescriptor(
       name: context.agent.name
     };
   }
-  if (source === "system") {
-    return {
-      type: "subagent",
-      id: sessionId,
-      parentSessionId: "system",
-      name: "system"
-    };
-  }
-  // No system sessions; internal work still needs a typed session descriptor.
+  // Internal work still needs a typed descriptor; treat as subagent.
   return { type: "subagent", id: sessionId, parentSessionId: "system", name: "system" };
 }
 
