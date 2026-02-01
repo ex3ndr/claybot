@@ -70,3 +70,22 @@ sequenceDiagram
   Client->>Engine: GET /v1/engine/events
   Engine-->>Client: stream events
 ```
+
+## Permission requests
+
+Permission requests are asynchronous. After a tool call, the engine waits for the connector's decision
+before continuing the session.
+
+```mermaid
+sequenceDiagram
+  participant Agent
+  participant Engine
+  participant Connector
+  participant User
+  Agent->>Engine: request_permission tool call
+  Engine->>Connector: requestPermission prompt
+  Connector->>User: approval UI
+  User->>Connector: allow/deny
+  Connector->>Engine: permission decision
+  Engine->>Agent: incoming decision message
+```
