@@ -37,7 +37,7 @@ export type TelegramConnectorOptions = {
   onFatal?: (reason: string, error?: unknown) => void;
 };
 
-const logger = getLogger("connector.telegram");
+const logger = getLogger("plugin.telegram");
 
 const TELEGRAM_MESSAGE_FORMAT_PROMPT = [
   "Messages sent on Telegram are parsed as HTML (not Markdown).",

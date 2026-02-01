@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { getLogger } from "../../log.js";
 
-const logger = getLogger("memory.store");
+const logger = getLogger("plugin.memory");
 const INDEX_FILENAME = "INDEX.md";
 const ENTITY_PATTERN = /^[a-z]+$/;
 const MAX_NAME_LENGTH = 60;

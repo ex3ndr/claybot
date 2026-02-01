@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { PluginModuleLoader } from "./loader.js";
+import { getLogger } from "../../log.js";
 
 const tempRoots: string[] = [];
 
@@ -59,7 +60,7 @@ export const plugin = {
       instance: { instanceId: "demo", pluginId: "demo" },
       settings,
       engineSettings: {},
-      logger: console as never,
+      logger: getLogger("test.loader"),
       auth: {} as never,
       dataDir: dir,
       registrar: {} as never,

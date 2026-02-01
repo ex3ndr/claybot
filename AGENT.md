@@ -26,6 +26,14 @@
 - Aim to keep files under ~700 LOC; guideline only (not a hard guardrail). Split/refactor when it improves clarity or testability.
 - Naming: use **ClayBot** for product/app/docs headings; use `claybot` for CLI command, package/binary, paths, and config keys.
 
+## Logging
+- Always create a logger with an explicit module via `getLogger("module.name")`.
+- Module labels in pretty logs are normalized to 10 characters (trim or right-pad with spaces).
+- Plugin modules must use the `plugin.` prefix so they render as `(module)`; system modules render as `[module]`.
+- If a module is omitted or blank, logs use `unknown`.
+- Prefer concise, stable module names to reduce trimming collisions.
+- Pretty logs render as `[HH:MM:ss] [module     ] Message` (plugins render `(module     )`).
+
 ## Plugin vs monolith
 - If it is something contained - new inference provider, new API, memory engine. It should be a plugin.
 - If it is requiring for coordinating multiple plugins or agents - it is part of the monilith. Cron is needed to everyone. Heartbeat too. Some event bus. Working with file system, sandboxing - it is part of the monolith code.

@@ -15,6 +15,18 @@ Defaults:
 - `json` otherwise
 - redaction for `token`, `password`, `secret`, `apiKey` and dotted variants
 
+## Pretty Output
+
+Pretty output uses a fixed-width module label and time-only prefix:
+
+```
+[HH:MM:ss] [module     ] message text
+```
+
+- Module labels are trimmed/padded to 10 characters.
+- Plugin modules use the `plugin.` prefix and render as `(module     )`.
+- Missing module values render as `unknown`.
+
 ```mermaid
 flowchart TD
   Env[Env vars] --> Resolve[resolveLogConfig]
@@ -36,7 +48,7 @@ CLAYBOT_LOG_LEVEL=info yarn dev
 
 Debug logs include key data embedded in the message text using `key=value` format:
 
-| Component | Scope | What it logs |
+| Component | Module | What it logs |
 |-----------|-------|--------------|
 | Engine | `engine.runtime` | Message processing flow, inference loop, tool execution, session lifecycle |
 | Inference Router | `inference.router` | Provider selection, fallback attempts, client creation, completion calls |
@@ -61,29 +73,29 @@ yarn dev
 
 Example output tracing a message:
 ```
-Received Telegram message chatId=123 messageId=456
-Dispatching to handlers handlerCount=1 channelId=123
-Handling connector.message event
-handleMessage() called source=telegram channelId=123 hasText=true fileCount=0
-Creating new session sessionId=anthropic:user-123
-handleSessionMessage started sessionId=anthropic:user-123 messageId=abc hasText=true textLength=15 fileCount=0
-Inference loop iteration=0 sessionId=anthropic:user-123 messageCount=1
-Trying provider providerIndex=0 providerId=anthropic model=claude-sonnet-4-20250514
-Creating inference client providerId=anthropic model=claude-sonnet-4-20250514
-Calling client.complete() providerId=anthropic modelId=claude-sonnet-4-20250514 sessionId=anthropic:user-123
-Inference completed successfully providerId=anthropic modelId=claude-sonnet-4-20250514 stopReason=end_turn contentBlocks=1 inputTokens=50 outputTokens=100
-Extracted tool calls from response toolCallCount=0
-No tool calls, breaking inference loop iteration=0
-Sending response to user textLength=200 fileCount=0 channelId=123
-Response sent successfully
-handleSessionMessage completed successfully
+[09:41:12] (telegram  ) Received Telegram message chatId=123 messageId=456
+[09:41:12] (telegram  ) Dispatching to handlers handlerCount=1 channelId=123
+[09:41:12] [engine.run] Handling connector.message event
+[09:41:12] [sessions.m] handleMessage() called source=telegram channelId=123 hasText=true fileCount=0
+[09:41:12] [sessions.m] Creating new session sessionId=anthropic:user-123
+[09:41:12] [engine.run] handleSessionMessage started sessionId=anthropic:user-123 messageId=abc hasText=true textLength=15 fileCount=0
+[09:41:12] [engine.run] Inference loop iteration=0 sessionId=anthropic:user-123 messageCount=1
+[09:41:12] [inference.] Trying provider providerIndex=0 providerId=anthropic model=claude-sonnet-4-20250514
+[09:41:12] [inference.] Creating inference client providerId=anthropic model=claude-sonnet-4-20250514
+[09:41:12] [inference.] Calling client.complete() providerId=anthropic modelId=claude-sonnet-4-20250514 sessionId=anthropic:user-123
+[09:41:12] [inference.] Inference completed successfully providerId=anthropic modelId=claude-sonnet-4-20250514 stopReason=end_turn contentBlocks=1 inputTokens=50 outputTokens=100
+[09:41:12] [engine.mod] Extracted tool calls from response toolCallCount=0
+[09:41:12] [engine.run] No tool calls, breaking inference loop iteration=0
+[09:41:12] (telegram  ) Sending response to user textLength=200 fileCount=0 channelId=123
+[09:41:12] (telegram  ) Response sent successfully
+[09:41:12] [engine.run] handleSessionMessage completed successfully
 ```
 
 ### Filtering Logs
 
-To filter by component scope:
+To filter by module label:
 ```bash
-CLAYBOT_LOG_LEVEL=debug yarn dev 2>&1 | grep "inference.router"
+CLAYBOT_LOG_LEVEL=debug yarn dev 2>&1 | grep -F "[inference.]"
 ```
 
 To filter by specific key:
