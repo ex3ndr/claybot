@@ -18,7 +18,6 @@ cron/
 ├── cronTimeGetNext.ts           # Calculate next run time
 ├── cronStore.ts                 # CronStore class (file persistence)
 ├── cronScheduler.ts             # CronScheduler class (task execution)
-├── cronConnector.ts             # Cron connector (send-only)
 └── README.md
 ```
 
@@ -54,16 +53,11 @@ Manages cron tasks stored as markdown files on disk.
 
 Schedules and executes cron tasks based on their cron expressions.
 
-### cronConnectorCreate
-
-Factory function that creates a send-only connector for cron output.
-
 ## Usage
 
 ```typescript
 import { CronStore } from "./cron/cronStore.js";
 import { CronScheduler } from "./cron/cronScheduler.js";
-import { cronConnectorCreate } from "./cron/cronConnector.js";
 
 const store = new CronStore("/path/to/cron");
 const scheduler = new CronScheduler({
