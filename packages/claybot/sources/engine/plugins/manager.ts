@@ -1,6 +1,8 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
 
+import { ZodError } from "zod";
+
 import { getLogger } from "../../log.js";
 import type { FileStore } from "../../files/store.js";
 import type { AuthStore } from "../../auth/store.js";
@@ -152,15 +154,18 @@ export class PluginManager {
             entry.config = plugin;
             entry.settings = parsed;
           } catch (error) {
-            const message = error instanceof Error ? error.message : "Invalid plugin settings.";
-            this.logger.warn(
-              { instance: plugin.instanceId, plugin: plugin.pluginId, error },
-              "Plugin settings validation failed"
-            );
-            await this.unload(plugin.instanceId);
-            throw new Error(
-              `Plugin settings invalid for ${plugin.pluginId} (${plugin.instanceId}): ${message}`
-            );
+            if (error instanceof ZodError) {
+              this.logger.warn(
+                { instance: plugin.instanceId, plugin: plugin.pluginId, error },
+                "Plugin settings validation failed"
+              );
+              await this.unload(plugin.instanceId);
+              if (this.mode === "validate") {
+                throw error;
+              }
+              continue;
+            }
+            throw error;
           }
         }
         continue;
@@ -208,7 +213,22 @@ export class PluginManager {
     const loader = new PluginModuleLoader(`plugin:${instanceId}`);
     const { module } = await loader.load(definition.entryPath);
     this.logger.debug("Plugin module loaded, parsing settings");
-    const parsedSettings = module.settingsSchema.parse(pluginConfig.settings ?? {});
+    let parsedSettings: unknown;
+    try {
+      parsedSettings = module.settingsSchema.parse(pluginConfig.settings ?? {});
+    } catch (error) {
+      if (error instanceof ZodError) {
+        this.logger.warn(
+          { plugin: pluginConfig.pluginId, instance: instanceId, error },
+          "Plugin settings validation failed"
+        );
+        if (this.mode === "validate") {
+          throw error;
+        }
+        return;
+      }
+      throw error;
+    }
     this.logger.debug("Settings parsed successfully");
 
     this.logger.debug("Creating registrar");
