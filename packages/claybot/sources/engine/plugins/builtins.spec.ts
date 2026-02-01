@@ -8,6 +8,7 @@ import { getLogger } from "../../log.js";
 import { AuthStore } from "../../auth/store.js";
 import type { PluginApi } from "./types.js";
 import type { PluginRegistrar } from "./registry.js";
+import { configResolve } from "../../config/configResolve.js";
 
 import { plugin as braveSearch } from "../../plugins/brave-search/plugin.js";
 import { plugin as memory } from "../../plugins/memory/plugin.js";
@@ -41,9 +42,9 @@ async function createApi<TSettings>(
   registrar: PluginRegistrar,
   dir: string
 ): Promise<PluginApi<TSettings>> {
-  const authPath = path.join(dir, "auth.json");
-  const auth = new AuthStore(authPath);
-  const fileStore = new FileStore({ basePath: path.join(dir, "files") });
+  const config = configResolve({ engine: { dataDir: dir } }, path.join(dir, "settings.json"));
+  const auth = new AuthStore(config);
+  const fileStore = new FileStore(config);
   const inference = {
     complete: async () => {
       throw new Error("Inference not available in tests");

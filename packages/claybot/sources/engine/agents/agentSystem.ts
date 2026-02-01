@@ -57,7 +57,6 @@ export type AgentSystemOptions = {
   authStore: AuthStore;
   crons: Crons;
   agentRuntime: AgentRuntime;
-  verbose?: boolean;
 };
 
 type ScheduledMessage = {
@@ -85,7 +84,6 @@ export class AgentSystem implements AgentSystemContext {
   readonly sessionStore: SessionStore<SessionState>;
   readonly crons: Crons;
   readonly agentRuntime: AgentRuntime;
-  readonly verbose: boolean;
   private sessionManager: SessionManager<SessionState>;
   private sessionKeyMap = new Map<string, string>();
   private stage: "idle" | "loaded" | "scheduling" | "running" = "idle";
@@ -106,7 +104,6 @@ export class AgentSystem implements AgentSystemContext {
     this.authStore = options.authStore;
     this.crons = options.crons;
     this.agentRuntime = options.agentRuntime;
-    this.verbose = options.verbose ?? false;
     this.sessionStore = new SessionStore<SessionState>({
       basePath: `${this.config.dataDir}/sessions`
     });

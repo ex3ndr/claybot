@@ -48,5 +48,4 @@ export type AgentSystemContext = {
   readonly eventBus: EngineEventBus;
   readonly crons: Crons;
   readonly agentRuntime: AgentRuntime;
-  readonly verbose: boolean;
 };

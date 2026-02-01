@@ -16,6 +16,7 @@ import { Session } from "../../../engine/sessions/session.js";
 import type { SessionPermissions } from "../../../engine/permissions.js";
 import { getLogger } from "../../../log.js";
 import { plugin } from "../plugin.js";
+import { configResolve } from "../../../config/configResolve.js";
 
 describe("database plugin", () => {
   let baseDir: string;
@@ -25,8 +26,9 @@ describe("database plugin", () => {
   });
 
   it("creates db files, runs SQL, and updates db.md", async () => {
-    const auth = new AuthStore(path.join(baseDir, "auth.json"));
-    const fileStore = new FileStore({ basePath: path.join(baseDir, "files") });
+    const config = configResolve({ engine: { dataDir: baseDir } }, path.join(baseDir, "settings.json"));
+    const auth = new AuthStore(config);
+    const fileStore = new FileStore(config);
     const connectorRegistry = new ConnectorRegistry({ onMessage: async () => undefined });
     const inferenceRegistry = new InferenceRegistry();
     const imageRegistry = new ImageGenerationRegistry();

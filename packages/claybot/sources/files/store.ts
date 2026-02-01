@@ -5,19 +5,13 @@ import { createId } from "@paralleldrive/cuid2";
 
 import type { StoredFile } from "./types.js";
 import { sanitizeFilename } from "../util/filename.js";
-import { resolveClaybotPath } from "../paths.js";
-
-export type FileStoreOptions = {
-  basePath?: string;
-};
-
-const DEFAULT_BASE_PATH = resolveClaybotPath("files");
+import type { Config } from "../config/configTypes.js";
 
 export class FileStore {
   private basePath: string;
 
-  constructor(options: FileStoreOptions = {}) {
-    this.basePath = options.basePath ?? DEFAULT_BASE_PATH;
+  constructor(config: Config) {
+    this.basePath = config.filesDir;
   }
 
   resolvePath(): string {

@@ -42,8 +42,7 @@ export async function addCommand(options: AddOptions): Promise<void> {
   const settingsPath = path.resolve(options.settings ?? DEFAULT_SETTINGS_PATH);
   const config = await configLoad(settingsPath);
   const settings = config.settings;
-  const dataDir = config.dataDir;
-  const authStore = new AuthStore(config.authPath);
+  const authStore = new AuthStore(config);
 
   const addTarget = await promptSelect({
     message: "What do you want to add?",
@@ -63,7 +62,7 @@ export async function addCommand(options: AddOptions): Promise<void> {
     return;
   }
 
-  await addProvider(settingsPath, dataDir, authStore);
+  await addProvider(settingsPath, config, authStore);
 }
 
 async function addPlugin(
@@ -188,7 +187,7 @@ async function addPlugin(
 
 async function addProvider(
   settingsPath: string,
-  dataDir: string,
+  config: Config,
   authStore: AuthStore
 ): Promise<void> {
   const providers = listProviderDefinitions();
@@ -226,7 +225,7 @@ async function addProvider(
   };
 
   try {
-    await validateProviderLoad(dataDir, authStore, definition, providerSettings);
+    await validateProviderLoad(config, authStore, definition, providerSettings);
   } catch (error) {
     outro(`Provider failed to load: ${(error as Error).message}`);
     return;
@@ -276,7 +275,7 @@ async function validatePluginLoad(
     toolRegistry
   );
   const pluginEventQueue = new PluginEventQueue();
-  const fileStore = new FileStore({ basePath: `${config.dataDir}/files` });
+  const fileStore = new FileStore(config);
   const inferenceRouter = new InferenceRouter({
     providers: listActiveInferenceProviders(config.settings),
     registry: inferenceRegistry,
@@ -319,14 +318,14 @@ async function runProviderOnboarding(
 }
 
 async function validateProviderLoad(
-  dataDir: string,
+  config: Config,
   authStore: AuthStore,
   definition: ProviderDefinition,
   providerSettings: ProviderSettings
 ) {
   const inferenceRegistry = new InferenceRegistry();
   const imageRegistry = new ImageGenerationRegistry();
-  const fileStore = new FileStore({ basePath: `${dataDir}/files` });
+  const fileStore = new FileStore(config);
   const logger = getLogger(`provider.validate.${definition.id}`);
   const instance = await Promise.resolve(
     definition.create({

@@ -10,12 +10,11 @@ import { InferenceRouter } from "../engine/modules/inference/router.js";
 import {
   DEFAULT_SETTINGS_PATH,
   listProviders,
-  readSettingsFile,
   type ProviderSettings
 } from "../settings.js";
-import { DEFAULT_CLAYBOT_DIR } from "../paths.js";
 import { getProviderDefinition } from "../providers/catalog.js";
 import { getLogger } from "../log.js";
+import { configLoad } from "../config/configLoad.js";
 
 export type DoctorOptions = {
   settings?: string;
@@ -25,8 +24,8 @@ export async function doctorCommand(options: DoctorOptions): Promise<void> {
   intro("claybot doctor");
 
   const settingsPath = path.resolve(options.settings ?? DEFAULT_SETTINGS_PATH);
-  const settings = await readSettingsFile(settingsPath);
-  const configuredProviders = listProviders(settings).filter(
+  const config = await configLoad(settingsPath);
+  const configuredProviders = listProviders(config.settings).filter(
     (provider) => provider.enabled !== false
   );
 
@@ -35,9 +34,8 @@ export async function doctorCommand(options: DoctorOptions): Promise<void> {
     return;
   }
 
-  const dataDir = path.resolve(settings.engine?.dataDir ?? DEFAULT_CLAYBOT_DIR);
-  const auth = new AuthStore(path.join(dataDir, "auth.json"));
-  const fileStore = new FileStore({ basePath: path.join(dataDir, "files") });
+  const auth = new AuthStore(config);
+  const fileStore = new FileStore(config);
 
   let failed = 0;
   let skipped = 0;

@@ -387,6 +387,6 @@ async function closeServer(app: FastifyInstance): Promise<void> {
 }
 
 async function reloadRuntime(settingsPath: string, runtime: Engine): Promise<void> {
-  const config = await configLoad(settingsPath);
+  const config = await configLoad(settingsPath, { verbose: runtime.config.verbose });
   await runtime.reload(config);
 }

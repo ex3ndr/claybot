@@ -12,6 +12,7 @@ import type { PluginRegistrar } from "../../../engine/plugins/registry.js";
 import type { ImageGenerationProvider } from "../../../engine/modules/images/types.js";
 import { getLogger } from "../../../log.js";
 import { plugin as nanoBananaPro } from "../plugin.js";
+import { configResolve } from "../../../config/configResolve.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..", "..", "..", "..", "..", "..");
@@ -44,10 +45,11 @@ describeIf("nano-banana-pro image generation", () => {
 
   itIf("generates an image and writes it to .context", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "nano-banana-pro-"));
-    const auth = new AuthStore(path.join(dir, "auth.json"));
+    const config = configResolve({ engine: { dataDir: dir } }, path.join(dir, "settings.json"));
+    const auth = new AuthStore(config);
     await auth.setApiKey("nano-banana-pro", apiKey);
 
-    const fileStore = new FileStore({ basePath: path.join(dir, "files") });
+    const fileStore = new FileStore(config);
     let registeredProvider: ImageGenerationProvider | null = null;
 
     const registrar = {

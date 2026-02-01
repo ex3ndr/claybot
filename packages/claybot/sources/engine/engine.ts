@@ -55,11 +55,10 @@ const logger = getLogger("engine.runtime");
 export type EngineOptions = {
   config: Config;
   eventBus: EngineEventBus;
-  verbose?: boolean;
 };
 
 export class Engine {
-  private config: Config;
+  config: Config;
   readonly authStore: AuthStore;
   readonly fileStore: FileStore;
   readonly modules: ModuleRegistry;
@@ -74,15 +73,13 @@ export class Engine {
   readonly heartbeats: Heartbeats;
   readonly inferenceRouter: InferenceRouter;
   readonly eventBus: EngineEventBus;
-  readonly verbose: boolean;
 
   constructor(options: EngineOptions) {
     logger.debug(`Engine constructor starting, dataDir=${options.config.dataDir}`);
     this.config = options.config;
-    this.verbose = options.verbose ?? false;
     this.eventBus = options.eventBus;
-    this.authStore = new AuthStore(this.config.authPath);
-    this.fileStore = new FileStore({ basePath: `${this.config.dataDir}/files` });
+    this.authStore = new AuthStore(this.config);
+    this.fileStore = new FileStore(this.config);
     logger.debug(`AuthStore and FileStore initialized`);
 
     this.pluginEventQueue = new PluginEventQueue();
@@ -205,8 +202,7 @@ export class Engine {
       fileStore: this.fileStore,
       authStore: this.authStore,
       crons: this.crons,
-      agentRuntime,
-      verbose: this.verbose
+      agentRuntime
     });
     this.agentSystem = agentSystem;
     this.agentRuntime = agentRuntime;

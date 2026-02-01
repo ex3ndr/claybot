@@ -5,9 +5,15 @@ export type Config = {
   settingsPath: string;
   configDir: string;
   dataDir: string;
+  filesDir: string;
   authPath: string;
   socketPath: string;
   workspaceDir: string;
   settings: SettingsConfig;
   defaultPermissions: SessionPermissions;
+  verbose: boolean;
+};
+
+export type ConfigOverrides = {
+  verbose?: boolean;
 };

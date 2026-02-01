@@ -344,7 +344,7 @@ export class Agent {
       assistant: agentSystem.config.settings.assistant ?? null,
       agentRuntime: agentSystem.agentRuntime,
       providersForSession,
-      verbose: agentSystem.verbose,
+      verbose: agentSystem.config.verbose,
       logger,
       notifySubagentFailure: (reason, error) => this.notifySubagentFailure(reason, error)
     });

@@ -73,8 +73,7 @@ async function createAgentSystem(): Promise<{
     pluginManager: stub<PluginManager>(),
     eventBus: stub<EngineEventBus>(),
     crons: stub<Crons>(),
-    agentRuntime: stubRuntime(),
-    verbose: false
+    agentRuntime: stubRuntime()
   } satisfies AgentSystemContext;
   return {
     agentSystem,

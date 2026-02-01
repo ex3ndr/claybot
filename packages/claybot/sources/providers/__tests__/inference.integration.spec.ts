@@ -14,6 +14,7 @@ import { ImageGenerationRegistry } from "../../engine/modules/imageGenerationReg
 import { InferenceRegistry } from "../../engine/modules/inferenceRegistry.js";
 import { ProviderManager } from "../manager.js";
 import { listActiveInferenceProviders } from "../catalog.js";
+import { configResolve } from "../../config/configResolve.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..", "..", "..", "..", "..");
@@ -193,7 +194,8 @@ type ProviderConfig = {
 
 async function setupProvider(providerId: string, config: ProviderConfig) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), `claybot-${providerId}-`));
-  const auth = new AuthStore(path.join(dir, "auth.json"));
+  const resolvedConfig = configResolve({ engine: { dataDir: dir } }, path.join(dir, "settings.json"));
+  const auth = new AuthStore(resolvedConfig);
   if (config.apiKey) {
     await auth.setApiKey(providerId, config.apiKey);
   }
@@ -213,7 +215,7 @@ async function setupProvider(providerId: string, config: ProviderConfig) {
       ]
     },
     auth,
-    fileStore: new FileStore({ basePath: path.join(dir, "files") }),
+    fileStore: new FileStore(resolvedConfig),
     inferenceRegistry,
     imageRegistry
   });

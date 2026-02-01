@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { resolveClaybotPath } from "../paths.js";
+import type { Config } from "../config/configTypes.js";
 
 export type AuthEntry = {
   type?: "apiKey" | "oauth" | "token";
@@ -12,13 +12,11 @@ export type AuthEntry = {
 
 export type AuthConfig = Record<string, AuthEntry>;
 
-export const DEFAULT_AUTH_PATH = resolveClaybotPath("auth.json");
-
 export class AuthStore {
   private filePath: string;
 
-  constructor(filePath: string = DEFAULT_AUTH_PATH) {
-    this.filePath = filePath;
+  constructor(config: Config) {
+    this.filePath = config.authPath;
   }
 
   async read(): Promise<AuthConfig> {

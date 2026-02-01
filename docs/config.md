@@ -3,6 +3,13 @@
 ClayBot uses an immutable Config snapshot that resolves paths, defaults, and settings
 from the JSON settings file. The engine reloads by rebuilding a new Config snapshot.
 
+## Snapshot fields
+
+- `settingsPath`, `configDir`, `dataDir`, `filesDir`, `authPath`, `socketPath`, `workspaceDir`
+- `settings` (validated settings.json)
+- `defaultPermissions`
+- `verbose` (runtime flag)
+
 ## Lifecycle
 
 ```mermaid

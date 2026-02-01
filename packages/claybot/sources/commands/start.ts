@@ -21,7 +21,7 @@ export type StartOptions = {
 
 export async function startCommand(options: StartOptions): Promise<void> {
   const settingsPath = path.resolve(options.settings ?? DEFAULT_SETTINGS_PATH);
-  const config = await configLoad(settingsPath);
+  const config = await configLoad(settingsPath, { verbose: options.verbose ?? false });
   logger.info({ settings: config.settingsPath }, "Starting ClayBot");
 
   const eventBus = new EngineEventBus();
@@ -69,8 +69,7 @@ export async function startCommand(options: StartOptions): Promise<void> {
 
   const runtime = new Engine({
     config,
-    eventBus,
-    verbose: options.verbose ?? false
+    eventBus
   });
 
   await runtime.start();

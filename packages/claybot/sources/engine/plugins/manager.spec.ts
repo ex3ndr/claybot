@@ -48,9 +48,9 @@ function createManager(
     imageRegistry,
     toolRegistry
   );
-  const authPath = path.join(rootDir, "auth.json");
-  const auth = new AuthStore(authPath);
-  const fileStore = new FileStore({ basePath: path.join(rootDir, "files") });
+  const config = configResolve({ engine: { dataDir: rootDir } }, path.join(rootDir, "settings.json"));
+  const auth = new AuthStore(config);
+  const fileStore = new FileStore(config);
   const inferenceRouter = new InferenceRouter({
     providers: [],
     registry: inferenceRegistry,
@@ -72,8 +72,6 @@ function createManager(
       }
     ]
   ]);
-  const config = configResolve({ engine: { dataDir: rootDir } }, path.join(rootDir, "settings.json"));
-
   return new PluginManager({
     config,
     registry: pluginRegistry,
