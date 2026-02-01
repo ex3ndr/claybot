@@ -22,7 +22,6 @@ program
 program
   .command("start")
   .description("Launch the claybot")
-  .argument("[mode]", "Optional mode: 'verbose' to show tool calls in channel")
   .option(
     "-s, --settings <path>",
     "Path to settings file",
@@ -30,10 +29,7 @@ program
   )
   .option("-f, --force", "Stop any running engine server before starting")
   .option("-v, --verbose", "Show tool calls and responses in channel")
-  .action((mode: string | undefined, options: Record<string, unknown>) => {
-    const verbose = options.verbose === true || mode === "verbose";
-    return startCommand({ ...options, verbose });
-  });
+  .action(startCommand);
 
 program
   .command("status")
