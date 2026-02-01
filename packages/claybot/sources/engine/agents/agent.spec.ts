@@ -6,10 +6,19 @@ import { describe, expect, it } from "vitest";
 
 import { Agent } from "./agent.js";
 import type { AgentEngine } from "./agentTypes.js";
+import type { AgentRuntime } from "../tools/types.js";
 import { SessionStore } from "../sessions/store.js";
 import type { SessionPermissions } from "../permissions.js";
 import type { SessionDescriptor } from "../sessions/descriptor.js";
 import type { SessionState } from "../sessions/sessionStateTypes.js";
+import type { ConnectorRegistry, ImageGenerationRegistry, ToolResolver } from "../modules.js";
+import type { InferenceRouter } from "../inference/router.js";
+import type { FileStore } from "../../files/store.js";
+import type { AuthStore } from "../../auth/store.js";
+import type { PluginManager } from "../plugins/manager.js";
+import type { EngineEventBus } from "../ipc/events.js";
+import type { CronStore } from "../cron/cronStore.js";
+import type { CronScheduler } from "../cron/cronScheduler.js";
 
 const defaultPermissions: SessionPermissions = {
   workingDir: "/tmp/work",
@@ -17,6 +26,23 @@ const defaultPermissions: SessionPermissions = {
   readDirs: ["/tmp/work"],
   web: false
 };
+
+const stubRuntime = (): AgentRuntime =>
+  ({
+    startBackgroundAgent: async () => ({ sessionId: "stub" }),
+    sendSessionMessage: async () => {},
+    runHeartbeatNow: async () => ({ ran: 0, taskIds: [] }),
+    addHeartbeatTask: async () => ({
+      id: "stub",
+      title: "stub",
+      prompt: "stub",
+      filePath: "/tmp/heartbeat.md"
+    }),
+    listHeartbeatTasks: async () => [],
+    removeHeartbeatTask: async () => ({ removed: false })
+  }) satisfies AgentRuntime;
+
+const stub = <T>(): T => ({} as unknown as T);
 
 async function createEngine(): Promise<{
   engine: AgentEngine;
@@ -32,7 +58,21 @@ async function createEngine(): Promise<{
       ...defaultPermissions,
       writeDirs: [...defaultPermissions.writeDirs],
       readDirs: [...defaultPermissions.readDirs]
-    })
+    }),
+    getSettings: () => ({}),
+    getConfigDir: () => "/tmp",
+    getConnectorRegistry: () => stub<ConnectorRegistry>(),
+    getImageRegistry: () => stub<ImageGenerationRegistry>(),
+    getToolResolver: () => stub<ToolResolver>(),
+    getInferenceRouter: () => stub<InferenceRouter>(),
+    getFileStore: () => stub<FileStore>(),
+    getAuthStore: () => stub<AuthStore>(),
+    getPluginManager: () => stub<PluginManager>(),
+    getEventBus: () => stub<EngineEventBus>(),
+    getCronStore: () => null as CronStore | null,
+    getCronScheduler: () => null as CronScheduler | null,
+    getAgentRuntime: () => stubRuntime(),
+    isVerbose: () => false
   };
   return {
     engine,

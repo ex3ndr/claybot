@@ -1,24 +1,52 @@
+import type { Context } from "@mariozechner/pi-ai";
 import { createId } from "@paralleldrive/cuid2";
 
 import { getLogger } from "../../log.js";
+import { DEFAULT_SOUL_PATH, DEFAULT_USER_PATH } from "../../paths.js";
+import { listActiveInferenceProviders } from "../../providers/catalog.js";
+import { cuid2Is } from "../../utils/cuid2Is.js";
+import { assumeWorkspace, createSystemPrompt } from "../createSystemPrompt.js";
 import type { MessageContext } from "../connectors/types.js";
+import { messageBuildUser } from "../messages/messageBuildUser.js";
+import { permissionBuildCron } from "../permissions/permissionBuildCron.js";
+import { permissionEnsureDefaultFile } from "../permissions/permissionEnsureDefaultFile.js";
+import { permissionMergeDefault } from "../permissions/permissionMergeDefault.js";
+import { formatSkillsPrompt, listCoreSkills, listRegisteredSkills } from "../skills/catalog.js";
 import { Session } from "../sessions/session.js";
+import type { SessionDescriptor } from "../sessions/descriptor.js";
+import { sessionContextIsCron } from "../sessions/sessionContextIsCron.js";
+import { sessionContextIsHeartbeat } from "../sessions/sessionContextIsHeartbeat.js";
+import { sessionDescriptorBuild } from "../sessions/sessionDescriptorBuild.js";
+import { sessionRecordOutgoing } from "../sessions/sessionRecordOutgoing.js";
+import { sessionRecordState } from "../sessions/sessionRecordState.js";
 import { sessionStateNormalize } from "../sessions/sessionStateNormalize.js";
 import type { SessionState } from "../sessions/sessionStateTypes.js";
-import type { SessionDescriptor } from "../sessions/descriptor.js";
-import type { AgentDescriptor, AgentEngine, AgentInboundMessage, AgentReceiveResult } from "./agentTypes.js";
-import { cuid2Is } from "../../utils/cuid2Is.js";
+import type { SessionMessage } from "../sessions/types.js";
+import { toolListContextBuild } from "../tools/toolListContextBuild.js";
+import type {
+  AgentDescriptor,
+  AgentEngine,
+  AgentInboundMessage,
+  AgentReceiveResult
+} from "./agentTypes.js";
+import { agentLoopRun } from "./agentLoopRun.js";
 
 const logger = getLogger("engine.agent");
 
 export class Agent {
   readonly session: Session<SessionState>;
   readonly descriptor: SessionDescriptor;
+  private engine: AgentEngine;
   private sessionStore: ReturnType<AgentEngine["getSessionStore"]>;
 
-  private constructor(session: Session<SessionState>, descriptor: SessionDescriptor, engine: AgentEngine) {
+  private constructor(
+    session: Session<SessionState>,
+    descriptor: SessionDescriptor,
+    engine: AgentEngine
+  ) {
     this.session = session;
     this.descriptor = descriptor;
+    this.engine = engine;
     this.sessionStore = engine.getSessionStore();
   }
 
@@ -26,7 +54,11 @@ export class Agent {
    * Loads an agent from the session log.
    * Expects: id is a cuid2 session id, and the stored descriptor equals the requested descriptor.
    */
-  static async load(descriptor: AgentDescriptor, id: string, engine: AgentEngine): Promise<Agent> {
+  static async load(
+    descriptor: AgentDescriptor,
+    id: string,
+    engine: AgentEngine
+  ): Promise<Agent> {
     if (!cuid2Is(id)) {
       throw new Error("Agent session id must be a cuid2 value.");
     }
@@ -65,7 +97,11 @@ export class Agent {
    * Creates a new agent session and records a session_created entry.
    * Expects: id is a cuid2 session id, descriptor is the session type object to persist.
    */
-  static async create(descriptor: AgentDescriptor, id: string, engine: AgentEngine): Promise<Agent> {
+  static async create(
+    descriptor: AgentDescriptor,
+    id: string,
+    engine: AgentEngine
+  ): Promise<Agent> {
     if (!cuid2Is(id)) {
       throw new Error("Agent session id must be a cuid2 value.");
     }
@@ -97,6 +133,36 @@ export class Agent {
   }
 
   /**
+   * Wraps an existing session for message handling.
+   * Expects: session state will be updated with a descriptor if missing.
+   */
+  static fromMessage(
+    session: Session<SessionState>,
+    source: string,
+    context: MessageContext,
+    engine: AgentEngine
+  ): Agent {
+    const descriptor =
+      session.context.state.session ?? sessionDescriptorBuild(source, context, session.id);
+    if (!session.context.state.session) {
+      session.context.state.session = descriptor;
+    }
+    return new Agent(session, descriptor, engine);
+  }
+
+  /**
+   * Wraps an existing session that already has a descriptor.
+   * Expects: session context includes a session descriptor.
+   */
+  static fromSession(session: Session<SessionState>, engine: AgentEngine): Agent {
+    const descriptor = session.context.state.session;
+    if (!descriptor) {
+      throw new Error(`Agent session missing descriptor: ${session.id}`);
+    }
+    return new Agent(session, descriptor, engine);
+  }
+
+  /**
    * Enqueues a message for the agent session.
    * Expects: inbound context is valid; persistence is queued asynchronously.
    */
@@ -117,6 +183,237 @@ export class Agent {
     })();
 
     return entry;
+  }
+
+  /**
+   * Processes a queued session message by running the agent loop.
+   * Expects: caller already enqueued the message into the session queue.
+   */
+  async handleMessage(entry: SessionMessage, source: string): Promise<void> {
+    const session = this.session;
+    const engine = this.engine;
+    const connectorRegistry = engine.getConnectorRegistry();
+    const connector = connectorRegistry.get(source);
+
+    const textLen = entry.message.text?.length ?? 0;
+    const fileCount = entry.message.files?.length ?? 0;
+    logger.debug(
+      `handleMessage started sessionId=${session.id} messageId=${entry.id} source=${source} hasText=${!!entry.message.text} textLength=${textLen} fileCount=${fileCount}`
+    );
+
+    if (!entry.message.text && (!entry.message.files || entry.message.files.length === 0)) {
+      logger.debug(
+        `handleMessage skipping - no text or files sessionId=${session.id} messageId=${entry.id}`
+      );
+      return;
+    }
+
+    const isInternal =
+      !connector &&
+      (source === "system" || entry.context.agent?.kind === "background" || !!entry.context.cron);
+    if (!connector && !isInternal) {
+      logger.debug(
+        `handleMessage skipping - connector not found sessionId=${session.id} source=${source}`
+      );
+      return;
+    }
+    logger.debug(
+      `Connector ${connector ? "found" : "not required"} source=${source} internal=${isInternal}`
+    );
+
+    if (!session.context.state.session) {
+      session.context.state.session = this.descriptor;
+    }
+
+    const defaultPermissions = engine.getDefaultPermissions();
+    if (entry.context.cron?.filesPath) {
+      session.context.state.permissions = permissionBuildCron(
+        defaultPermissions,
+        entry.context.cron.filesPath
+      );
+    } else if (sessionContextIsHeartbeat(entry.context, session.context.state.session)) {
+      session.context.state.permissions = permissionMergeDefault(
+        session.context.state.permissions,
+        defaultPermissions
+      );
+      permissionEnsureDefaultFile(session.context.state.permissions, defaultPermissions);
+    }
+
+    await assumeWorkspace();
+
+    const sessionContext = session.context.state.context;
+    const providers = listActiveInferenceProviders(engine.getSettings());
+    const providerId = this.resolveSessionProvider(session, entry.context, providers);
+    logger.debug(
+      `Building context sessionId=${session.id} existingMessageCount=${sessionContext.messages.length}`
+    );
+
+    const providerSettings = providerId
+      ? providers.find((provider) => provider.id === providerId)
+      : providers[0];
+    const connectorCapabilities = connector?.capabilities ?? null;
+    const fileSendModes = connectorCapabilities?.sendFiles?.modes ?? [];
+    const channelType = entry.context.channelType;
+    const channelIsPrivate = channelType ? channelType === "private" : null;
+    const cronContext = entry.context.cron;
+    const cronStore = engine.getCronStore();
+    const cron = engine.getCronScheduler();
+    const cronTaskIds = cronStore
+      ? (await cronStore.listTasks()).map((task) => task.id)
+      : cron?.listTasks().map((task) => task.id) ?? [];
+    const pluginManager = engine.getPluginManager();
+    const pluginPrompts = await pluginManager.getSystemPrompts();
+    const pluginPrompt = pluginPrompts.length > 0 ? pluginPrompts.join("\n\n") : "";
+    const coreSkills = await listCoreSkills();
+    const pluginSkills = await listRegisteredSkills(pluginManager.listRegisteredSkills());
+    const skills = [...coreSkills, ...pluginSkills];
+    const skillsPrompt = formatSkillsPrompt(skills);
+    const agentKind = session.context.state.agent?.kind ?? entry.context.agent?.kind;
+    const allowCronTools = sessionContextIsCron(entry.context, session.context.state.session);
+    const systemPrompt = await createSystemPrompt({
+      provider: providerSettings?.id,
+      model: providerSettings?.model,
+      workspace: session.context.state.permissions.workingDir,
+      writeDirs: session.context.state.permissions.writeDirs,
+      web: session.context.state.permissions.web,
+      connector: source,
+      canSendFiles: fileSendModes.length > 0,
+      fileSendModes: fileSendModes.length > 0 ? fileSendModes.join(", ") : "",
+      messageFormatPrompt: connectorCapabilities?.messageFormatPrompt ?? "",
+      channelId: entry.context.channelId,
+      channelType,
+      channelIsPrivate,
+      userId: entry.context.userId,
+      userFirstName: entry.context.userFirstName,
+      userLastName: entry.context.userLastName,
+      username: entry.context.username,
+      cronTaskId: cronContext?.taskId,
+      cronTaskName: cronContext?.taskName,
+      cronMemoryPath: cronContext?.memoryPath,
+      cronFilesPath: cronContext?.filesPath,
+      cronTaskIds: cronTaskIds.length > 0 ? cronTaskIds.join(", ") : "",
+      soulPath: DEFAULT_SOUL_PATH,
+      userPath: DEFAULT_USER_PATH,
+      pluginPrompt,
+      skillsPrompt,
+      agentKind,
+      parentSessionId:
+        session.context.state.agent?.parentSessionId ?? entry.context.agent?.parentSessionId,
+      configDir: engine.getConfigDir()
+    });
+    const context: Context = {
+      ...sessionContext,
+      tools: this.listContextTools(source, {
+        agentKind,
+        allowCronTools
+      }),
+      systemPrompt
+    };
+    logger.debug(
+      `Context built toolCount=${context.tools?.length ?? 0} systemPrompt=${context.systemPrompt ? "set" : "none"}`
+    );
+
+    logger.debug("Building user message from entry");
+    const userMessage = await messageBuildUser(entry);
+    context.messages.push(userMessage);
+    logger.debug(`User message added to context totalMessages=${context.messages.length}`);
+
+    const providersForSession = providerId
+      ? providers.filter((provider) => provider.id === providerId)
+      : [];
+    logger.debug(
+      `Session provider resolved sessionId=${session.id} providerId=${providerId ?? "none"} providerCount=${providersForSession.length}`
+    );
+
+    await agentLoopRun({
+      entry,
+      session,
+      source,
+      context,
+      connector,
+      connectorRegistry,
+      inferenceRouter: engine.getInferenceRouter(),
+      toolResolver: engine.getToolResolver(),
+      fileStore: engine.getFileStore(),
+      authStore: engine.getAuthStore(),
+      sessionStore: this.sessionStore,
+      eventBus: engine.getEventBus(),
+      assistant: engine.getSettings().assistant ?? null,
+      agentRuntime: engine.getAgentRuntime(),
+      providersForSession,
+      verbose: engine.isVerbose(),
+      logger,
+      notifySubagentFailure: (reason, error) => this.notifySubagentFailure(reason, error)
+    });
+  }
+
+  /**
+   * Notifies a parent session when a subagent session fails.
+   * Expects: agentRuntime can send messages to other sessions.
+   */
+  async notifySubagentFailure(reason: string, error?: unknown): Promise<void> {
+    const descriptor = this.session.context.state.session;
+    if (descriptor?.type !== "subagent") {
+      return;
+    }
+    const parentSessionId =
+      descriptor.parentSessionId ?? this.session.context.state.agent?.parentSessionId;
+    if (!parentSessionId) {
+      logger.warn({ sessionId: this.session.id }, "Subagent missing parent session");
+      return;
+    }
+    const name = descriptor.name ?? this.session.context.state.agent?.name ?? "subagent";
+    const errorText = error instanceof Error ? error.message : error ? String(error) : "";
+    const detail = errorText ? `${reason} (${errorText})` : reason;
+    try {
+      await this.engine.getAgentRuntime().sendSessionMessage({
+        sessionId: parentSessionId,
+        text: `Subagent ${name} (${this.session.id}) failed: ${detail}.`,
+        origin: "background"
+      });
+    } catch (sendError) {
+      logger.warn(
+        { sessionId: this.session.id, parentSessionId, error: sendError },
+        "Subagent failure notification failed"
+      );
+    }
+  }
+
+  private listContextTools(
+    source?: string,
+    options?: { agentKind?: "background" | "foreground"; allowCronTools?: boolean }
+  ) {
+    return toolListContextBuild({
+      tools: this.engine.getToolResolver().listTools(),
+      source,
+      agentKind: options?.agentKind,
+      allowCronTools: options?.allowCronTools,
+      connectorRegistry: this.engine.getConnectorRegistry(),
+      imageRegistry: this.engine.getImageRegistry()
+    });
+  }
+
+  private resolveSessionProvider(
+    session: Session<SessionState>,
+    context: MessageContext,
+    providers: ReturnType<typeof listActiveInferenceProviders>
+  ): string | undefined {
+    const activeIds = new Set(providers.map((provider) => provider.id));
+
+    let providerId = session.context.state.providerId ?? context.providerId;
+    if (!providerId || !activeIds.has(providerId)) {
+      const fallback =
+        context.providerId && activeIds.has(context.providerId)
+          ? context.providerId
+          : providers[0]?.id;
+      providerId = fallback;
+    }
+
+    if (providerId && session.context.state.providerId !== providerId) {
+      session.context.state.providerId = providerId;
+    }
+
+    return providerId;
   }
 }
 
