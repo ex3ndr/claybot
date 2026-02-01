@@ -79,7 +79,7 @@ import {
 } from "./skills/catalog.js";
 
 const logger = getLogger("engine.runtime");
-const MAX_TOOL_ITERATIONS = 5;
+const MAX_TOOL_ITERATIONS = 500;
 const BACKGROUND_TOOL_DENYLIST = new Set([
   "request_permission",
   "set_reaction",
