@@ -67,7 +67,6 @@ import {
 } from "./tools/heartbeat.js";
 import { buildSendSessionMessageTool, buildStartBackgroundAgentTool } from "./tools/background.js";
 import { cuid2Is } from "../utils/cuid2Is.js";
-import { stringTruncate } from "../utils/stringTruncate.js";
 import type {
   AgentRuntime,
   HeartbeatAddArgs,
@@ -78,6 +77,9 @@ import { CronScheduler } from "./cron/cronScheduler.js";
 import { CronStore } from "./cron/cronStore.js";
 import { HeartbeatScheduler } from "./heartbeat.js";
 import { heartbeatPromptBuildBatch } from "./heartbeatPromptBuildBatch.js";
+import { toolArgsFormatVerbose } from "./tools/toolArgsFormatVerbose.js";
+import { toolListContextBuild } from "./tools/toolListContextBuild.js";
+import { toolResultFormatVerbose } from "./tools/toolResultFormatVerbose.js";
 import { messageBuildSystemText } from "./messages/messageBuildSystemText.js";
 import { messageBuildUser } from "./messages/messageBuildUser.js";
 import { messageExtractText } from "./messages/messageExtractText.js";
@@ -88,6 +90,9 @@ import { sessionContextIsCron } from "./sessions/sessionContextIsCron.js";
 import { sessionContextIsHeartbeat } from "./sessions/sessionContextIsHeartbeat.js";
 import { sessionDescriptorBuild } from "./sessions/sessionDescriptorBuild.js";
 import { sessionKeyBuild } from "./sessions/sessionKeyBuild.js";
+import { sessionKeyResolve } from "./sessions/sessionKeyResolve.js";
+import { sessionRecordOutgoing } from "./sessions/sessionRecordOutgoing.js";
+import { sessionRecordState } from "./sessions/sessionRecordState.js";
 import { sessionRoutingSanitize } from "./sessions/sessionRoutingSanitize.js";
 import { sessionStateNormalize } from "./sessions/sessionStateNormalize.js";
 import { sessionTimestampGet } from "./sessions/sessionTimestampGet.js";
@@ -100,11 +105,6 @@ import { formatSkillsPrompt, listCoreSkills, listRegisteredSkills } from "./skil
 
 const logger = getLogger("engine.runtime");
 const MAX_TOOL_ITERATIONS = 5;
-const BACKGROUND_TOOL_DENYLIST = new Set([
-  "request_permission",
-  "set_reaction",
-  "send_file"
-]);
 
 type BackgroundAgentState = {
   sessionId: string;
@@ -246,7 +246,7 @@ export class Engine {
         session: undefined
       }),
       sessionIdFor: (source, context) => {
-        const key = this.buildSessionKey(source, context);
+        const key = sessionKeyResolve(source, context, logger);
         const cronTaskUid = cuid2Is(context.cron?.taskUid ?? null)
           ? context.cron!.taskUid
           : null;
@@ -708,36 +708,14 @@ export class Engine {
     source?: string,
     options?: { agentKind?: "background" | "foreground"; allowCronTools?: boolean }
   ) {
-    let tools = this.toolResolver.listTools();
-    if (source && source !== "cron" && !options?.allowCronTools) {
-      tools = tools.filter(
-        (tool) => tool.name !== "cron_read_memory" && tool.name !== "cron_write_memory"
-      );
-    }
-    if (options?.agentKind === "background") {
-      tools = tools.filter((tool) => !BACKGROUND_TOOL_DENYLIST.has(tool.name));
-    }
-    const connectorCapabilities = source
-      ? this.connectorRegistry.get(source)?.capabilities ?? null
-      : null;
-    const supportsFiles = source
-      ? (connectorCapabilities?.sendFiles?.modes.length ?? 0) > 0
-      : this.connectorRegistry
-          .list()
-          .some(
-            (id) =>
-              (this.connectorRegistry.get(id)?.capabilities.sendFiles?.modes.length ?? 0) > 0
-          );
-    const supportsReactions = source
-      ? connectorCapabilities?.reactions === true
-      : this.connectorRegistry
-          .list()
-          .some((id) => this.connectorRegistry.get(id)?.capabilities.reactions === true);
-    if (this.imageRegistry.list().length === 0) {
-      const filtered = tools.filter((tool) => tool.name !== "generate_image");
-      return filterConnectorTools(filtered, supportsFiles, supportsReactions);
-    }
-    return filterConnectorTools(tools, supportsFiles, supportsReactions);
+    return toolListContextBuild({
+      tools: this.toolResolver.listTools(),
+      source,
+      agentKind: options?.agentKind,
+      allowCronTools: options?.allowCronTools,
+      connectorRegistry: this.connectorRegistry,
+      imageRegistry: this.imageRegistry
+    });
   }
 
   async executeTool(
@@ -1065,7 +1043,7 @@ export class Engine {
     const permissionLabel = permissionDescribeDecision(decision.access);
     let sessionId = cuid2Is(context.sessionId ?? null) ? context.sessionId! : null;
     if (!sessionId) {
-      const key = this.buildSessionKey(source, context);
+      const key = sessionKeyResolve(source, context, logger);
       if (key) {
         sessionId = this.sessionKeyMap.get(key) ?? null;
       }
@@ -1425,15 +1403,15 @@ export class Engine {
               text: responseText,
               replyToMessageId: entry.context.messageId
             });
-            await recordOutgoingEntry(
-              this.sessionStore,
+            await sessionRecordOutgoing({
+              sessionStore: this.sessionStore,
               session,
               source,
-              entry.context,
-              responseText,
-              undefined,
-              "model"
-            );
+              context: entry.context,
+              text: responseText,
+              origin: "model",
+              logger
+            });
             this.eventBus.emit("session.outgoing", {
               sessionId: session.id,
               source,
@@ -1458,7 +1436,7 @@ export class Engine {
           logger.debug(`Executing tool call toolName=${toolCall.name} toolCallId=${toolCall.id} args=${argsPreview}`);
 
           if (this.verbose && connector) {
-            const argsFormatted = formatVerboseArgs(toolCall.arguments);
+            const argsFormatted = toolArgsFormatVerbose(toolCall.arguments);
             await connector.sendMessage(entry.context.channelId, {
               text: `[tool] ${toolCall.name}(${argsFormatted})`
             });
@@ -1479,7 +1457,7 @@ export class Engine {
           logger.debug(`Tool execution completed toolName=${toolCall.name} isError=${toolResult.toolMessage.isError} fileCount=${toolResult.files?.length ?? 0}`);
 
           if (this.verbose && connector) {
-            const resultText = formatVerboseToolResult(toolResult);
+            const resultText = toolResultFormatVerbose(toolResult);
             await connector.sendMessage(entry.context.channelId, {
               text: resultText
             });
@@ -1512,17 +1490,22 @@ export class Engine {
           text: message,
           replyToMessageId: entry.context.messageId
         });
-        await recordOutgoingEntry(
-          this.sessionStore,
+        await sessionRecordOutgoing({
+          sessionStore: this.sessionStore,
           session,
           source,
-          entry.context,
-          message,
-          undefined,
-          "system"
-        );
+          context: entry.context,
+          text: message,
+          origin: "system",
+          logger
+        });
       }
-      await recordSessionState(this.sessionStore, session, source);
+      await sessionRecordState({
+        sessionStore: this.sessionStore,
+        session,
+        source,
+        logger
+      });
       logger.debug("handleSessionMessage completed with error");
       return;
     } finally {
@@ -1532,7 +1515,12 @@ export class Engine {
 
     if (!response) {
       logger.debug("No response received, recording session state only");
-      await recordSessionState(this.sessionStore, session, source);
+      await sessionRecordState({
+        sessionStore: this.sessionStore,
+        session,
+        source,
+        logger
+      });
       return;
     }
 
@@ -1552,15 +1540,15 @@ export class Engine {
             text: message,
             replyToMessageId: entry.context.messageId
           });
-          await recordOutgoingEntry(
-            this.sessionStore,
+          await sessionRecordOutgoing({
+            sessionStore: this.sessionStore,
             session,
             source,
-            entry.context,
-            message,
-            undefined,
-            "system"
-          );
+            context: entry.context,
+            text: message,
+            origin: "system",
+            logger
+          });
           this.eventBus.emit("session.outgoing", {
             sessionId: session.id,
             source,
@@ -1571,7 +1559,12 @@ export class Engine {
       } catch (error) {
         logger.warn({ connector: source, error }, "Failed to send error response");
       } finally {
-        await recordSessionState(this.sessionStore, session, source);
+        await sessionRecordState({
+          sessionStore: this.sessionStore,
+          session,
+          source,
+          logger
+        });
         logger.debug("handleSessionMessage completed with error stop reason");
       }
       return;
@@ -1592,21 +1585,26 @@ export class Engine {
               text: message,
               replyToMessageId: entry.context.messageId
             });
-            await recordOutgoingEntry(
-              this.sessionStore,
+            await sessionRecordOutgoing({
+              sessionStore: this.sessionStore,
               session,
               source,
-              entry.context,
-              message,
-              undefined,
-              "system"
-            );
+              context: entry.context,
+              text: message,
+              origin: "system",
+              logger
+            });
           }
         } catch (error) {
           logger.warn({ connector: source, error }, "Failed to send tool error");
         }
       }
-      await recordSessionState(this.sessionStore, session, source);
+      await sessionRecordState({
+        sessionStore: this.sessionStore,
+        session,
+        source,
+        logger
+      });
       logger.debug("handleSessionMessage completed with no response text");
       return;
     }
@@ -1628,15 +1626,16 @@ export class Engine {
           replyToMessageId: entry.context.messageId
         });
         logger.debug("Response sent successfully");
-        await recordOutgoingEntry(
-          this.sessionStore,
+        await sessionRecordOutgoing({
+          sessionStore: this.sessionStore,
           session,
           source,
-          entry.context,
-          outgoingText,
-          shouldSendFiles ? generatedFiles : undefined,
-          "model"
-        );
+          context: entry.context,
+          text: outgoingText,
+          files: shouldSendFiles ? generatedFiles : undefined,
+          origin: "model",
+          logger
+        });
         this.eventBus.emit("session.outgoing", {
           sessionId: session.id,
           source,
@@ -1652,7 +1651,12 @@ export class Engine {
       logger.debug(`Failed to send response error=${String(error)}`);
       logger.warn({ connector: source, error }, "Failed to send response");
     } finally {
-      await recordSessionState(this.sessionStore, session, source);
+      await sessionRecordState({
+        sessionStore: this.sessionStore,
+        session,
+        source,
+        logger
+      });
       logger.debug("handleSessionMessage completed successfully");
     }
   }
@@ -1666,157 +1670,4 @@ export class Engine {
     this.sessionKeyMap.set(key, id);
     return id;
   }
-
-  private buildSessionKey(source: string, context: MessageContext): string | null {
-    if (context.cron) {
-      if (cuid2Is(context.cron.taskUid)) {
-        return `cron:${context.cron.taskUid}`;
-      }
-      return null;
-    }
-    if (context.heartbeat) {
-      return "heartbeat";
-    }
-    if (!context.userId || !context.channelId) {
-      logger.warn(
-        { source, channelId: context.channelId, userId: context.userId },
-        "Missing user or channel id for session mapping"
-      );
-      return null;
-    }
-    if (!source || source === "system" || source === "cron" || source === "background") {
-      return null;
-    }
-    return `user:${source}:${context.channelId}:${context.userId}`;
-  }
-}
-
-async function recordOutgoingEntry(
-  sessionStore: SessionStore<SessionState>,
-  session: import("./sessions/session.js").Session<SessionState>,
-  source: string,
-  context: MessageContext,
-  text: string | null,
-  files?: FileReference[],
-  origin?: "model" | "system"
-): Promise<void> {
-  const messageId = createId();
-  try {
-    await sessionStore.recordOutgoing(session, messageId, source, context, text, files, origin);
-  } catch (error) {
-    logger.warn({ sessionId: session.id, source, messageId, error }, "Session persistence failed");
-  }
-}
-
-async function recordSessionState(
-  sessionStore: SessionStore<SessionState>,
-  session: import("./sessions/session.js").Session<SessionState>,
-  source: string
-): Promise<void> {
-  try {
-    await sessionStore.recordState(session);
-  } catch (error) {
-    logger.warn({ sessionId: session.id, source, error }, "Session persistence failed");
-  }
-}
-
-function filterConnectorTools<T extends { name: string }>(
-  tools: T[],
-  supportsFiles: boolean,
-  supportsReactions: boolean
-): T[] {
-  let filtered: T[] = tools;
-  if (!supportsFiles) {
-    filtered = filtered.filter((tool) => tool.name !== "send_file");
-  }
-  if (!supportsReactions) {
-    filtered = filtered.filter((tool) => tool.name !== "set_reaction");
-  }
-  return filtered;
-}
-
-function isNonBackgroundSession(source: string, context: MessageContext): boolean {
-  const blockedSources = new Set(["system", "cron", "background"]);
-  if (blockedSources.has(source)) {
-    return false;
-  }
-  if (context.agent?.kind === "background") {
-    return false;
-  }
-  const userId = context.userId?.toLowerCase();
-  if (!userId || ["system", "cron", "background", "heartbeat"].includes(userId)) {
-    return false;
-  }
-  return true;
-}
-
-type ResolvedCommand = {
-  name: string;
-  raw: string;
-  args?: string;
-};
-
-function resolveIncomingCommand(entry: SessionMessage): ResolvedCommand | null {
-  const contextCommands = entry.context.commands ?? [];
-  if (contextCommands.length > 0) {
-    const first = contextCommands[0]!;
-    return {
-      name: first.name,
-      raw: first.raw,
-      args: first.args
-    };
-  }
-
-  const rawText = entry.message.rawText ?? entry.message.text ?? "";
-  const trimmed = rawText.trim();
-  if (!trimmed.startsWith("/")) {
-    return null;
-  }
-  const [head, ...rest] = trimmed.split(/\s+/);
-  if (!head) {
-    return null;
-  }
-  const name = head.slice(1).split("@")[0] ?? "";
-  if (!name) {
-    return null;
-  }
-  const args = rest.join(" ").trim();
-  return {
-    name,
-    raw: head,
-    args: args.length > 0 ? args : undefined
-  };
-}
-
-function formatVerboseArgs(args: Record<string, unknown>): string {
-  const entries = Object.entries(args);
-  if (entries.length === 0) {
-    return "";
-  }
-  const formatted = entries.map(([key, value]) => {
-    const valueStr = typeof value === "string"
-      ? stringTruncate(value, 100)
-      : JSON.stringify(value);
-    return `${key}=${valueStr}`;
-  });
-  return formatted.join(", ");
-}
-
-function formatVerboseToolResult(result: ToolExecutionResult): string {
-  if (result.toolMessage.isError) {
-    const errorContent = result.toolMessage.content;
-    const errorText = typeof errorContent === "string"
-      ? stringTruncate(errorContent, 200)
-      : stringTruncate(JSON.stringify(errorContent), 200);
-    return `[error] ${errorText}`;
-  }
-  const content = result.toolMessage.content;
-  const contentText = typeof content === "string"
-    ? content
-    : JSON.stringify(content);
-  const truncated = stringTruncate(contentText, 300);
-  const fileInfo = result.files?.length
-    ? ` (${result.files.length} file${result.files.length > 1 ? "s" : ""})`
-    : "";
-  return `[result]${fileInfo} ${truncated}`;
 }
