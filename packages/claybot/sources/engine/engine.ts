@@ -11,7 +11,6 @@ import {
   ToolResolver
 } from "./modules.js";
 import type {
-  Connector,
   ConnectorMessage,
   MessageContext,
   PermissionAccess,
@@ -734,156 +733,6 @@ export class Engine {
     return filterConnectorTools(tools, supportsFiles, supportsReactions);
   }
 
-  private async handleSlashCommand(
-    command: ResolvedCommand,
-    entry: SessionMessage,
-    session: Session<SessionState>,
-    source: string,
-    connector: Connector
-  ): Promise<boolean> {
-    const name = command.name.toLowerCase();
-    if (name !== "reset" && name !== "compact") {
-      return false;
-    }
-
-    if (name === "reset") {
-      const ok = this.resetSession(session.id);
-      const message = ok ? "Session reset." : "Failed to reset session.";
-      void this.sessionStore
-        .recordSessionReset(session, source, { messageId: entry.id, ok })
-        .catch((error) => {
-          logger.warn({ sessionId: session.id, source, messageId: entry.id, error }, "Session persistence failed");
-        });
-      await this.replyToCommand(connector, entry, session, source, message);
-      return true;
-    }
-
-    const result = await this.compactSession(session, entry, source);
-    void this.sessionStore
-      .recordSessionCompaction(session, source, {
-        messageId: entry.id,
-        ok: result.ok,
-        summary: result.ok ? result.summary : undefined,
-        error: result.ok ? undefined : result.error
-      })
-      .catch((error) => {
-        logger.warn({ sessionId: session.id, source, messageId: entry.id, error }, "Session persistence failed");
-      });
-    await this.replyToCommand(
-      connector,
-      entry,
-      session,
-      source,
-      result.ok ? "Compaction complete." : `Compaction failed: ${result.error}`
-    );
-    return true;
-  }
-
-  private async replyToCommand(
-    connector: Connector,
-    entry: SessionMessage,
-    session: Session<SessionState>,
-    source: string,
-    text: string
-  ): Promise<void> {
-    try {
-      await connector.sendMessage(entry.context.channelId, {
-        text,
-        replyToMessageId: entry.context.messageId
-      });
-      await recordOutgoingEntry(
-        this.sessionStore,
-        session,
-        source,
-        entry.context,
-        text,
-        undefined,
-        "system"
-      );
-    } catch (error) {
-      logger.warn({ connector: source, error }, "Failed to send command reply");
-    } finally {
-      await recordSessionState(this.sessionStore, session, source);
-    }
-  }
-
-  private async compactSession(
-    session: Session<SessionState>,
-    entry: SessionMessage,
-    source: string
-  ): Promise<{ ok: true; summary: string } | { ok: false; error: string }> {
-    const history = session.context.state.context.messages;
-    if (!history || history.length === 0) {
-      return { ok: false, error: "No conversation history to compact." };
-    }
-
-    const providerId = this.resolveSessionProvider(session, entry.context);
-    const providersForSession = providerId
-      ? listActiveInferenceProviders(this.settings).filter((provider) => provider.id === providerId)
-      : [];
-
-    const compactContext: Context = {
-      messages: [
-        ...history,
-        {
-          role: "user",
-          content:
-            "Summarize the conversation so far for future context. " +
-            "Include key facts, decisions, tasks, preferences, and any important identifiers. " +
-            "Be concise and factual.",
-          timestamp: Date.now()
-        }
-      ],
-      tools: [],
-      systemPrompt:
-        "You are a compaction assistant. Return a concise summary of the conversation for reuse."
-    };
-
-    try {
-      const result = await this.inferenceRouter.complete(compactContext, session.id, {
-        providersOverride: providersForSession
-      });
-      const summary = extractAssistantText(result.message);
-      if (!summary || summary.trim().length === 0) {
-        return { ok: false, error: "No summary produced." };
-      }
-      session.context.state.context.messages = [
-        {
-          role: "assistant",
-          content: [
-            {
-              type: "text",
-              text: `Conversation summary:\n${summary.trim()}`
-            }
-          ],
-          api: "compaction",
-          provider: "system",
-          model: "summary",
-          usage: {
-            input: 0,
-            output: 0,
-            cacheRead: 0,
-            cacheWrite: 0,
-            totalTokens: 0,
-            cost: {
-              input: 0,
-              output: 0,
-              cacheRead: 0,
-              cacheWrite: 0,
-              total: 0
-            }
-          },
-          stopReason: "stop",
-          timestamp: Date.now()
-        }
-      ];
-      await recordSessionState(this.sessionStore, session, source);
-      return { ok: true, summary };
-    } catch (error) {
-      return { ok: false, error: error instanceof Error ? error.message : String(error) };
-    }
-  }
-
   async executeTool(
     name: string,
     args: Record<string, unknown>,
@@ -1424,14 +1273,6 @@ export class Engine {
         this.defaultPermissions
       );
       ensureDefaultFilePermissions(session.context.state.permissions, this.defaultPermissions);
-    }
-
-    const command = resolveIncomingCommand(entry);
-    if (command && connector) {
-      const handled = await this.handleSlashCommand(command, entry, session, source, connector);
-      if (handled) {
-        return;
-      }
     }
 
     await assumeWorkspace();

@@ -59,6 +59,7 @@ sequenceDiagram
 ## Resetting sessions
 - Sessions can be reset without changing the session id.
 - Reset clears the stored context messages but keeps the provider binding intact.
+- Connectors are responsible for handling reset/compaction commands; the engine does not interpret slash commands.
 
 ## Key types
 - `SessionMessage` stores message, context, and timestamps.
