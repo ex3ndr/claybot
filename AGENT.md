@@ -28,7 +28,7 @@
 
 ## Logging
 - Always create a logger with an explicit module via `getLogger("module.name")`.
-- Module labels in pretty logs are normalized to 10 characters (trim or right-pad with spaces).
+- Module labels in pretty logs are normalized to 20 characters (trim or right-pad with spaces).
 - Plugin modules must use the `plugin.` prefix so they render as `(module)`; system modules render as `[module]`.
 - If a module is omitted or blank, logs use `unknown`.
 - Prefer concise, stable module names to reduce trimming collisions.

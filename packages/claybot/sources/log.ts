@@ -34,7 +34,7 @@ const nodeRequire = createRequire(import.meta.url);
 
 let rootLogger: Logger | null = null;
 
-const MODULE_WIDTH = 10;
+const MODULE_WIDTH = 20;
 const PLUGIN_MODULE_PREFIX = "plugin.";
 
 export function initLogging(overrides: Partial<LogConfig> = {}): Logger {
@@ -154,8 +154,13 @@ function formatPrettyMessage(
   const colors = extra?.colors;
   const gray = colors?.gray ?? (colors as { grey?: (value: string) => string } | undefined)?.grey;
   const colorTime = typeof gray === "function" ? gray : (value: string) => value;
+  const level = resolveLogLevel(log);
   const colorMessage =
-    typeof colors?.cyan === "function" ? colors.cyan : (value: string) => value;
+    level === 40 && typeof colors?.yellow === "function"
+      ? colors.yellow
+      : typeof colors?.cyan === "function"
+        ? colors.cyan
+        : (value: string) => value;
   const timeValue = log.time ?? log.timestamp ?? Date.now();
   const time = formatLogTime(timeValue);
   const module = formatModuleLabel(log.module);
@@ -167,6 +172,40 @@ function formatPrettyMessage(
   const timeLabel = colorTime(`[${time}]`);
   const content = message.length > 0 ? `${module} ${message}` : module;
   return `${timeLabel} ${colorMessage(content)}`;
+}
+
+function resolveLogLevel(log: Record<string, unknown>): number | null {
+  const candidates = [log.level, (log as Record<string, unknown>).__level, log.lvl];
+  for (const raw of candidates) {
+    if (typeof raw === "number") {
+      return raw;
+    }
+    if (typeof raw === "string") {
+      const normalized = raw.trim().toLowerCase();
+      switch (normalized) {
+        case "trace":
+          return 10;
+        case "debug":
+          return 20;
+        case "info":
+          return 30;
+        case "warn":
+        case "warning":
+          return 40;
+        case "error":
+          return 50;
+        case "fatal":
+          return 60;
+        default: {
+          const parsed = Number(normalized);
+          if (Number.isFinite(parsed)) {
+            return parsed;
+          }
+        }
+      }
+    }
+  }
+  return null;
 }
 
 function normalizeModule(moduleName?: string): string {
