@@ -69,6 +69,15 @@
 - do not use barrel `index.ts` files
 - avoid backward-compatibility shims for internal code
 
+## Object Lifecycle
+Do not implement `close()`, `dispose()`, or cleanup methods unless explicitly needed. Assume objects live forever in memory.
+
+When cleanup **is** required (e.g., file handles, network connections, timers):
+- Use `shutdown.ts` hooks for process-level cleanup
+- Document why cleanup is necessary in a comment
+
+Avoid patterns like disposable resources, reference counting, or manual memory management unless dealing with external resources.
+
 ## Utility Functions
 Place general-purpose helpers in `sources/util/`. This includes:
 - String manipulation (`stringUtils.ts`, `trimIdent.ts`)
