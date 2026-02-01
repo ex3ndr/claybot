@@ -88,6 +88,56 @@ domainVerb.spec.ts   # unit test lives next to the file
 
 Example: `permissionApply.ts` exports `permissionApply()`, tested in `permissionApply.spec.ts`.
 
+### Function Documentation
+Each public function should have a brief comment describing its **purpose** and **expectations**:
+```typescript
+/**
+ * Applies a permission decision to an existing permissions object.
+ * Returns a new SessionPermissions with the approved path added.
+ *
+ * Expects: decision.approved === true; path must be absolute.
+ */
+export function permissionApply(
+  permissions: SessionPermissions,
+  decision: PermissionDecision
+): SessionPermissions {
+  // ...
+}
+```
+
+Keep comments concise—purpose (what it does) and expectations (preconditions, constraints) in 2-4 lines.
+
+### Internal Helpers Are OK
+The "one public function per file" rule applies to **exported** functions. Internal helper functions within the same file are fine when they:
+- Support the main exported function
+- Are too small or specific to warrant their own file
+- Would not be reused elsewhere
+
+```typescript
+// permissionApply.ts
+
+/** Validates that a path is absolute and normalized. */
+function validatePath(path: string): boolean {
+  return path.startsWith("/") && !path.includes("/..");
+}
+
+/**
+ * Applies a permission decision to an existing permissions object.
+ * Expects: decision.approved === true; path must be absolute.
+ */
+export function permissionApply(
+  permissions: SessionPermissions,
+  decision: PermissionDecision
+): SessionPermissions {
+  if (!validatePath(decision.path)) {
+    throw new Error("Invalid path");
+  }
+  // ...
+}
+```
+
+If an internal helper grows complex or gets reused, extract it to its own file.
+
 ### Grouping by Domain
 Organize files into domain folders. Each folder contains many small files:
 ```
