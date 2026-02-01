@@ -101,6 +101,7 @@ export type EngineOptions = {
   authPath: string;
   eventBus: EngineEventBus;
   configDir: string;
+  verbose?: boolean;
 };
 
 export class Engine {
@@ -129,12 +130,14 @@ export class Engine {
   private inferenceRouter: InferenceRouter;
   private eventBus: EngineEventBus;
   private sessionKeyMap = new Map<string, string>();
+  private verbose: boolean;
 
   constructor(options: EngineOptions) {
     logger.debug(`Engine constructor starting, dataDir=${options.dataDir}`);
     this.settings = options.settings;
     this.dataDir = options.dataDir;
     this.configDir = options.configDir;
+    this.verbose = options.verbose ?? false;
     this.workspaceDir = resolveWorkspaceDir(this.configDir, this.settings.assistant ?? null);
     this.defaultPermissions = buildDefaultPermissions(this.workspaceDir);
     this.eventBus = options.eventBus;
@@ -1320,6 +1323,14 @@ export class Engine {
         for (const toolCall of toolCalls) {
           const argsPreview = JSON.stringify(toolCall.arguments).slice(0, 200);
           logger.debug(`Executing tool call toolName=${toolCall.name} toolCallId=${toolCall.id} args=${argsPreview}`);
+
+          if (this.verbose && connector) {
+            const argsFormatted = formatVerboseArgs(toolCall.arguments);
+            await connector.sendMessage(entry.context.channelId, {
+              text: `[tool] ${toolCall.name}(${argsFormatted})`
+            });
+          }
+
           const toolResult = await this.toolResolver.execute(toolCall, {
             connectorRegistry: this.connectorRegistry,
             fileStore: this.fileStore,
@@ -1333,6 +1344,14 @@ export class Engine {
             agentRuntime: this.buildAgentRuntime()
           });
           logger.debug(`Tool execution completed toolName=${toolCall.name} isError=${toolResult.toolMessage.isError} fileCount=${toolResult.files?.length ?? 0}`);
+
+          if (this.verbose && connector) {
+            const resultText = formatVerboseToolResult(toolResult);
+            await connector.sendMessage(entry.context.channelId, {
+              text: resultText
+            });
+          }
+
           context.messages.push(toolResult.toolMessage);
           if (toolResult.files?.length) {
             generatedFiles.push(...toolResult.files);
@@ -1822,4 +1841,44 @@ function describePermissionDecision(access: PermissionAccess): string {
     return `read access to ${access.path}`;
   }
   return `write access to ${access.path}`;
+}
+
+function formatVerboseArgs(args: Record<string, unknown>): string {
+  const entries = Object.entries(args);
+  if (entries.length === 0) {
+    return "";
+  }
+  const formatted = entries.map(([key, value]) => {
+    const valueStr = typeof value === "string"
+      ? truncateString(value, 100)
+      : JSON.stringify(value);
+    return `${key}=${valueStr}`;
+  });
+  return formatted.join(", ");
+}
+
+function formatVerboseToolResult(result: ToolExecutionResult): string {
+  if (result.toolMessage.isError) {
+    const errorContent = result.toolMessage.content;
+    const errorText = typeof errorContent === "string"
+      ? truncateString(errorContent, 200)
+      : truncateString(JSON.stringify(errorContent), 200);
+    return `[error] ${errorText}`;
+  }
+  const content = result.toolMessage.content;
+  const contentText = typeof content === "string"
+    ? content
+    : JSON.stringify(content);
+  const truncated = truncateString(contentText, 300);
+  const fileInfo = result.files?.length
+    ? ` (${result.files.length} file${result.files.length > 1 ? "s" : ""})`
+    : "";
+  return `[result]${fileInfo} ${truncated}`;
+}
+
+function truncateString(str: string, maxLength: number): string {
+  if (str.length <= maxLength) {
+    return str;
+  }
+  return str.slice(0, maxLength) + "...";
 }

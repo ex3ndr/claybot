@@ -17,6 +17,7 @@ const logger = getLogger("command.start");
 export type StartOptions = {
   settings?: string;
   force?: boolean;
+  verbose?: boolean;
 };
 
 export async function startCommand(options: StartOptions): Promise<void> {
@@ -75,7 +76,8 @@ export async function startCommand(options: StartOptions): Promise<void> {
     dataDir,
     authPath,
     eventBus,
-    configDir
+    configDir,
+    verbose: options.verbose ?? false
   });
 
   await runtime.start();
