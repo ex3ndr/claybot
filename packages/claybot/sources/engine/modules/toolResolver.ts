@@ -2,7 +2,7 @@ import type { ToolCall, ToolResultMessage, Tool } from "@mariozechner/pi-ai";
 import { validateToolCall } from "@mariozechner/pi-ai";
 
 import { getLogger } from "../../log.js";
-import type { ToolDefinition, ToolExecutionContext, ToolExecutionResult } from "./tools/types.js";
+import type { ToolDefinition, ToolExecutionContext, ToolExecutionResult } from "@/types";
 
 type RegisteredTool = ToolDefinition & { pluginId: string };
 

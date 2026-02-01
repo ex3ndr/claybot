@@ -1,6 +1,6 @@
 import { getLogger } from "../../log.js";
 import type { EngineEventBus } from "../ipc/events.js";
-import type { MessageContext } from "../modules/connectors/types.js";
+import type { MessageContext } from "@/types";
 import { CronScheduler } from "./cronScheduler.js";
 import { CronStore } from "./cronStore.js";
 import type { CronTaskContext, CronTaskDefinition, CronTaskWithPaths } from "./cronTypes.js";

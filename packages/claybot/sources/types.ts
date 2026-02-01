@@ -6,14 +6,19 @@ export type { SessionPermissions } from "./engine/permissions.js";
 
 // Connectors
 export type {
+  Connector,
   ConnectorCapabilities,
+  ConnectorCommand,
   ConnectorFile,
   ConnectorFileDisposition,
   ConnectorFileMode,
   ConnectorMessage,
   MessageContext,
+  MessageHandler,
+  MessageUnsubscribe,
   PermissionAccess,
   PermissionDecision,
+  PermissionHandler,
   PermissionKind,
   PermissionRequest
 } from "./engine/modules/connectors/types.js";
@@ -46,6 +51,7 @@ export type { ImageGenerationProvider } from "./engine/modules/images/types.js";
 // Tools
 export type {
   AgentRuntime,
+  ToolDefinition,
   ToolExecutionContext,
   ToolExecutionResult
 } from "./engine/modules/tools/types.js";

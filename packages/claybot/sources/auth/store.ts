@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import type { Config } from "../config/configTypes.js";
+import type { Config } from "@/types";
 
 export type AuthEntry = {
   type?: "apiKey" | "oauth" | "token";

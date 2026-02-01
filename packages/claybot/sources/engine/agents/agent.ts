@@ -7,7 +7,7 @@ import { listActiveInferenceProviders } from "../../providers/catalog.js";
 import { cuid2Is } from "../../utils/cuid2Is.js";
 import { agentPromptFilesEnsure } from "./agentPromptFilesEnsure.js";
 import { agentSystemPromptBuild } from "./agentSystemPromptBuild.js";
-import type { MessageContext } from "../modules/connectors/types.js";
+import type { MessageContext } from "@/types";
 import { messageBuildUser } from "../messages/messageBuildUser.js";
 import { permissionBuildCron } from "../permissions/permissionBuildCron.js";
 import { permissionClone } from "../permissions/permissionClone.js";
@@ -25,7 +25,7 @@ import { sessionRecordOutgoing } from "../sessions/sessionRecordOutgoing.js";
 import { sessionRecordState } from "../sessions/sessionRecordState.js";
 import { sessionStateNormalize } from "../sessions/sessionStateNormalize.js";
 import type { SessionState } from "../sessions/sessionStateTypes.js";
-import type { SessionMessage } from "../sessions/types.js";
+import type { SessionMessage } from "@/types";
 import { toolListContextBuild } from "../modules/tools/toolListContextBuild.js";
 import type {
   AgentDescriptor,

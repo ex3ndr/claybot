@@ -7,9 +7,9 @@ import { fileURLToPath } from "node:url";
 
 import { AuthStore } from "../../../auth/store.js";
 import { FileStore } from "../../../files/store.js";
-import type { PluginApi } from "../../../engine/plugins/types.js";
+import type { PluginApi } from "@/types";
 import type { PluginRegistrar } from "../../../engine/plugins/registry.js";
-import type { ImageGenerationProvider } from "../../../engine/modules/images/types.js";
+import type { ImageGenerationProvider } from "@/types";
 import { getLogger } from "../../../log.js";
 import { plugin as nanoBananaPro } from "../plugin.js";
 import { configResolve } from "../../../config/configResolve.js";

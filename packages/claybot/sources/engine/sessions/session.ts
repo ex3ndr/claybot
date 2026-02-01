@@ -1,4 +1,4 @@
-import type { ConnectorMessage, MessageContext } from "../modules/connectors/types.js";
+import type { ConnectorMessage, MessageContext } from "@/types";
 import type { SessionContext, SessionMessage } from "./types.js";
 
 export class Session<State = Record<string, unknown>> {

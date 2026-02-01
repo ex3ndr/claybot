@@ -1,4 +1,4 @@
-import type { MessageContext } from "../modules/connectors/types.js";
+import type { MessageContext } from "@/types";
 import type { SessionDescriptor } from "./descriptor.js";
 
 export function sessionContextIsHeartbeat(

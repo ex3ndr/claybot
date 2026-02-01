@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import type { PermissionDecision } from "../modules/connectors/types.js";
+import type { PermissionDecision } from "@/types";
 import type { SessionPermissions } from "../permissions.js";
 import { pathSanitizeAndResolve } from "./pathSanitize.js";
 

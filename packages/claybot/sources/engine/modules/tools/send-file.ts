@@ -3,9 +3,12 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { ToolResultMessage } from "@mariozechner/pi-ai";
 
-import type { ConnectorFileDisposition } from "../connectors/types.js";
-import type { FileReference } from "../../../files/types.js";
-import type { ToolDefinition, ToolExecutionContext } from "./types.js";
+import type {
+  ConnectorFileDisposition,
+  FileReference,
+  ToolDefinition,
+  ToolExecutionContext
+} from "@/types";
 import { pathResolveSecure, openSecure } from "../../permissions/pathResolveSecure.js";
 
 const schema = Type.Object(

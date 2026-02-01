@@ -5,7 +5,13 @@ import path from "node:path";
 import { getLogger } from "../log.js";
 import { AgentSystem } from "./agents/agentSystem.js";
 import { ModuleRegistry } from "./modules/moduleRegistry.js";
-import type { MessageContext, PermissionDecision } from "./modules/connectors/types.js";
+import type {
+  AgentRuntime,
+  Config,
+  MessageContext,
+  PermissionDecision,
+  ToolExecutionResult
+} from "@/types";
 import { FileStore } from "../files/store.js";
 import { InferenceRouter } from "./modules/inference/router.js";
 import { PluginRegistry } from "./plugins/registry.js";
@@ -40,7 +46,6 @@ import {
 } from "./modules/tools/heartbeat.js";
 import { buildSendSessionMessageTool, buildStartBackgroundAgentTool } from "./modules/tools/background.js";
 import { cuid2Is } from "../utils/cuid2Is.js";
-import type { AgentRuntime, ToolExecutionResult } from "./modules/tools/types.js";
 import { Crons } from "./cron/crons.js";
 import { Heartbeats } from "./heartbeat/heartbeats.js";
 import { toolListContextBuild } from "./modules/tools/toolListContextBuild.js";
@@ -48,7 +53,6 @@ import { sessionDescriptorBuild } from "./sessions/sessionDescriptorBuild.js";
 import type { SessionState } from "./sessions/sessionStateTypes.js";
 import { EngineEventBus } from "./ipc/events.js";
 import { ProviderManager } from "../providers/manager.js";
-import type { Config } from "../config/configTypes.js";
 
 const logger = getLogger("engine.runtime");
 

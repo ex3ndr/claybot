@@ -1,6 +1,7 @@
 import type { Context } from "@mariozechner/pi-ai";
 
-import { normalizePermissions, type SessionPermissions } from "../permissions.js";
+import { normalizePermissions } from "../permissions.js";
+import type { SessionPermissions } from "@/types";
 import { permissionEnsureDefaultFile } from "../permissions/permissionEnsureDefaultFile.js";
 import { normalizeSessionDescriptor } from "./descriptor.js";
 import { sessionAgentNormalize } from "./sessionAgentNormalize.js";

@@ -1,5 +1,5 @@
 import { stringTruncate } from "../../../utils/stringTruncate.js";
-import type { ToolExecutionResult } from "./types.js";
+import type { ToolExecutionResult } from "@/types";
 
 /**
  * Formats tool execution results for verbose logging output.

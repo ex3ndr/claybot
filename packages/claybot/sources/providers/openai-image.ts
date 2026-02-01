@@ -1,4 +1,4 @@
-import type { ImageGenerationProvider } from "../engine/modules/images/types.js";
+import type { ImageGenerationProvider } from "@/types";
 import type { ProviderContext } from "./types.js";
 
 type OpenAiImageResponse = {

@@ -1,7 +1,7 @@
 import { Type, type Static } from "@sinclair/typebox";
 import type { ToolResultMessage } from "@mariozechner/pi-ai";
 
-import type { ToolDefinition } from "./types.js";
+import type { ToolDefinition } from "@/types";
 
 const startSchema = Type.Object(
   {

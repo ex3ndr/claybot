@@ -4,7 +4,7 @@ import type { ToolResultMessage } from "@mariozechner/pi-ai";
 import { createId } from "@paralleldrive/cuid2";
 import path from "node:path";
 
-import type { ToolDefinition } from "./types.js";
+import type { ToolDefinition } from "@/types";
 import type { PermissionAccess, PermissionRequest } from "../connectors/types.js";
 
 const schema = Type.Object(

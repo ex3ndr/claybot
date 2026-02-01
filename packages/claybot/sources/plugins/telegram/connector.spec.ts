@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { FileStore } from "../../files/store.js";
-import type { MessageContext, PermissionRequest } from "../../engine/modules/connectors/types.js";
+import type { MessageContext, PermissionRequest } from "@/types";
 
 type Handler = (payload: unknown) => void | Promise<void>;
 type MockFn = ReturnType<typeof vi.fn>;

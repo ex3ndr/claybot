@@ -3,7 +3,8 @@ import path from "node:path";
 import { z } from "zod";
 
 import { TelegramConnector, type TelegramConnectorOptions } from "./connector.js";
-import { definePlugin, type PluginOnboardingApi } from "../../engine/plugins/types.js";
+import { definePlugin } from "../../engine/plugins/types.js";
+import type { PluginOnboardingApi } from "@/types";
 
 const allowedUidSchema = z.union([z.string().trim().min(1), z.number().int()]);
 

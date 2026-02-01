@@ -13,7 +13,7 @@ import { InferenceRegistry } from "../../../engine/modules/inferenceRegistry.js"
 import { ToolResolver } from "../../../engine/modules/toolResolver.js";
 import { PluginRegistry } from "../../../engine/plugins/registry.js";
 import { Session } from "../../../engine/sessions/session.js";
-import type { SessionPermissions } from "../../../engine/permissions.js";
+import type { SessionPermissions } from "@/types";
 import { getLogger } from "../../../log.js";
 import { plugin } from "../plugin.js";
 import { configResolve } from "../../../config/configResolve.js";

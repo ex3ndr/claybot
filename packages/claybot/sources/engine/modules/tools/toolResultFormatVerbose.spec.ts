@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { toolResultFormatVerbose } from "./toolResultFormatVerbose.js";
-import type { ToolExecutionResult } from "./types.js";
+import type { ToolExecutionResult } from "@/types";
 
 const baseToolMessage = {
   role: "toolResult" as const,

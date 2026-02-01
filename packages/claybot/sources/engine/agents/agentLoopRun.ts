@@ -2,24 +2,24 @@ import type { Context } from "@mariozechner/pi-ai";
 import type { Logger } from "pino";
 
 import type { FileStore } from "../../files/store.js";
-import type { FileReference } from "../../files/types.js";
+import type { FileReference } from "@/types";
 import type { AuthStore } from "../../auth/store.js";
 import type { AssistantSettings, ProviderSettings } from "../../settings.js";
-import type { Connector } from "../modules/connectors/types.js";
+import type { Connector } from "@/types";
 import type { ConnectorRegistry } from "../modules/connectorRegistry.js";
 import type { ToolResolver } from "../modules/toolResolver.js";
 import type { InferenceRouter } from "../modules/inference/router.js";
 import type { Session } from "../sessions/session.js";
 import type { SessionStore } from "../sessions/store.js";
 import type { SessionState } from "../sessions/sessionStateTypes.js";
-import type { SessionMessage } from "../sessions/types.js";
+import type { SessionMessage } from "@/types";
 import { messageExtractText } from "../messages/messageExtractText.js";
 import { messageExtractToolCalls } from "../messages/messageExtractToolCalls.js";
 import { sessionRecordOutgoing } from "../sessions/sessionRecordOutgoing.js";
 import { sessionRecordState } from "../sessions/sessionRecordState.js";
 import { toolArgsFormatVerbose } from "../modules/tools/toolArgsFormatVerbose.js";
 import { toolResultFormatVerbose } from "../modules/tools/toolResultFormatVerbose.js";
-import type { AgentRuntime } from "../modules/tools/types.js";
+import type { AgentRuntime } from "@/types";
 import type { EngineEventBus } from "../ipc/events.js";
 
 const MAX_TOOL_ITERATIONS = 5;

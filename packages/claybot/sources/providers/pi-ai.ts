@@ -19,7 +19,7 @@ import type {
   ProviderModelInfo,
   ProviderOnboardingApi
 } from "./types.js";
-import type { ImageGenerationProvider } from "../engine/modules/images/types.js";
+import type { ImageGenerationProvider } from "@/types";
 import { listProviderModels } from "./models.js";
 
 export type PiAiProviderConfig = {

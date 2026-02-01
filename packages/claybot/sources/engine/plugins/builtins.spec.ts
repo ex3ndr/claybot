@@ -6,7 +6,7 @@ import path from "node:path";
 import { FileStore } from "../../files/store.js";
 import { getLogger } from "../../log.js";
 import { AuthStore } from "../../auth/store.js";
-import type { PluginApi } from "./types.js";
+import type { PluginApi } from "@/types";
 import type { PluginRegistrar } from "./registry.js";
 import { configResolve } from "../../config/configResolve.js";
 

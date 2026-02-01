@@ -2,7 +2,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import type { PermissionDecision } from "../modules/connectors/types.js";
+import type { PermissionDecision } from "@/types";
 import type { SessionPermissions } from "../permissions.js";
 import { permissionApply } from "./permissionApply.js";
 

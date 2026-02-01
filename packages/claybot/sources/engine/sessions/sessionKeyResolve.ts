@@ -1,6 +1,6 @@
 import type { Logger } from "pino";
 
-import type { MessageContext } from "../modules/connectors/types.js";
+import type { MessageContext } from "@/types";
 import { cuid2Is } from "../../utils/cuid2Is.js";
 
 /**

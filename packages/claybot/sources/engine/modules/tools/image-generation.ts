@@ -5,7 +5,7 @@ import type { ToolResultMessage } from "@mariozechner/pi-ai";
 
 import type { ImageGenerationRegistry } from "../imageGenerationRegistry.js";
 import type { ImageGenerationRequest } from "../images/types.js";
-import type { ToolDefinition } from "./types.js";
+import type { ToolDefinition } from "@/types";
 
 const schema = Type.Object(
   {

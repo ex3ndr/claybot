@@ -346,6 +346,9 @@ Consolidate shared type definitions in `sources/types.ts`, accessible via the `@
 import type { SessionPermissions, MessageContext, PluginConfig } from "@/types";
 ```
 
+### Rule
+- Always import shared types via `@/types` when available; only the defining type files should use local module paths to avoid cycles.
+
 ### What Goes in `@/types`
 - **Cross-cutting types**: types used by 3+ modules (e.g., `SessionPermissions`, `MessageContext`)
 - **Public plugin API types**: types plugins need to implement or consume

@@ -5,9 +5,9 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { Agent } from "./agent.js";
-import type { AgentRuntime } from "../modules/tools/types.js";
+import type { AgentRuntime } from "@/types";
 import { SessionStore } from "../sessions/store.js";
-import type { SessionPermissions } from "../permissions.js";
+import type { SessionPermissions } from "@/types";
 import type { SessionDescriptor } from "../sessions/descriptor.js";
 import type { SessionState } from "../sessions/sessionStateTypes.js";
 import type { AgentSystemContext } from "./agentTypes.js";

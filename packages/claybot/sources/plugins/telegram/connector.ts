@@ -13,11 +13,11 @@ import type {
   MessageHandler,
   PermissionDecision,
   PermissionHandler,
-  PermissionRequest
-} from "../../engine/modules/connectors/types.js";
+  PermissionRequest,
+  FileReference
+} from "@/types";
 import { getLogger } from "../../log.js";
 import type { FileStore } from "../../files/store.js";
-import type { FileReference } from "../../files/types.js";
 
 export type TelegramConnectorOptions = {
   token: string;

@@ -1,7 +1,7 @@
 import { createId } from "@paralleldrive/cuid2";
 
 import { getLogger } from "../../log.js";
-import type { ConnectorMessage, MessageContext } from "../modules/connectors/types.js";
+import type { ConnectorMessage, MessageContext } from "@/types";
 import { Session } from "./session.js";
 import type { SessionMessage } from "./types.js";
 

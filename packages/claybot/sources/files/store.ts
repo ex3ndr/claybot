@@ -5,7 +5,7 @@ import { createId } from "@paralleldrive/cuid2";
 
 import type { StoredFile } from "./types.js";
 import { sanitizeFilename } from "../util/filename.js";
-import type { Config } from "../config/configTypes.js";
+import type { Config } from "@/types";
 
 export class FileStore {
   private basePath: string;

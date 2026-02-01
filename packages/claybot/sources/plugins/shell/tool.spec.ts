@@ -4,7 +4,7 @@ import path from "node:path";
 import os from "node:os";
 
 import { buildExecTool } from "./tool.js";
-import type { ToolExecutionContext } from "../../engine/modules/tools/types.js";
+import type { ToolExecutionContext } from "@/types";
 
 const toolCall = { id: "tool-call-1", name: "exec" };
 

@@ -1,4 +1,4 @@
-import type { PermissionAccess } from "../modules/connectors/types.js";
+import type { PermissionAccess } from "@/types";
 
 export function permissionDescribeDecision(access: PermissionAccess): string {
   if (access.kind === "web") {

@@ -29,7 +29,7 @@ import type { ProviderDefinition } from "../providers/types.js";
 import { getLogger } from "../log.js";
 import { resolveExclusivePlugins } from "../engine/plugins/exclusive.js";
 import { configLoad } from "../config/configLoad.js";
-import type { Config } from "../config/configTypes.js";
+import type { Config } from "@/types";
 import { engineReloadRequest } from "./engineReloadRequest.js";
 
 export type AddOptions = {

@@ -3,14 +3,12 @@ import { createId } from "@paralleldrive/cuid2";
 import { getLogger } from "../../log.js";
 import type { FileStore } from "../../files/store.js";
 import type { AuthStore } from "../../auth/store.js";
-import type { Config } from "../../config/configTypes.js";
+import type { AgentRuntime, Config, ConnectorMessage, MessageContext } from "@/types";
 import { listActiveInferenceProviders } from "../../providers/catalog.js";
 import { cuid2Is } from "../../utils/cuid2Is.js";
-import type { AgentRuntime } from "../modules/tools/types.js";
 import type { ConnectorRegistry } from "../modules/connectorRegistry.js";
 import type { ImageGenerationRegistry } from "../modules/imageGenerationRegistry.js";
 import type { ToolResolver } from "../modules/toolResolver.js";
-import type { ConnectorMessage, MessageContext } from "../modules/connectors/types.js";
 import { messageBuildSystemText } from "../messages/messageBuildSystemText.js";
 import { messageFormatIncoming } from "../messages/messageFormatIncoming.js";
 import { messageIsSystemText } from "../messages/messageIsSystemText.js";
@@ -22,7 +20,7 @@ import type { PluginManager } from "../plugins/manager.js";
 import type { EngineEventBus } from "../ipc/events.js";
 import { SessionManager } from "../sessions/manager.js";
 import { SessionStore } from "../sessions/store.js";
-import type { SessionMessage } from "../sessions/types.js";
+import type { SessionMessage } from "@/types";
 import type { SessionState } from "../sessions/sessionStateTypes.js";
 import {
   normalizeSessionDescriptor,

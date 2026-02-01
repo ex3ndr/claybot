@@ -1,7 +1,7 @@
 import { Type, type Static } from "@sinclair/typebox";
 import type { ToolResultMessage } from "@mariozechner/pi-ai";
 
-import type { ToolDefinition } from "../../engine/modules/tools/types.js";
+import type { ToolDefinition } from "@/types";
 import type { MemoryStore } from "./store.js";
 
 const createEntitySchema = Type.Object(

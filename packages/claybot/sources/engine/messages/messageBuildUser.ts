@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 
 import type { Context } from "@mariozechner/pi-ai";
 
-import type { SessionMessage } from "../sessions/types.js";
+import type { SessionMessage } from "@/types";
 
 export async function messageBuildUser(
   entry: SessionMessage
