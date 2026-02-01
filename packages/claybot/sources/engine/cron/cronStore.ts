@@ -3,32 +3,20 @@ import path from "node:path";
 
 import { createId } from "@paralleldrive/cuid2";
 
-import { getLogger } from "../log.js";
+import { getLogger } from "../../log.js";
+import type {
+  CronTaskDefinition,
+  CronTaskWithPaths,
+  CronTaskState,
+  Frontmatter
+} from "./cronTypes.js";
+import { cronSlugify } from "./cronSlugify.js";
+import { cronCuid2Validate } from "./cronCuid2Validate.js";
+import { cronTaskUidResolve } from "./cronTaskUidResolve.js";
+import { cronFrontmatterParse } from "./cronFrontmatterParse.js";
+import { cronFrontmatterSerialize } from "./cronFrontmatterSerialize.js";
 
 const logger = getLogger("cron.store");
-
-export type CronTaskDefinition = {
-  id: string;
-  taskUid?: string;
-  name: string;
-  description?: string;
-  schedule: string;
-  prompt: string;
-  enabled?: boolean;
-  deleteAfterRun?: boolean;
-};
-
-export type CronTaskWithPaths = Omit<CronTaskDefinition, "taskUid"> & {
-  taskUid: string;
-  taskPath: string;
-  memoryPath: string;
-  filesPath: string;
-  lastRunAt?: string;
-};
-
-type CronTaskState = {
-  lastRunAt?: string;
-};
 
 /**
  * Manages cron tasks stored as markdown files.
@@ -61,8 +49,6 @@ export class CronStore {
       }
 
       const taskId = entry.name;
-      const taskDir = path.join(this.basePath, taskId);
-      const taskPath = path.join(taskDir, "TASK.md");
 
       try {
         const task = await this.loadTask(taskId);
@@ -86,10 +72,10 @@ export class CronStore {
 
     try {
       const content = await fs.readFile(taskPath, "utf8");
-      const parsed = parseFrontmatter(content);
+      const parsed = cronFrontmatterParse(content);
       // Cron task ids must come from frontmatter; do not guess or backfill missing ids.
-      const taskUid = resolveTaskUid(parsed.frontmatter);
-      if (!taskUid || !isCuid2Like(taskUid)) {
+      const taskUid = cronTaskUidResolve(parsed.frontmatter);
+      if (!taskUid || !cronCuid2Validate(taskUid)) {
         logger.warn({ taskId, taskUid }, "Cron task missing valid taskId");
         return null;
       }
@@ -145,7 +131,7 @@ export class CronStore {
     await fs.mkdir(filesPath, { recursive: true });
 
     // Write TASK.md
-    const taskUid = isCuid2Like(definition.taskUid ?? "") ? definition.taskUid! : createId();
+    const taskUid = cronCuid2Validate(definition.taskUid ?? "") ? definition.taskUid! : createId();
     const frontmatter: Frontmatter = {
       name: definition.name,
       schedule: definition.schedule,
@@ -158,7 +144,7 @@ export class CronStore {
     if (definition.deleteAfterRun) {
       frontmatter.deleteAfterRun = true;
     }
-    const content = serializeFrontmatter(frontmatter, definition.prompt);
+    const content = cronFrontmatterSerialize(frontmatter, definition.prompt);
     await fs.writeFile(taskPath, content, "utf8");
 
     // Write initial MEMORY.md
@@ -214,7 +200,7 @@ export class CronStore {
     if (updated.deleteAfterRun) {
       frontmatter.deleteAfterRun = true;
     }
-    const content = serializeFrontmatter(frontmatter, updated.prompt);
+    const content = cronFrontmatterSerialize(frontmatter, updated.prompt);
     await fs.writeFile(existing.taskPath, content, "utf8");
 
     logger.info({ taskId }, "Cron task updated");
@@ -283,7 +269,7 @@ export class CronStore {
   }
 
   async generateTaskIdFromName(name: string): Promise<string> {
-    const base = slugify(name) || "cron-task";
+    const base = cronSlugify(name) || "cron-task";
     let candidate = base;
     let suffix = 2;
     while (!(await this.isTaskIdAvailable(candidate))) {
@@ -339,115 +325,3 @@ export class CronStore {
     }
   }
 }
-
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-type Frontmatter = Record<string, string | number | boolean>;
-
-type ParsedDocument = {
-  frontmatter: Frontmatter;
-  body: string;
-};
-
-/**
- * Parse YAML frontmatter from markdown content.
- * Supports simple key: value pairs only.
- */
-function parseFrontmatter(content: string): ParsedDocument {
-  const trimmed = content.trim();
-
-  if (!trimmed.startsWith("---")) {
-    return { frontmatter: {}, body: trimmed };
-  }
-
-  const endIndex = trimmed.indexOf("\n---", 3);
-  if (endIndex === -1) {
-    return { frontmatter: {}, body: trimmed };
-  }
-
-  const frontmatterBlock = trimmed.slice(4, endIndex);
-  const body = trimmed.slice(endIndex + 4).trim();
-
-  const frontmatter: Frontmatter = {};
-  const lines = frontmatterBlock.split("\n");
-
-  for (const line of lines) {
-    const trimmedLine = line.trim();
-    if (!trimmedLine || trimmedLine.startsWith("#")) {
-      continue;
-    }
-
-    const colonIndex = trimmedLine.indexOf(":");
-    if (colonIndex === -1) {
-      continue;
-    }
-
-    const key = trimmedLine.slice(0, colonIndex).trim();
-    let value: string | number | boolean = trimmedLine.slice(colonIndex + 1).trim();
-
-    // Remove quotes if present
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    } else if (value === "true") {
-      value = true;
-    } else if (value === "false") {
-      value = false;
-    } else if (!isNaN(Number(value)) && value.length > 0) {
-      value = Number(value);
-    }
-
-    frontmatter[key] = value;
-  }
-
-  return { frontmatter, body };
-}
-
-/**
- * Serialize frontmatter and body to markdown format.
- */
-function serializeFrontmatter(frontmatter: Frontmatter, body: string): string {
-  const lines: string[] = ["---"];
-
-  for (const [key, value] of Object.entries(frontmatter)) {
-    if (typeof value === "string") {
-      // Quote strings that contain special characters
-      if (value.includes(":") || value.includes("\n") || value.includes('"')) {
-        lines.push(`${key}: "${value.replace(/"/g, '\\"')}"`);
-      } else {
-        lines.push(`${key}: ${value}`);
-      }
-    } else {
-      lines.push(`${key}: ${value}`);
-    }
-  }
-
-  lines.push("---");
-  lines.push("");
-  lines.push(body);
-  lines.push("");
-
-  return lines.join("\n");
-}
-
-function resolveTaskUid(frontmatter: Frontmatter): string | null {
-  const candidate = frontmatter.taskId;
-  if (typeof candidate === "string" && candidate.trim().length > 0) {
-    return candidate.trim();
-  }
-  return null;
-}
-
-function isCuid2Like(value: string): boolean {
-  return /^[a-z0-9]{24,32}$/.test(value);
-}
-
-export { parseFrontmatter, serializeFrontmatter };

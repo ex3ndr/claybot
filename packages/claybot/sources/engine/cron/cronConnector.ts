@@ -4,11 +4,16 @@ import type {
   ConnectorMessage,
   MessageHandler,
   MessageUnsubscribe
-} from "./types.js";
+} from "../connectors/types.js";
 
 const logger = getLogger("connectors.cron");
 
-export function createCronConnector(): Connector {
+/**
+ * Creates a cron connector for sending output from cron tasks.
+ *
+ * This connector is send-only; it logs output but does not receive messages.
+ */
+export function cronConnectorCreate(): Connector {
   const noopUnsubscribe: MessageUnsubscribe = () => {};
 
   return {
