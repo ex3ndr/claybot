@@ -30,7 +30,7 @@ flowchart LR
 ## Session type object
 
 Sessions display a computed session type object so the UI can distinguish connections, scheduled work,
-and background agent children.
+and subagent children.
 
 ```mermaid
 flowchart TD
@@ -40,11 +40,11 @@ flowchart TD
   Context --> Connection{connector source + userId + channelId}
   Cron -->|yes| CronType[Type: cron]
   Heartbeat -->|yes| HeartbeatType[Type: heartbeat]
-  Agent --> Parent{agent.parentSessionId}
-  Parent -->|yes| BackgroundAgent[Type: background_agent]
-  Parent -->|no| Background[Type: background]
+  Agent --> Parent{agent.parentSessionId + name}
+  Parent -->|yes| Subagent[Type: subagent]
+  Parent -->|no| System[Type: system]
   Connection -->|yes| ConnectionType[Type: connection]
-  Connection -->|no| Background
+  Connection -->|no| System
 ```
 
 ## Session detail navigation

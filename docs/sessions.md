@@ -22,18 +22,18 @@ sequenceDiagram
 
 ## System message routing
 When `send_session_message` omits a target session id, the engine routes to the most recent
-non-background session (excluding system/cron/background sources and background agents).
+foreground user session.
 
 ```mermaid
 sequenceDiagram
-  participant BackgroundAgent
+  participant Subagent
   participant Engine
   participant SessionStore
   participant Connector
-  BackgroundAgent->>Engine: send_session_message(text)
+  Subagent->>Engine: send_session_message(text)
   Engine->>SessionStore: listSessions()
   SessionStore-->>Engine: sessions
-  Engine->>Engine: pick most recent non-background
+  Engine->>Engine: pick most recent foreground
   Engine->>Connector: sendMessage(<system_message>)
 ```
 

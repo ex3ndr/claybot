@@ -62,15 +62,15 @@ classDiagram
 
 ## Heartbeat batch execution
 
-Heartbeat tasks are collected and executed as a single background-agent inference call.
+Heartbeat tasks are collected and executed as a single heartbeat inference call.
 `lastRunAt` is tracked as a single global timestamp and applied to each task entry. Each task still emits `heartbeat.task.ran`.
 
 ```mermaid
 flowchart TD
   Scheduler[HeartbeatScheduler] -->|list tasks| Tasks[Heartbeat tasks]
-  Tasks -->|batch prompt| Agent[Background agent session]
-  Agent -->|single inference call| Provider[Inference provider]
-  Agent -->|record run per task| Store[Heartbeat state]
+  Tasks -->|batch prompt| HeartbeatSession[Heartbeat session]
+  HeartbeatSession -->|single inference call| Provider[Inference provider]
+  HeartbeatSession -->|record run per task| Store[Heartbeat state]
   Scheduler --> Events[Event bus]
 ```
 
