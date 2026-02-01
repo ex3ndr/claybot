@@ -39,9 +39,9 @@ Load/unload is internal: the plugin manager reconciles enabled instances from
 `.claybot/settings.json` and loads or unloads instances to match.
 
 ## Skills
-Plugins can ship skills by adding a `skills/` folder inside the plugin directory.
-Each `.md` file is surfaced to the agent in the system prompt with an absolute
-path so the agent can load it on demand.
+Plugins can register skills by calling `api.registrar.registerSkill(path)`.
+Provide the absolute path to a `SKILL.md` file so it can be surfaced in the
+system prompt for on-demand loading.
 
 ### Descriptor format
 ```json

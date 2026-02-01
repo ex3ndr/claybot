@@ -4,35 +4,36 @@ import { promises as fs } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { formatSkillsPrompt, listAgentSkills } from "./catalog.js";
+import { formatSkillsPrompt, listRegisteredSkills, listSkillsFromRoot } from "./catalog.js";
 
-describe("listAgentSkills", () => {
+describe("listSkills", () => {
   it("collects core and plugin skills with full paths", async () => {
     const baseDir = await fs.mkdtemp(path.join(os.tmpdir(), "claybot-skills-"));
     try {
-      const coreDir = path.join(baseDir, "core");
-      const pluginSkillsDir = path.join(baseDir, "plugins", "alpha", "skills");
-      await fs.mkdir(coreDir, { recursive: true });
-      await fs.mkdir(pluginSkillsDir, { recursive: true });
+      const coreRoot = path.join(baseDir, "core");
+      const coreSkillDir = path.join(coreRoot, "deploy");
+      await fs.mkdir(coreSkillDir, { recursive: true });
 
-      const coreSkillPath = path.join(coreDir, "deploy.md");
-      const pluginSkillPath = path.join(pluginSkillsDir, "report.md");
+      const pluginSkillDir = path.join(baseDir, "plugin-skill");
+      await fs.mkdir(pluginSkillDir, { recursive: true });
+
+      const coreSkillPath = path.join(coreSkillDir, "SKILL.md");
+      const pluginSkillPath = path.join(pluginSkillDir, "SKILL.md");
       await fs.writeFile(coreSkillPath, "Core skill");
       await fs.writeFile(pluginSkillPath, "Plugin skill");
 
-      const skills = await listAgentSkills([
-        { type: "core", root: coreDir },
-        { type: "plugin", pluginId: "alpha", root: pluginSkillsDir }
+      const coreSkills = await listSkillsFromRoot(coreRoot, {
+        source: "core",
+        root: coreRoot
+      });
+      const pluginSkills = await listRegisteredSkills([
+        { pluginId: "alpha", path: pluginSkillPath }
       ]);
 
-      expect(skills).toHaveLength(2);
-      const coreSkill = skills.find((skill) => skill.id.startsWith("core:"));
-      const pluginSkill = skills.find((skill) => skill.id.startsWith("plugin:alpha/"));
+      expect(coreSkills).toHaveLength(1);
+      expect(pluginSkills).toHaveLength(1);
 
-      expect(coreSkill?.path).toBe(coreSkillPath);
-      expect(pluginSkill?.path).toBe(pluginSkillPath);
-
-      const prompt = formatSkillsPrompt(skills);
+      const prompt = formatSkillsPrompt([...coreSkills, ...pluginSkills]);
       expect(prompt).toContain(coreSkillPath);
       expect(prompt).toContain(pluginSkillPath);
     } finally {

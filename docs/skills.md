@@ -6,13 +6,15 @@ the file path listed in the system prompt.
 
 ## Where skills live
 
-ClayBot discovers skills in two places:
-- `.claybot/skills/` (local, user-managed skills)
-- `packages/claybot/sources/plugins/<plugin-id>/skills/` (plugin-provided skills)
+ClayBot always includes core skills from:
+- `packages/claybot/sources/skills/`
 
-Each skill is a single `.md` file. The file name becomes the skill name shown
-to the agent. The system prompt includes the **absolute path** to each skill so
-the agent can read it directly.
+Plugins can register additional skills via `registerSkill(path)` with an absolute
+path to a `SKILL.md` file.
+
+Each skill is a folder containing a `SKILL.md` file. The folder name becomes
+the skill name shown to the agent. The system prompt includes the **absolute
+path** to each skill so the agent can read it directly.
 
 ## Loading and unloading
 

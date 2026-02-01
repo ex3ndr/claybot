@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import type { Connector } from "../connectors/types.js";
 import type { ConnectorRegistry, ImageGenerationRegistry, InferenceRegistry, ToolResolver } from "../modules.js";
 import type { InferenceProvider } from "../inference/types.js";
@@ -9,6 +11,7 @@ type PluginRegistrations = {
   providers: Set<string>;
   tools: Set<string>;
   images: Set<string>;
+  skills: Set<string>;
 };
 
 export class PluginRegistrar {
@@ -35,7 +38,8 @@ export class PluginRegistrar {
       connectors: new Set(),
       providers: new Set(),
       tools: new Set(),
-      images: new Set()
+      images: new Set(),
+      skills: new Set()
     };
   }
 
@@ -79,6 +83,20 @@ export class PluginRegistrar {
     this.registrations.images.delete(id);
   }
 
+  registerSkill(skillPath: string): void {
+    const resolved = path.resolve(skillPath);
+    this.registrations.skills.add(resolved);
+  }
+
+  unregisterSkill(skillPath: string): void {
+    const resolved = path.resolve(skillPath);
+    this.registrations.skills.delete(resolved);
+  }
+
+  listSkills(): string[] {
+    return Array.from(this.registrations.skills.values());
+  }
+
   async unregisterAll(): Promise<void> {
     for (const id of this.registrations.connectors) {
       await this.connectorRegistry.unregister(id, "plugin-unload");
@@ -96,6 +114,7 @@ export class PluginRegistrar {
     this.registrations.providers.clear();
     this.registrations.images.clear();
     this.registrations.tools.clear();
+    this.registrations.skills.clear();
   }
 }
 

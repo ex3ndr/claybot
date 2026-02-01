@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json && cp -r sources/prompts dist/",
+    "build": "tsc -p tsconfig.json && cp -r sources/prompts dist/ && cp -r sources/skills dist/skills",
     "dev": "tsx sources/main.ts start --verbose",
     "test": "vitest run",
     "test:watch": "vitest",

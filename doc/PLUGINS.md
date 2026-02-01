@@ -202,6 +202,10 @@ type PluginRegistrar = {
   registerImageProvider(provider: ImageGenerationProvider): void;
   unregisterImageProvider(id: string): void;
 
+  // Skills
+  registerSkill(path: string): void;
+  unregisterSkill(path: string): void;
+
   // Cleanup all registrations
   unregisterAll(): Promise<void>;
 };
