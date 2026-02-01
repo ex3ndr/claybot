@@ -60,15 +60,15 @@ Resolution behavior:
 flowchart LR
   User[User session] -->|spawns| Subagent[Subagent session]
   Cron[Cron session] -->|spawns| Subagent
-  Heartbeat[Heartbeat session] -->|batch prompt| Subagent
+  Heartbeat[Heartbeat scheduler] -->|batch prompt| HeartbeatSession[Heartbeat session]
   Subagent -->|send_session_message| User
 ```
 
 Operational notes:
 - User sessions are the only sessions treated as foreground.
 - Subagents always have a parent (usually a user session, cron, or heartbeat).
-- Heartbeat runs always map to a single `heartbeat` session that launches a
-  subagent with a batch prompt.
+- Heartbeat runs always map to a single `heartbeat` session that runs a batch
+  prompt.
 - Cron sessions are scheduled inputs; they can spawn subagents but are not
   foreground targets.
 
@@ -117,7 +117,7 @@ sequenceDiagram
   participant Engine
   participant User
   Subagent->>Engine: send_session_message
-  Engine->>Engine: resolve most-recent-foreground
+  Engine->>Engine: resolve parentSessionId (default)
   Engine->>User: system message
 ```
 
@@ -172,7 +172,7 @@ Behavior summary:
 - If the tool loop exceeds the max iterations and no response text is produced,
   the engine sends `Tool execution limit reached.` to connector sessions.
 - Subagents/cron/heartbeat sessions do not have direct connector routing. Errors
--  are logged and state is recorded, but subagent failures always notify the
+  are logged and state is recorded, but subagent failures always notify the
   parent session via `send_session_message`.
 - Crashes mid-processing are handled on next boot via the restore rules above
   (pending inbound messages trigger `Internal error.` for user sessions).
