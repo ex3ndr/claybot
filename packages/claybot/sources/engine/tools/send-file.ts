@@ -5,8 +5,8 @@ import type { ToolResultMessage } from "@mariozechner/pi-ai";
 
 import type { ConnectorFileDisposition } from "../connectors/types.js";
 import type { FileReference } from "../../files/types.js";
-import { resolveWorkspacePath } from "../permissions.js";
 import type { ToolDefinition, ToolExecutionContext } from "./types.js";
+import { pathResolveSecure, openSecure } from "../permissions/pathResolveSecure.js";
 
 const schema = Type.Object(
   {
@@ -135,12 +135,25 @@ async function resolveFile(
     };
   }
 
-  const resolved = resolveWorkspacePath(
-    context.permissions.workingDir,
-    payload.path!
-  );
-  const stat = await fs.stat(resolved);
-  if (!stat.isFile()) {
+  // Securely resolve path, following symlinks and verifying containment
+  const allowedDirs = [context.permissions.workingDir, ...context.permissions.readDirs];
+  const { realPath: resolved } = await pathResolveSecure(allowedDirs, payload.path!);
+
+  // Use lstat to check for symlinks, then open securely to prevent TOCTOU
+  const stats = await fs.lstat(resolved);
+  if (stats.isSymbolicLink()) {
+    throw new Error("Cannot send symbolic link");
+  }
+  if (!stats.isFile()) {
+    throw new Error("Path is not a file");
+  }
+
+  // Verify file is still accessible via secure open
+  const handle = await openSecure(resolved, "r");
+  const handleStats = await handle.stat();
+  await handle.close();
+
+  if (!handleStats.isFile()) {
     throw new Error("Path is not a file");
   }
 
