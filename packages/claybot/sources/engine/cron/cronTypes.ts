@@ -45,7 +45,7 @@ export type CronTaskContext = {
 /**
  * Simple key-value frontmatter from markdown files.
  */
-export type Frontmatter = Record<string, string | number | boolean>;
+export type Frontmatter = Record<string, unknown>;
 
 /**
  * Parsed markdown document with frontmatter and body.

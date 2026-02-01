@@ -20,6 +20,7 @@
     "date-fns": "^4.1.0",
     "enquirer": "^2.4.1",
     "fastify": "^4.26.2",
+    "gray-matter": "^4.0.3",
     "handlebars": "^4.7.8",
     "node-telegram-bot-api": "^0.66.0",
     "pino": "^9.0.0",
