@@ -10,7 +10,7 @@ The Agent owns the end-to-end session loop:
 flowchart TD
   Engine[engine.ts] --> Agent[agents/agent.ts]
   Agent --> Perms[permissions/*]
-  Agent --> Prompt[createSystemPrompt.ts]
+  Agent --> Prompt[agents/agentSystemPromptBuild.ts]
   Agent --> Loop[agents/agentLoopRun.ts]
   Loop --> Inference[inference/router.ts]
   Loop --> Tools[modules.ToolResolver]

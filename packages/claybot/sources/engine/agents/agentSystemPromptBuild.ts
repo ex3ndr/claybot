@@ -3,9 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import Handlebars from "handlebars";
 
-import { DEFAULT_SOUL_PATH, DEFAULT_USER_PATH } from "../paths.js";
+import { DEFAULT_SOUL_PATH, DEFAULT_USER_PATH } from "../../paths.js";
+import { agentPromptBundledRead } from "./agentPromptBundledRead.js";
 
-export type SystemPromptContext = {
+export type AgentSystemPromptContext = {
   model?: string;
   provider?: string;
   workspace?: string;
@@ -37,22 +38,31 @@ export type SystemPromptContext = {
   skillsPath?: string;
 };
 
-export async function createSystemPrompt(context: SystemPromptContext = {}): Promise<string> {
-  const soul = await readSoul();
-  const user = await readUser();
-  const systemTemplate = await readSystemTemplate(
-    context.agentKind === "background" ? "SYSTEM_BACKGROUND.md" : "SYSTEM.md"
-  );
-  const permissions = await readPermissions();
+/**
+ * Builds the system prompt text for an agent session.
+ * Expects: prompt templates exist under engine/prompts.
+ */
+export async function agentSystemPromptBuild(
+  context: AgentSystemPromptContext = {}
+): Promise<string> {
+  const soulPath = context.soulPath ?? DEFAULT_SOUL_PATH;
+  const userPath = context.userPath ?? DEFAULT_USER_PATH;
+  const soul = await promptFileRead(soulPath, "SOUL.md");
+  const user = await promptFileRead(userPath, "USER.md");
+  const templateName =
+    context.agentKind === "background" ? "SYSTEM_BACKGROUND.md" : "SYSTEM.md";
+  const systemTemplate = await agentPromptBundledRead(templateName);
+  const permissions = (await agentPromptBundledRead("PERMISSIONS.md")).trim();
   const additionalWriteDirs = resolveAdditionalWriteDirs(
     context.writeDirs ?? [],
     context.workspace ?? "",
-    context.soulPath ?? DEFAULT_SOUL_PATH,
-    context.userPath ?? DEFAULT_USER_PATH
+    soulPath,
+    userPath
   );
 
   const isForeground = context.agentKind !== "background";
-  const skillsPath = context.skillsPath ?? (context.configDir ? `${context.configDir}/skills` : "");
+  const skillsPath =
+    context.skillsPath ?? (context.configDir ? `${context.configDir}/skills` : "");
 
   const template = Handlebars.compile(systemTemplate);
   const rendered = template({
@@ -79,8 +89,8 @@ export async function createSystemPrompt(context: SystemPromptContext = {}): Pro
     cronMemoryPath: context.cronMemoryPath ?? "",
     cronFilesPath: context.cronFilesPath ?? "",
     cronTaskIds: context.cronTaskIds ?? "",
-    soulPath: context.soulPath ?? DEFAULT_SOUL_PATH,
-    userPath: context.userPath ?? DEFAULT_USER_PATH,
+    soulPath,
+    userPath,
     pluginPrompt: context.pluginPrompt ?? "",
     skillsPrompt: context.skillsPrompt ?? "",
     parentSessionId: context.parentSessionId ?? "",
@@ -94,19 +104,6 @@ export async function createSystemPrompt(context: SystemPromptContext = {}): Pro
   });
 
   return rendered.trim();
-}
-
-async function readSoul(): Promise<string> {
-  return readPromptFile(DEFAULT_SOUL_PATH, "SOUL.md");
-}
-
-async function readSystemTemplate(filename: string): Promise<string> {
-  return readBundledPrompt(filename);
-}
-
-async function readPermissions(): Promise<string> {
-  const permissions = await readBundledPrompt("PERMISSIONS.md");
-  return permissions.trim();
 }
 
 function resolveAdditionalWriteDirs(
@@ -127,11 +124,7 @@ function resolveAdditionalWriteDirs(
   return Array.from(new Set(filtered)).sort();
 }
 
-async function readUser(): Promise<string> {
-  return readPromptFile(DEFAULT_USER_PATH, "USER.md");
-}
-
-async function readPromptFile(filePath: string, fallbackPrompt: string): Promise<string> {
+async function promptFileRead(filePath: string, fallbackPrompt: string): Promise<string> {
   const resolvedPath = path.resolve(filePath);
   try {
     const content = await fs.readFile(resolvedPath, "utf8");
@@ -145,32 +138,6 @@ async function readPromptFile(filePath: string, fallbackPrompt: string): Promise
     }
   }
 
-  const defaultContent = await readBundledPrompt(fallbackPrompt);
+  const defaultContent = await agentPromptBundledRead(fallbackPrompt);
   return defaultContent.trim();
-}
-
-async function readBundledPrompt(filename: string): Promise<string> {
-  const promptPath = new URL(`../prompts/${filename}`, import.meta.url);
-  return fs.readFile(promptPath, "utf8");
-}
-
-export async function assumeWorkspace(): Promise<void> {
-  await ensurePromptFile(DEFAULT_SOUL_PATH, "SOUL.md");
-  await ensurePromptFile(DEFAULT_USER_PATH, "USER.md");
-}
-
-async function ensurePromptFile(filePath: string, bundledName: string): Promise<void> {
-  const resolvedPath = path.resolve(filePath);
-  try {
-    await fs.access(resolvedPath);
-    return;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-      throw error;
-    }
-  }
-
-  const content = await readBundledPrompt(bundledName);
-  await fs.mkdir(path.dirname(resolvedPath), { recursive: true });
-  await fs.writeFile(resolvedPath, content, "utf8");
 }

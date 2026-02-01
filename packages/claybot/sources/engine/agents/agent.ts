@@ -5,7 +5,8 @@ import { getLogger } from "../../log.js";
 import { DEFAULT_SOUL_PATH, DEFAULT_USER_PATH } from "../../paths.js";
 import { listActiveInferenceProviders } from "../../providers/catalog.js";
 import { cuid2Is } from "../../utils/cuid2Is.js";
-import { assumeWorkspace, createSystemPrompt } from "../createSystemPrompt.js";
+import { agentPromptFilesEnsure } from "./agentPromptFilesEnsure.js";
+import { agentSystemPromptBuild } from "./agentSystemPromptBuild.js";
 import type { MessageContext } from "../modules/connectors/types.js";
 import { messageBuildUser } from "../messages/messageBuildUser.js";
 import { permissionBuildCron } from "../permissions/permissionBuildCron.js";
@@ -242,7 +243,7 @@ export class Agent {
       permissionEnsureDefaultFile(session.context.state.permissions, defaultPermissions);
     }
 
-    await assumeWorkspace();
+    await agentPromptFilesEnsure();
 
     const sessionContext = session.context.state.context;
     const providers = listActiveInferenceProviders(agentSystem.settings);
@@ -269,7 +270,7 @@ export class Agent {
     const skillsPrompt = skillPromptFormat(skills);
     const agentKind = session.context.state.agent?.kind ?? entry.context.agent?.kind;
     const allowCronTools = sessionContextIsCron(entry.context, session.context.state.session);
-    const systemPrompt = await createSystemPrompt({
+    const systemPrompt = await agentSystemPromptBuild({
       provider: providerSettings?.id,
       model: providerSettings?.model,
       workspace: session.context.state.permissions.workingDir,
