@@ -27,4 +27,42 @@ describe("permissionMergeDefault", () => {
     );
     expect(merged.readDirs).toEqual(expect.arrayContaining(["/base-read"]));
   });
+
+  it("falls back to defaults when workingDir is whitespace-only", () => {
+    const permissions: SessionPermissions = {
+      workingDir: "   ",
+      writeDirs: [],
+      readDirs: [],
+      web: false
+    };
+    const defaults: SessionPermissions = {
+      workingDir: "/workspace",
+      writeDirs: [],
+      readDirs: [],
+      web: false
+    };
+
+    const merged = permissionMergeDefault(permissions, defaults);
+
+    expect(merged.workingDir).toBe("/workspace");
+  });
+
+  it("preserves valid workingDir from permissions", () => {
+    const permissions: SessionPermissions = {
+      workingDir: "/custom-workspace",
+      writeDirs: [],
+      readDirs: [],
+      web: false
+    };
+    const defaults: SessionPermissions = {
+      workingDir: "/workspace",
+      writeDirs: [],
+      readDirs: [],
+      web: false
+    };
+
+    const merged = permissionMergeDefault(permissions, defaults);
+
+    expect(merged.workingDir).toBe("/custom-workspace");
+  });
 });

@@ -7,7 +7,8 @@ export function permissionMergeDefault(
   const nextWrite = new Set([...defaultPermissions.writeDirs, ...permissions.writeDirs]);
   const nextRead = new Set([...defaultPermissions.readDirs, ...permissions.readDirs]);
   return {
-    workingDir: permissions.workingDir || defaultPermissions.workingDir,
+    // Use nullish coalescing to properly handle empty string
+    workingDir: permissions.workingDir?.trim() || defaultPermissions.workingDir,
     writeDirs: Array.from(nextWrite.values()),
     readDirs: Array.from(nextRead.values()),
     web: permissions.web || defaultPermissions.web
