@@ -16,18 +16,9 @@ const permissionsSchema = z
   })
   .strict();
 
-const agentMetadataSchema = z
-  .object({
-    kind: z.literal("background"),
-    parentAgentId: z.string().min(1).nullable(),
-    name: z.string().min(1).nullable()
-  })
-  .strict();
-
 const agentStateSchema = z
   .object({
     permissions: permissionsSchema,
-    agent: agentMetadataSchema.nullable(),
     createdAt: z.number().int(),
     updatedAt: z.number().int()
   })
@@ -54,7 +45,6 @@ export async function agentStateRead(config: Config, agentId: string): Promise<A
   return {
     context: { messages: [] },
     permissions: state.permissions,
-    agent: state.agent,
     createdAt: state.createdAt,
     updatedAt: state.updatedAt
   };

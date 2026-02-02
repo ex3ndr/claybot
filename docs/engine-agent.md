@@ -44,12 +44,12 @@ flowchart LR
 
 ## State vs History
 
-`state.json` only stores durable metadata (permissions, agent metadata, timestamps).
+`state.json` only stores durable metadata (permissions, timestamps).
 Conversation context is rebuilt from `history.jsonl` instead of being persisted in state.
 
 ```mermaid
 flowchart LR
-  State[state.json] --> Meta[permissions + agent metadata]
+  State[state.json] --> Meta[permissions + timestamps]
   History[history.jsonl] --> Context[context messages]
   Context --> Loop[inference loop]
 ```

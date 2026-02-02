@@ -20,11 +20,6 @@ export type AgentMessage = {
 export type AgentState = {
   context: Context;
   permissions: SessionPermissions;
-  agent: {
-    kind: "background";
-    parentAgentId: string | null;
-    name: string | null;
-  } | null;
   createdAt: number;
   updatedAt: number;
 };

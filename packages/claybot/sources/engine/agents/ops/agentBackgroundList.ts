@@ -2,6 +2,8 @@ import { promises as fs } from "node:fs";
 
 import type { Config } from "@/types";
 import type { BackgroundAgentState } from "./agentTypes.js";
+import type { AgentDescriptor } from "./agentDescriptorTypes.js";
+import { agentDescriptorRead } from "./agentDescriptorRead.js";
 import { agentStateRead } from "./agentStateRead.js";
 
 /**
@@ -26,18 +28,31 @@ export async function agentBackgroundList(config: Config): Promise<BackgroundAge
     }
     const agentId = entry.name;
     let state: Awaited<ReturnType<typeof agentStateRead>> = null;
+    let descriptor: AgentDescriptor | null = null;
     try {
+      descriptor = await agentDescriptorRead(config, agentId);
       state = await agentStateRead(config, agentId);
     } catch {
       continue;
     }
-    if (!state || state.agent?.kind !== "background") {
+    if (!state || !descriptor) {
       continue;
     }
+    if (descriptor.type === "user") {
+      continue;
+    }
+    const name =
+      descriptor.type === "subagent"
+        ? descriptor.name ?? "subagent"
+        : descriptor.type === "cron"
+          ? "cron"
+          : "heartbeat";
+    const parentAgentId =
+      descriptor.type === "subagent" ? descriptor.parentAgentId ?? null : null;
     results.push({
       agentId,
-      name: state.agent.name ?? null,
-      parentAgentId: state.agent.parentAgentId ?? null,
+      name,
+      parentAgentId,
       status: "idle",
       pending: 0,
       updatedAt: state.updatedAt

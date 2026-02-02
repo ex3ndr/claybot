@@ -93,25 +93,6 @@ export class Agent {
     const state: AgentState = {
       context: { messages: [] },
       permissions: permissionClone(agentSystem.config.defaultPermissions),
-      agent: descriptor.type === "subagent"
-        ? {
-            kind: "background",
-            parentAgentId: descriptor.parentAgentId ?? null,
-            name: descriptor.name ?? null
-          }
-        : descriptor.type === "cron"
-          ? {
-              kind: "background",
-              parentAgentId: null,
-              name: "cron"
-            }
-          : descriptor.type === "heartbeat"
-            ? {
-                kind: "background",
-                parentAgentId: null,
-                name: "heartbeat"
-              }
-            : null,
       createdAt: now,
       updatedAt: now
     };
@@ -307,7 +288,7 @@ export class Agent {
     const pluginSkills = await skillListRegistered(pluginManager.listRegisteredSkills());
     const skills = [...coreSkills, ...pluginSkills];
     const skillsPrompt = skillPromptFormat(skills);
-    const agentKind = this.state.agent?.kind ?? "foreground";
+    const agentKind = this.resolveAgentKind();
     const allowCronTools = agentDescriptorIsCron(this.descriptor);
 
     const defaultPermissions = this.agentSystem.config.defaultPermissions;
@@ -348,7 +329,9 @@ export class Agent {
       pluginPrompt,
       skillsPrompt,
       agentKind,
-      parentAgentId: this.state.agent?.parentAgentId ?? "",
+      parentAgentId: this.descriptor.type === "subagent"
+        ? this.descriptor.parentAgentId ?? ""
+        : "",
       configDir: this.agentSystem.config.configDir
     });
 
@@ -494,13 +477,12 @@ export class Agent {
     if (this.descriptor.type !== "subagent") {
       return;
     }
-    const parentAgentId =
-      this.descriptor.parentAgentId ?? this.state.agent?.parentAgentId;
+    const parentAgentId = this.descriptor.parentAgentId ?? null;
     if (!parentAgentId) {
       logger.warn({ agentId: this.id }, "Subagent missing parent agent");
       return;
     }
-    const name = this.descriptor.name ?? this.state.agent?.name ?? "subagent";
+    const name = this.descriptor.name ?? "subagent";
     const errorText = error instanceof Error ? error.message : error ? String(error) : "";
     const detail = errorText ? `${reason} (${errorText})` : reason;
     try {
@@ -546,6 +528,13 @@ export class Agent {
       connectorRegistry: this.agentSystem.connectorRegistry,
       imageRegistry: this.agentSystem.imageRegistry
     });
+  }
+
+  private resolveAgentKind(): "background" | "foreground" {
+    if (this.descriptor.type === "user") {
+      return "foreground";
+    }
+    return "background";
   }
 
   private resolveAgentProvider(

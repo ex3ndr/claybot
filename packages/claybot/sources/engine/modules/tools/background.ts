@@ -78,9 +78,11 @@ export function buildSendAgentMessageTool(): ToolDefinition {
     },
     execute: async (args, toolContext, toolCall) => {
       const payload = args as SendAgentMessageArgs;
-      const stateAgent = toolContext.agent.state.agent;
-      const origin = stateAgent?.kind === "background" ? "background" : "system";
-      const targetAgentId = payload.agentId ?? stateAgent?.parentAgentId ?? undefined;
+      const descriptor = toolContext.agent.descriptor;
+      const origin = descriptor.type === "user" ? "system" : "background";
+      const targetAgentId =
+        payload.agentId ??
+        (descriptor.type === "subagent" ? descriptor.parentAgentId : undefined);
       const resolvedTarget =
         targetAgentId ?? toolContext.agentSystem.agentFor("most-recent-foreground");
       if (!resolvedTarget) {
