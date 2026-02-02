@@ -1,0 +1,6 @@
+{
+  "id": "perplexity-search",
+  "name": "Perplexity Search",
+  "description": "Web search tool powered by Perplexity AI.",
+  "entry": "./plugin.js"
+}
