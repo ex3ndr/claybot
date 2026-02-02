@@ -5,6 +5,6 @@ import { promises as fs } from "node:fs";
  * Expects: filename matches a bundled prompt file.
  */
 export async function agentPromptBundledRead(filename: string): Promise<string> {
-  const promptPath = new URL(`../../prompts/${filename}`, import.meta.url);
+  const promptPath = new URL(`../../../prompts/${filename}`, import.meta.url);
   return fs.readFile(promptPath, "utf8");
 }

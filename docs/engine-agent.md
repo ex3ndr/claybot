@@ -30,3 +30,14 @@ flowchart TD
   Message[Agent.handleMessage] --> Source[connector source]
   Source --> Send[connector.sendMessage]
 ```
+
+## Bundled Prompt Resolution
+
+System prompt templates are bundled under `sources/prompts/` and read through
+`agentPromptBundledRead`.
+
+```mermaid
+flowchart LR
+  Read[agentPromptBundledRead] --> Prompts[sources/prompts/*.md]
+  Prompts --> System[buildSystemPrompt]
+```
