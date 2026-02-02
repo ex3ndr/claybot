@@ -6,7 +6,6 @@ import path from "node:path";
 
 import type { ToolDefinition } from "@/types";
 import type { PermissionAccess, PermissionRequest } from "@/types";
-import { agentHistoryAppend } from "../../agents/ops/agentHistoryAppend.js";
 import { agentDescriptorTargetResolve } from "../../agents/ops/agentDescriptorTargetResolve.js";
 
 const schema = Type.Object(
@@ -78,15 +77,6 @@ export function buildPermissionRequestTool(): ToolDefinition {
         permission,
         access
       };
-
-      if (!isForeground && foregroundAgentId) {
-        const note = `Background agent "${agentName}" requested permission: ${permission}. Reason: ${payload.reason.trim()}`;
-        await agentHistoryAppend(toolContext.agentSystem.config, foregroundAgentId, {
-          type: "note",
-          at: Date.now(),
-          text: note
-        });
-      }
 
       if (connector.requestPermission) {
         await connector.requestPermission(

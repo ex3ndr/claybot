@@ -15,7 +15,6 @@ import { agentPromptFilesEnsure } from "./ops/agentPromptFilesEnsure.js";
 import type { MessageContext } from "@/types";
 import { messageBuildUser } from "../messages/messageBuildUser.js";
 import { messageFormatIncoming } from "../messages/messageFormatIncoming.js";
-import { messageIsSystemText } from "../messages/messageIsSystemText.js";
 import { messageBuildSystemText } from "../messages/messageBuildSystemText.js";
 import { messageExtractText } from "../messages/messageExtractText.js";
 import { contextCompact } from "./ops/contextCompact.js";
@@ -254,14 +253,12 @@ export class Agent {
     const rawText = entry.message.rawText ?? entry.message.text ?? "";
     const files = toFileReferences(entry.message.files ?? []);
     let compactionAt: number | null = null;
-    let pendingUserRecord: AgentHistoryRecord | null = messageIsSystemText(rawText)
-      ? null
-      : {
-          type: "user_message",
-          at: receivedAt,
-          text: rawText,
-          files
-        };
+    let pendingUserRecord: AgentHistoryRecord | null = {
+      type: "user_message",
+      at: receivedAt,
+      text: rawText,
+      files
+    };
 
     const providers = listActiveInferenceProviders(this.agentSystem.config.settings);
     const providerId = this.resolveAgentProvider(providers);
