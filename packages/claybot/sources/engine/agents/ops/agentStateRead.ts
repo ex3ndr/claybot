@@ -20,7 +20,8 @@ const agentStateSchema = z
   .object({
     permissions: permissionsSchema,
     createdAt: z.number().int(),
-    updatedAt: z.number().int()
+    updatedAt: z.number().int(),
+    sleeping: z.boolean().optional()
   })
   .strip();
 
@@ -46,6 +47,7 @@ export async function agentStateRead(config: Config, agentId: string): Promise<A
     context: { messages: [] },
     permissions: state.permissions,
     createdAt: state.createdAt,
-    updatedAt: state.updatedAt
+    updatedAt: state.updatedAt,
+    sleeping: state.sleeping ?? false
   };
 }

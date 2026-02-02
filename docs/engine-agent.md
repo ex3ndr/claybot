@@ -92,3 +92,25 @@ flowchart LR
   History[history.jsonl] --> Context[context messages]
   Context --> Loop[inference loop]
 ```
+
+## Agent Sleep Mode
+
+After processing a message or reset, the agent marks itself sleeping when the inbox is empty.
+Sleeping agents are skipped on boot and only restored when a new inbox item arrives, which
+wakes them before enqueueing.
+
+```mermaid
+sequenceDiagram
+  participant Inbox
+  participant Agent
+  participant System
+  participant Disk
+  Agent->>System: sleepIfIdle()
+  System->>Inbox: check empty
+  System->>Disk: write state.sleeping=true
+  Note right of Agent: skipped on boot
+  Inbox-->>System: post item
+  System->>Disk: write state.sleeping=false
+  System->>Inbox: enqueue item
+  System->>Agent: start/restore
+```

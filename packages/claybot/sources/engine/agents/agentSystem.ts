@@ -18,13 +18,20 @@ import type { Crons } from "../cron/crons.js";
 import type { Heartbeats } from "../heartbeat/heartbeats.js";
 import { Agent } from "./agent.js";
 import { AgentInbox } from "./ops/agentInbox.js";
-import type { AgentInboxItem, AgentInboxResult, AgentPostTarget } from "./ops/agentTypes.js";
+import type {
+  AgentInboxCompletion,
+  AgentInboxItem,
+  AgentInboxResult,
+  AgentPostTarget
+} from "./ops/agentTypes.js";
 import type { AgentDescriptor, AgentFetchStrategy } from "./ops/agentDescriptorTypes.js";
 import { agentDescriptorMatchesStrategy } from "./ops/agentDescriptorMatchesStrategy.js";
 import { agentPathForDescriptor } from "./ops/agentPathForDescriptor.js";
 import { agentTimestampGet } from "./ops/agentTimestampGet.js";
 import { agentDescriptorRead } from "./ops/agentDescriptorRead.js";
 import { agentStateRead } from "./ops/agentStateRead.js";
+import { agentStateWrite } from "./ops/agentStateWrite.js";
+import { AsyncLock } from "../../util/lock.js";
 
 const logger = getLogger("engine.agent-system");
 
@@ -34,6 +41,7 @@ type AgentEntry = {
   agent: Agent;
   inbox: AgentInbox;
   running: boolean;
+  lock: AsyncLock;
 };
 
 export type AgentSystemOptions = {
@@ -127,6 +135,14 @@ export class AgentSystem {
       if (!descriptor || !state) {
         continue;
       }
+      if (state.sleeping) {
+        const key = agentPathForDescriptor(descriptor);
+        if (key) {
+          this.keyMap.set(key, agentId);
+        }
+        logger.info({ agentId }, "Agent restore skipped (sleeping)");
+        continue;
+      }
       const inbox = new AgentInbox(agentId);
       const agent = Agent.restore(agentId, descriptor, state, inbox, this);
       const registered = this.registerEntry({ agentId, descriptor, agent, inbox });
@@ -160,7 +176,7 @@ export class AgentSystem {
       "descriptor" in target ? `descriptor:${target.descriptor.type}` : `agent:${target.agentId}`;
     logger.debug(`post() received itemType=${item.type} target=${targetLabel} stage=${this.stage}`);
     const entry = await this.resolveEntry(target, item);
-    entry.inbox.post(item);
+    await this.enqueueEntry(entry, item, null);
     logger.debug(
       `post() queued item agentId=${entry.agentId} inboxSize=${entry.inbox.size()}`
     );
@@ -173,7 +189,7 @@ export class AgentSystem {
   ): Promise<AgentInboxResult> {
     const entry = await this.resolveEntry(target, item);
     const completion = this.createCompletion();
-    entry.inbox.post(item, completion.completion);
+    await this.enqueueEntry(entry, item, completion.completion);
     this.startEntryIfRunning(entry);
     return completion.promise;
   }
@@ -190,6 +206,28 @@ export class AgentSystem {
     }
     entry.running = false;
     logger.debug({ agentId, error }, "Agent marked stopped");
+  }
+
+  async sleepIfIdle(
+    agentId: string,
+    reason: "message" | "reset" | "permission"
+  ): Promise<void> {
+    const entry = this.entries.get(agentId);
+    if (!entry) {
+      return;
+    }
+    await entry.lock.inLock(async () => {
+      if (entry.inbox.size() > 0) {
+        return;
+      }
+      if (entry.agent.state.sleeping) {
+        return;
+      }
+      entry.agent.state.sleeping = true;
+      await agentStateWrite(this.config, agentId, entry.agent.state);
+      this.eventBus.emit("agent.sleep", { agentId, reason });
+      logger.debug({ agentId, reason }, "Agent entered sleep mode");
+    });
   }
 
   agentFor(strategy: AgentFetchStrategy): string | null {
@@ -251,7 +289,7 @@ export class AgentSystem {
       if (existing) {
         return existing;
       }
-      const restored = await this.restoreAgent(target.agentId);
+      const restored = await this.restoreAgent(target.agentId, { allowSleeping: true });
       if (restored) {
         return restored;
       }
@@ -267,6 +305,10 @@ export class AgentSystem {
         if (existing) {
           return existing;
         }
+        const restored = await this.restoreAgent(agentId, { allowSleeping: true });
+        if (restored) {
+          return restored;
+        }
       }
     }
 
@@ -274,6 +316,10 @@ export class AgentSystem {
       const existing = this.entries.get(descriptor.id);
       if (existing) {
         return existing;
+      }
+      const restored = await this.restoreAgent(descriptor.id, { allowSleeping: true });
+      if (restored) {
+        return restored;
       }
     }
 
@@ -308,7 +354,8 @@ export class AgentSystem {
       descriptor: input.descriptor,
       agent: input.agent,
       inbox: input.inbox,
-      running: false
+      running: false,
+      lock: new AsyncLock()
     };
     this.entries.set(input.agentId, entry);
     const key = agentPathForDescriptor(input.descriptor);
@@ -332,7 +379,31 @@ export class AgentSystem {
     entry.agent.start();
   }
 
-  private async restoreAgent(agentId: string): Promise<AgentEntry | null> {
+  private async enqueueEntry(
+    entry: AgentEntry,
+    item: AgentInboxItem,
+    completion: AgentInboxCompletion | null
+  ): Promise<void> {
+    await entry.lock.inLock(async () => {
+      await this.wakeEntryIfSleeping(entry);
+      entry.inbox.post(item, completion);
+    });
+  }
+
+  private async wakeEntryIfSleeping(entry: AgentEntry): Promise<void> {
+    if (!entry.agent.state.sleeping) {
+      return;
+    }
+    entry.agent.state.sleeping = false;
+    await agentStateWrite(this.config, entry.agentId, entry.agent.state);
+    this.eventBus.emit("agent.woke", { agentId: entry.agentId });
+    logger.debug({ agentId: entry.agentId }, "Agent woke from sleep");
+  }
+
+  private async restoreAgent(
+    agentId: string,
+    options?: { allowSleeping?: boolean }
+  ): Promise<AgentEntry | null> {
     let descriptor: AgentDescriptor | null = null;
     let state: Awaited<ReturnType<typeof agentStateRead>> = null;
     try {
@@ -343,6 +414,9 @@ export class AgentSystem {
       return null;
     }
     if (!descriptor || !state) {
+      return null;
+    }
+    if (state.sleeping && !options?.allowSleeping) {
       return null;
     }
     const inbox = new AgentInbox(agentId);

@@ -47,7 +47,8 @@ describe("database plugin", () => {
       context: { messages: [] },
       permissions,
       createdAt: now.getTime(),
-      updatedAt: now.getTime()
+      updatedAt: now.getTime(),
+      sleeping: false
     };
     const agent = Agent.restore(
       agentId,

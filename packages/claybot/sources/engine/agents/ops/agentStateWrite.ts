@@ -22,7 +22,8 @@ export async function agentStateWrite(
     {
       permissions: state.permissions,
       createdAt: state.createdAt,
-      updatedAt: state.updatedAt
+      updatedAt: state.updatedAt,
+      sleeping: state.sleeping
     },
     null,
     2

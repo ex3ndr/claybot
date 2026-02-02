@@ -64,7 +64,8 @@ function createContext(workingDir: string, web: boolean): ToolExecutionContext {
       web
     },
     createdAt: now,
-    updatedAt: now
+    updatedAt: now,
+    sleeping: false
   };
   const agent = Agent.restore(
     agentId,

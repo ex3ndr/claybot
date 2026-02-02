@@ -38,6 +38,7 @@ import { agentDescriptorTargetResolve } from "./ops/agentDescriptorTargetResolve
 import type { AgentDescriptor } from "./ops/agentDescriptorTypes.js";
 import type {
   AgentHistoryRecord,
+  AgentInboxItem,
   AgentInboxMessage,
   AgentInboxPermission,
   AgentInboxReset,
@@ -98,7 +99,8 @@ export class Agent {
       context: { messages: [] },
       permissions: permissionClone(agentSystem.config.defaultPermissions),
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
+      sleeping: false
     };
 
     const agent = new Agent(agentId, descriptor, state, inbox, agentSystem);
@@ -162,6 +164,7 @@ export class Agent {
         try {
           const result = await this.handleInboxItem(entry.item);
           entry.completion?.resolve(result);
+          await this.sleepAfterItem(entry.item);
         } catch (error) {
           const failure = error instanceof Error ? error : new Error(String(error));
           logger.error(
@@ -185,6 +188,17 @@ export class Agent {
     } finally {
       this.inbox.detach();
     }
+  }
+
+  /**
+   * Attempts to put the agent to sleep after processing a message or reset.
+   * Expects: inbox item handled successfully.
+   */
+  private async sleepAfterItem(item: AgentInboxItem): Promise<void> {
+    if (item.type !== "message" && item.type !== "reset" && item.type !== "permission") {
+      return;
+    }
+    await this.agentSystem.sleepIfIdle(this.id, item.type);
   }
 
   private async handleInboxItem(item: AgentInboxMessage | AgentInboxReset | AgentInboxRestore | AgentInboxPermission): Promise<AgentInboxResult> {
