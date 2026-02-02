@@ -64,6 +64,19 @@ flowchart LR
   Wrapped --> Inbox[AgentInbox]
 ```
 
+## System message persistence
+System messages are treated like normal incoming messages. They are recorded in
+`history.jsonl` and included in the rebuilt runtime context so agents can see
+them and logs show the full flow.
+
+```mermaid
+flowchart LR
+  Wrapped["<system_message ...>"] --> Inbox[AgentInbox]
+  Inbox --> History[history.jsonl user_message]
+  History --> Context[buildHistoryContext]
+  Context --> Inference[agent loop]
+```
+
 ## Permission request forwarding
 Background agents use `request_permission`. The engine routes those requests through the most
 recent foreground agent and includes the requesting agent id so approvals route back correctly.
