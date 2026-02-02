@@ -1,8 +1,10 @@
 import { Type, type Static } from "@sinclair/typebox";
+import { getOAuthApiKey, type OAuthCredentials, type OAuthProviderId } from "@mariozechner/pi-ai";
 import type { ToolResultMessage } from "@mariozechner/pi-ai";
 import { z } from "zod";
 
 import { definePlugin } from "../../engine/plugins/types.js";
+import type { AuthEntry, AuthStore } from "../../auth/store.js";
 
 const settingsSchema = z
   .object({
@@ -34,6 +36,45 @@ type AnthropicResponse = {
     message?: string;
   };
 };
+
+function stripOAuth(entry: AuthEntry): OAuthCredentials {
+  const { type: _type, ...rest } = entry;
+  return rest as OAuthCredentials;
+}
+
+async function resolveOAuthApiKey(
+  auth: AuthStore,
+  providerId: OAuthProviderId,
+  entry: AuthEntry
+): Promise<string | null> {
+  if (entry.type !== "oauth") {
+    return null;
+  }
+  const result = await getOAuthApiKey(providerId, {
+    [providerId]: stripOAuth(entry)
+  });
+  if (!result) {
+    return null;
+  }
+  await auth.setOAuth(providerId, result.newCredentials as Record<string, unknown>);
+  return result.apiKey;
+}
+
+async function resolveAnthropicApiKey(
+  auth: AuthStore,
+  instanceId: string
+): Promise<string | null> {
+  const instanceKey = await auth.getApiKey(instanceId);
+  if (instanceKey) {
+    return instanceKey;
+  }
+
+  const providerEntry = await auth.getEntry("anthropic");
+  if (providerEntry?.type === "oauth") {
+    return resolveOAuthApiKey(auth, "anthropic", providerEntry);
+  }
+  return providerEntry?.apiKey ?? null;
+}
 
 async function validateApiKey(apiKey: string): Promise<void> {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -90,11 +131,28 @@ export const plugin = definePlugin({
       }
     }
 
-    // Reuses existing Anthropic provider credentials
-    const providerKey = await api.auth.getApiKey("anthropic");
-    if (providerKey) {
+    const providerEntry = await api.auth.getEntry("anthropic");
+    if (providerEntry?.type === "oauth") {
       try {
-        await validateApiKey(providerKey);
+        const oauthKey = await resolveOAuthApiKey(api.auth, "anthropic", providerEntry);
+        if (oauthKey) {
+          await validateApiKey(oauthKey);
+          api.note("Using existing Anthropic subscription credentials.", "Setup");
+          return { settings: {} };
+        }
+        api.note(
+          "Anthropic subscription credentials are missing or expired, prompting for a new key.",
+          "Setup"
+        );
+      } catch (error) {
+        api.note(
+          "Existing Anthropic subscription credentials failed validation, prompting for a new key.",
+          "Setup"
+        );
+      }
+    } else if (providerEntry?.apiKey) {
+      try {
+        await validateApiKey(providerEntry.apiKey);
         api.note("Using existing Anthropic provider credentials.", "Setup");
         return { settings: {} };
       } catch (error) {
@@ -136,11 +194,8 @@ export const plugin = definePlugin({
             }
             const payload = args as FetchArgs;
 
-            // Try plugin-specific key first, fallback to Anthropic provider key
-            let apiKey = await api.auth.getApiKey(instanceId);
-            if (!apiKey) {
-              apiKey = await api.auth.getApiKey("anthropic");
-            }
+            // Try plugin-specific key first, fallback to Anthropic provider OAuth/apiKey
+            const apiKey = await resolveAnthropicApiKey(api.auth, instanceId);
             if (!apiKey) {
               throw new Error(
                 "Missing API key. Configure 'anthropic' provider or run plugin onboarding."

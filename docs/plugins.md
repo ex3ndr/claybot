@@ -137,7 +137,7 @@ flowchart TD
   Content --> Agent["toolResult"]
 ```
 
-During onboarding, plugins validate existing credentials (instance or provider) with a lightweight request and prompt for a new key if validation fails.
+During onboarding, plugins validate existing credentials (instance, provider, or subscription OAuth) with a lightweight request and prompt for a new key if validation fails.
 
 ```mermaid
 sequenceDiagram
@@ -148,6 +148,14 @@ sequenceDiagram
   Plugin->>Provider: validate request
   Provider-->>Plugin: ok/error
   Plugin-->>User: saved or retry
+```
+
+```mermaid
+flowchart TD
+  OAuth["OAuth subscription credentials"] --> Refresh["getOAuthApiKey()"]
+  Refresh --> ApiKey["derived API key"]
+  ApiKey --> Validate["validate request"]
+  Validate --> Plugin["use or prompt"]
 ```
 
 ## Built-in plugins

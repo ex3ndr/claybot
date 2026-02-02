@@ -1,8 +1,10 @@
 import { Type, type Static } from "@sinclair/typebox";
+import { getOAuthApiKey, type OAuthCredentials, type OAuthProviderId } from "@mariozechner/pi-ai";
 import type { ToolResultMessage } from "@mariozechner/pi-ai";
 import { z } from "zod";
 
 import { definePlugin } from "../../engine/plugins/types.js";
+import type { AuthEntry, AuthStore } from "../../auth/store.js";
 
 const settingsSchema = z
   .object({
@@ -41,6 +43,51 @@ type OpenAIResponse = {
     message?: string;
   };
 };
+
+function stripOAuth(entry: AuthEntry): OAuthCredentials {
+  const { type: _type, ...rest } = entry;
+  return rest as OAuthCredentials;
+}
+
+async function resolveOAuthApiKey(
+  auth: AuthStore,
+  providerId: OAuthProviderId,
+  entry: AuthEntry
+): Promise<string | null> {
+  if (entry.type !== "oauth") {
+    return null;
+  }
+  const result = await getOAuthApiKey(providerId, {
+    [providerId]: stripOAuth(entry)
+  });
+  if (!result) {
+    return null;
+  }
+  await auth.setOAuth(providerId, result.newCredentials as Record<string, unknown>);
+  return result.apiKey;
+}
+
+async function resolveOpenAiApiKey(
+  auth: AuthStore,
+  instanceId: string
+): Promise<string | null> {
+  const instanceKey = await auth.getApiKey(instanceId);
+  if (instanceKey) {
+    return instanceKey;
+  }
+
+  const providerKey = await auth.getApiKey("openai");
+  if (providerKey) {
+    return providerKey;
+  }
+
+  const codexEntry = await auth.getEntry("openai-codex");
+  if (codexEntry?.type === "oauth") {
+    return resolveOAuthApiKey(auth, "openai-codex", codexEntry);
+  }
+
+  return null;
+}
 
 async function validateApiKey(apiKey: string): Promise<void> {
   const response = await fetch("https://api.openai.com/v1/responses", {
@@ -92,9 +139,30 @@ export const plugin = definePlugin({
       }
     }
 
+    const codexEntry = await api.auth.getEntry("openai-codex");
+    if (codexEntry?.type === "oauth") {
+      try {
+        const oauthKey = await resolveOAuthApiKey(api.auth, "openai-codex", codexEntry);
+        if (oauthKey) {
+          await validateApiKey(oauthKey);
+          api.note("Using existing OpenAI Codex subscription credentials.", "Setup");
+          return { settings: {} };
+        }
+        api.note(
+          "OpenAI Codex subscription credentials are missing or expired, prompting for a new key.",
+          "Setup"
+        );
+      } catch (error) {
+        api.note(
+          "Existing OpenAI Codex subscription credentials failed validation, prompting for a new key.",
+          "Setup"
+        );
+      }
+    }
+
     // Fallback: prompt for API key if OpenAI provider not configured or invalid
     const apiKey = await api.prompt.input({
-      message: "OpenAI API key (or configure 'openai' provider first)"
+      message: "OpenAI API key (or configure 'openai' or 'openai-codex' provider first)"
     });
     if (!apiKey) {
       return null;
@@ -123,14 +191,11 @@ export const plugin = definePlugin({
             }
             const payload = args as SearchArgs;
 
-            // Try plugin-specific key first, fallback to OpenAI provider key
-            let apiKey = await api.auth.getApiKey(instanceId);
-            if (!apiKey) {
-              apiKey = await api.auth.getApiKey("openai");
-            }
+            // Try plugin-specific key first, fallback to OpenAI provider or Codex OAuth
+            const apiKey = await resolveOpenAiApiKey(api.auth, instanceId);
             if (!apiKey) {
               throw new Error(
-                "Missing API key. Configure 'openai' provider or run plugin onboarding."
+                "Missing API key. Configure 'openai' or 'openai-codex' provider or run plugin onboarding."
               );
             }
 
