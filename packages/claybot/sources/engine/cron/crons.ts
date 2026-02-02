@@ -17,7 +17,7 @@ export type CronsOptions = {
 
 /**
  * Coordinates cron storage + scheduling for engine runtime.
- * Expects: onTask handles routing to background agents.
+ * Expects: onTask handles routing to the agent system.
  */
 export class Crons {
   private readonly eventBus: EngineEventBus;

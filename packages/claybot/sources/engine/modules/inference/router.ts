@@ -43,11 +43,11 @@ export class InferenceRouter {
 
   async complete(
     context: Context,
-    sessionId: string,
+    agentId: string,
     options?: Omit<InferenceRouterOptions, "providers" | "registry" | "auth">
   ): Promise<InferenceResult> {
     const providers = options?.providersOverride ?? this.providers;
-    this.logger.debug(`InferenceRouter.complete() starting sessionId=${sessionId} messageCount=${context.messages.length} toolCount=${context.tools?.length ?? 0} providerCount=${providers.length}`);
+    this.logger.debug(`InferenceRouter.complete() starting agentId=${agentId} messageCount=${context.messages.length} toolCount=${context.tools?.length ?? 0} providerCount=${providers.length}`);
     let lastError: unknown = null;
 
     for (const [index, providerConfig] of providers.entries()) {
@@ -79,8 +79,9 @@ export class InferenceRouter {
 
       options?.onAttempt?.(providerConfig.id, client.modelId);
       try {
-        this.logger.debug(`Calling client.complete() providerId=${providerConfig.id} modelId=${client.modelId} sessionId=${sessionId}`);
-        const message = await client.complete(context, { sessionId });
+        this.logger.debug(`Calling client.complete() providerId=${providerConfig.id} modelId=${client.modelId} agentId=${agentId}`);
+        // Provider API still expects `sessionId`; map to the agent id.
+        const message = await client.complete(context, { sessionId: agentId });
         this.logger.debug(`Inference completed successfully providerId=${providerConfig.id} modelId=${client.modelId} stopReason=${message.stopReason} contentBlocks=${message.content.length} inputTokens=${message.usage?.input} outputTokens=${message.usage?.output}`);
         options?.onSuccess?.(providerConfig.id, client.modelId, message);
         return { message, providerId: providerConfig.id, modelId: client.modelId };

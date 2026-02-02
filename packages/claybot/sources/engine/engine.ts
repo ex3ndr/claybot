@@ -6,6 +6,7 @@ import { AgentSystem } from "./agents/agentSystem.js";
 import { ModuleRegistry } from "./modules/moduleRegistry.js";
 import type {
   AgentRuntime,
+  AgentState,
   Config,
   MessageContext,
   ToolExecutionResult
@@ -20,7 +21,8 @@ import { buildPluginCatalog } from "./plugins/catalog.js";
 import { ensureWorkspaceDir } from "./permissions.js";
 import { permissionClone } from "./permissions/permissionClone.js";
 import { getProviderDefinition, listActiveInferenceProviders } from "../providers/catalog.js";
-import { Session } from "./sessions/session.js";
+import { Agent } from "./agents/agent.js";
+import { AgentInbox } from "./agents/ops/agentInbox.js";
 import { AuthStore } from "../auth/store.js";
 import {
   buildCronDeleteTaskTool,
@@ -39,13 +41,11 @@ import {
   buildHeartbeatRemoveTool,
   buildHeartbeatRunTool
 } from "./modules/tools/heartbeat.js";
-import { buildSendSessionMessageTool, buildStartBackgroundAgentTool } from "./modules/tools/background.js";
-import { cuid2Is } from "../utils/cuid2Is.js";
+import { buildSendAgentMessageTool, buildStartBackgroundAgentTool } from "./modules/tools/background.js";
 import { Crons } from "./cron/crons.js";
 import { Heartbeats } from "./heartbeat/heartbeats.js";
 import { toolListContextBuild } from "./modules/tools/toolListContextBuild.js";
-import { sessionDescriptorBuild } from "./sessions/sessionDescriptorBuild.js";
-import type { SessionState } from "./sessions/sessionStateTypes.js";
+import { agentDescriptorBuild } from "./agents/ops/agentDescriptorBuild.js";
 import { EngineEventBus } from "./ipc/events.js";
 import { ProviderManager } from "../providers/manager.js";
 
@@ -97,7 +97,7 @@ export class Engine {
         void this.agentSystem.scheduleMessage(source, message, context);
       },
       onPermission: (source, decision, context) => {
-        void this.agentSystem.handlePermissionDecision(source, decision, context);
+        void this.agentSystem.schedulePermissionDecision(source, decision, context);
       },
       onFatal: (source, reason, error) => {
         logger.warn({ source, reason, error }, "Connector requested shutdown");
@@ -110,12 +110,7 @@ export class Engine {
       auth: this.authStore
     });
 
-    this.pluginRegistry = new PluginRegistry(
-      this.modules.connectors,
-      this.modules.inference,
-      this.modules.images,
-      this.modules.tools
-    );
+    this.pluginRegistry = new PluginRegistry(this.modules);
 
     this.pluginManager = new PluginManager({
       config: this.config,
@@ -141,31 +136,23 @@ export class Engine {
       config: this.config,
       eventBus: this.eventBus,
       onTask: async (task, context) => {
-        const messageContext = agentSystem.withProviderContext({
-          ...context,
-          cron: {
-            taskId: task.taskId,
-            taskUid: task.taskUid,
-            taskName: task.taskName,
-            memoryPath: task.memoryPath,
-            filesPath: task.filesPath
-          }
-        });
+        const descriptor = { type: "cron" as const, id: task.taskUid };
+        const messageContext: MessageContext = {
+          channelId: context.channelId,
+          userId: context.userId
+        };
         logger.debug(
-          `CronScheduler.onTask triggered channelId=${messageContext.channelId} sessionId=${messageContext.sessionId}`
+          `CronScheduler.onTask triggered channelId=${messageContext.channelId} taskUid=${task.taskUid}`
         );
-        await agentSystem.startBackgroundAgent({
-          prompt: task.prompt,
-          sessionId: messageContext.sessionId,
-          name: task.taskName,
-          context: {
-            userId: "cron",
-            cron: messageContext.cron,
-            providerId: messageContext.providerId,
-            channelType: messageContext.channelType,
-            channelId: messageContext.channelId
+        await agentSystem.post(
+          { descriptor },
+          {
+            type: "message",
+            source: "cron",
+            message: { text: task.prompt },
+            context: messageContext
           }
-        });
+        );
       }
     });
     this.heartbeats = new Heartbeats({
@@ -173,16 +160,23 @@ export class Engine {
       eventBus: this.eventBus,
       intervalMs: 30 * 60 * 1000,
       runtime: {
-        resolveSessionId: () =>
-          agentSystem.resolveSessionId("heartbeat") ??
-          agentSystem.getOrCreateSessionIdForDescriptor({ type: "heartbeat" }),
-        startBackgroundAgent: (args) => agentSystem.startBackgroundAgent(args)
+        postHeartbeat: async ({ prompt }) => {
+          await agentSystem.post(
+            { descriptor: { type: "heartbeat" } },
+            {
+              type: "message",
+              source: "heartbeat",
+              message: { text: prompt },
+              context: { channelId: "heartbeat", userId: "heartbeat" }
+            }
+          );
+        }
       }
     });
 
     const agentRuntime: AgentRuntime = {
       startBackgroundAgent: (args) => agentSystem.startBackgroundAgent(args),
-      sendSessionMessage: (args) => agentSystem.sendSessionMessage(args),
+      sendAgentMessage: (args) => agentSystem.sendAgentMessage(args),
       runHeartbeatNow: (args) => this.heartbeats.runNow(args),
       addHeartbeatTask: (args) => this.heartbeats.addTask(args),
       listHeartbeatTasks: () => this.heartbeats.listTasks(),
@@ -212,10 +206,9 @@ export class Engine {
     logger.debug("Engine.start() beginning");
     await ensureWorkspaceDir(this.config.defaultPermissions.workingDir);
 
-    logger.debug("Loading agent sessions");
+    logger.debug("Loading agents");
     await this.agentSystem.load();
-    this.agentSystem.enableScheduling();
-    logger.debug("Agent sessions loaded");
+    logger.debug("Agents loaded");
 
     logger.debug("Syncing provider manager with settings");
     await this.providerManager.sync();
@@ -240,7 +233,7 @@ export class Engine {
     this.modules.tools.register("core", buildHeartbeatListTool());
     this.modules.tools.register("core", buildHeartbeatRemoveTool());
     this.modules.tools.register("core", buildStartBackgroundAgentTool());
-    this.modules.tools.register("core", buildSendSessionMessageTool());
+    this.modules.tools.register("core", buildSendAgentMessageTool());
     this.modules.tools.register("core", buildImageGenerationTool(this.modules.images));
     this.modules.tools.register("core", buildReactionTool());
     this.modules.tools.register("core", buildSendFileTool());
@@ -304,12 +297,8 @@ export class Engine {
     };
   }
 
-  resetSessionByStorageId(storageId: string): boolean {
-    return this.agentSystem.resetSessionByStorageId(storageId);
-  }
-
-  resetSession(sessionId: string): boolean {
-    return this.agentSystem.resetSession(sessionId);
+  resetAgent(agentId: string): boolean {
+    return this.agentSystem.resetAgent(agentId);
   }
 
   private listContextTools(
@@ -337,41 +326,33 @@ export class Engine {
       type: "toolCall",
       arguments: args
     };
-    const now = new Date();
-    const sessionId = cuid2Is(messageContext?.sessionId ?? null)
-      ? messageContext!.sessionId!
-      : createId();
-    const session = new Session<SessionState>(
-      sessionId,
-      {
-        id: sessionId,
-        createdAt: now,
-        updatedAt: now,
-        state: {
-          context: { messages: [] },
-          providerId: undefined,
-          permissions: permissionClone(this.config.defaultPermissions),
-          session: undefined
-        }
-      },
-      createId()
-    );
-    const context: MessageContext =
-      messageContext ?? {
-        channelId: sessionId,
-        userId: "system",
-        sessionId
-      };
-    session.context.state.session = sessionDescriptorBuild("system", context, sessionId);
+    const now = Date.now();
+    const agentId = createId();
+    const context: MessageContext = {
+      channelId: messageContext?.channelId ?? agentId,
+      userId: messageContext?.userId ?? "system",
+      messageId: messageContext?.messageId
+    };
+    const descriptor = agentDescriptorBuild("system", context, agentId);
+    const state: AgentState = {
+      context: { messages: [] },
+      providerId: null,
+      permissions: permissionClone(this.agentSystem.config.defaultPermissions),
+      routing: null,
+      agent: null,
+      createdAt: now,
+      updatedAt: now
+    };
+    const agent = Agent.restore(agentId, descriptor, state, new AgentInbox(agentId), this.agentSystem);
 
     return this.modules.tools.execute(toolCall, {
       connectorRegistry: this.modules.connectors,
       fileStore: this.fileStore,
       auth: this.authStore,
       logger,
-      assistant: this.config.settings.assistant ?? null,
-      permissions: session.context.state.permissions,
-      session,
+      assistant: this.agentSystem.config.settings.assistant ?? null,
+      permissions: agent.state.permissions,
+      agent,
       source: "system",
       messageContext: context,
       agentRuntime: this.agentRuntime

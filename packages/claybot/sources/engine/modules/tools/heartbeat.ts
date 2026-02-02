@@ -41,9 +41,6 @@ export function buildHeartbeatRunTool(): ToolDefinition {
       parameters: runSchema
     },
     execute: async (args, toolContext, toolCall) => {
-      if (!toolContext.agentRuntime?.runHeartbeatNow) {
-        throw new Error("Heartbeat unavailable");
-      }
       const payload = args as RunHeartbeatArgs;
       const result = await toolContext.agentRuntime.runHeartbeatNow({ ids: payload.ids });
 
@@ -63,7 +60,7 @@ export function buildHeartbeatRunTool(): ToolDefinition {
         timestamp: Date.now()
       };
 
-      return { toolMessage };
+      return { toolMessage, files: [] };
     }
   };
 }
@@ -76,9 +73,6 @@ export function buildHeartbeatAddTool(): ToolDefinition {
       parameters: addSchema
     },
     execute: async (args, toolContext, toolCall) => {
-      if (!toolContext.agentRuntime?.addHeartbeatTask) {
-        throw new Error("Heartbeat unavailable");
-      }
       const payload = args as AddHeartbeatArgs;
       const result = await toolContext.agentRuntime.addHeartbeatTask({
         id: payload.id,
@@ -106,7 +100,7 @@ export function buildHeartbeatAddTool(): ToolDefinition {
         timestamp: Date.now()
       };
 
-      return { toolMessage };
+      return { toolMessage, files: [] };
     }
   };
 }
@@ -119,9 +113,6 @@ export function buildHeartbeatListTool(): ToolDefinition {
       parameters: listSchema
     },
     execute: async (_args, toolContext, toolCall) => {
-      if (!toolContext.agentRuntime?.listHeartbeatTasks) {
-        throw new Error("Heartbeat unavailable");
-      }
       const tasks = await toolContext.agentRuntime.listHeartbeatTasks();
       const text = tasks.length > 0
         ? tasks
@@ -151,7 +142,7 @@ export function buildHeartbeatListTool(): ToolDefinition {
         timestamp: Date.now()
       };
 
-      return { toolMessage };
+      return { toolMessage, files: [] };
     }
   };
 }
@@ -164,9 +155,6 @@ export function buildHeartbeatRemoveTool(): ToolDefinition {
       parameters: removeSchema
     },
     execute: async (args, toolContext, toolCall) => {
-      if (!toolContext.agentRuntime?.removeHeartbeatTask) {
-        throw new Error("Heartbeat unavailable");
-      }
       const payload = args as RemoveHeartbeatArgs;
       const result = await toolContext.agentRuntime.removeHeartbeatTask({ id: payload.id });
 
@@ -187,7 +175,7 @@ export function buildHeartbeatRemoveTool(): ToolDefinition {
         timestamp: Date.now()
       };
 
-      return { toolMessage };
+      return { toolMessage, files: [] };
     }
   };
 }

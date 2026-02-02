@@ -26,35 +26,8 @@ export type ConnectorMessage = {
 
 export type MessageContext = {
   channelId: string;
-  channelType?: "private" | "group" | "supergroup" | "channel" | "unknown";
   userId: string;
-  userFirstName?: string;
-  userLastName?: string;
-  username?: string;
-  commands?: ConnectorCommand[];
-  sessionId?: string;
   messageId?: string;
-  providerId?: string;
-  agent?: {
-    kind: "background";
-    parentSessionId?: string;
-    name?: string;
-  };
-  cron?: {
-    taskId: string;
-    taskUid: string;
-    taskName: string;
-    memoryPath: string;
-    filesPath: string;
-  };
-  // Presence marks a heartbeat context; no extra fields.
-  heartbeat?: Record<string, never>;
-};
-
-export type ConnectorCommand = {
-  name: string;
-  raw: string;
-  args?: string;
 };
 
 export type MessageHandler = (

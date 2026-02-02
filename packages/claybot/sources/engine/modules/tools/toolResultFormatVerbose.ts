@@ -18,7 +18,7 @@ export function toolResultFormatVerbose(result: ToolExecutionResult): string {
     ? content
     : JSON.stringify(content);
   const truncated = stringTruncate(contentText, 300);
-  const fileInfo = result.files?.length
+  const fileInfo = result.files.length
     ? ` (${result.files.length} file${result.files.length > 1 ? "s" : ""})`
     : "";
   return `[result]${fileInfo} ${truncated}`;

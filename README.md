@@ -11,8 +11,8 @@
 ## Features
 
 - **Plugin system** - Connectors, inference providers, tools, and image generators as plugins
-- **Session management** - Per-channel message sequencing with persistent state
-- **Memory plugin** - Searchable conversation history across sessions
+- **Agent management** - Per-channel message sequencing with persistent state
+- **Memory plugin** - Searchable conversation history across agents
 - **Cron scheduler** - Timed message dispatch and scheduled actions
 - **Multi-provider inference** - Anthropic Claude, OpenAI, and more
 - **Dashboard** - React SPA for monitoring and control
@@ -26,11 +26,11 @@ flowchart LR
   Plugins --> Connectors[Connectors]
   Plugins --> Inference[Inference Providers]
   Plugins --> Tools[Tool Resolver]
-  Connectors -->|message| Sessions[Session Manager]
-  Cron[Cron Scheduler] -->|message| Sessions
-  Sessions --> InferenceRouter[Inference Router]
+  Connectors -->|message| Agents[Agent System]
+  Cron[Cron Scheduler] -->|message| Agents
+  Agents --> InferenceRouter[Inference Router]
   InferenceRouter --> Tools
-  Sessions --> Memory[Memory Plugin]
+  Agents --> Memory[Memory Plugin]
   Engine --> Socket[HTTP Socket API]
   Socket --> Dashboard[claybot-dashboard]
 ```
@@ -132,7 +132,7 @@ See [docs/](./docs/) for detailed documentation:
 
 - [Architecture](./docs/architecture.md) - System overview
 - [Plugins](./docs/plugins.md) - Plugin system
-- [Sessions](./docs/sessions.md) - Session management
+- [Agents](./docs/agents.md) - Agent management
 - [Memory](./docs/memory.md) - Memory plugin
 - [Cron](./docs/cron.md) - Scheduled tasks
 - [Config](./docs/config.md) - Configuration reference

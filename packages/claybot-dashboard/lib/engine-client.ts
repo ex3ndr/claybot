@@ -28,28 +28,35 @@ export type HeartbeatTask = {
 };
 
 export type BackgroundAgentState = {
-  sessionId: string;
-  storageId: string;
-  name?: string;
-  parentSessionId?: string;
+  agentId: string;
+  name: string | null;
+  parentAgentId: string | null;
   status: "running" | "queued" | "idle";
   pending: number;
-  updatedAt?: string;
+  updatedAt: number;
 };
 
-export type SessionContext = {
+export type FileReference = {
+  id: string;
+  name: string;
+  path: string;
+  mimeType: string;
+  size: number;
+};
+
+export type MessageContext = {
   channelId: string;
   channelType?: "private" | "group" | "supergroup" | "channel" | "unknown";
   userId: string;
   userFirstName?: string;
   userLastName?: string;
   username?: string;
-  sessionId?: string;
+  agentId?: string;
   messageId?: string;
   providerId?: string;
   agent?: {
     kind: "background";
-    parentSessionId?: string;
+    parentAgentId?: string;
     name?: string;
   };
   cron?: {
@@ -59,101 +66,39 @@ export type SessionContext = {
     memoryPath: string;
     filesPath: string;
   };
-  // Presence marks a heartbeat context; no extra fields.
   heartbeat?: Record<string, never>;
 };
 
-export type Session = {
-  sessionId: string;
-  storageId: string;
-  source?: string;
-  context?: SessionContext;
-  lastMessage?: string | null;
-  createdAt?: string;
-  updatedAt?: string;
+export type AgentDescriptor =
+  | { type: "user"; connector: string; userId: string; channelId: string }
+  | { type: "cron"; id: string }
+  | { type: "heartbeat" }
+  | { type: "subagent"; id: string; parentAgentId: string; name: string };
+
+export type AgentSummary = {
+  agentId: string;
+  descriptor: AgentDescriptor;
+  updatedAt: number;
 };
 
-export type SessionEntry =
+export type AgentHistoryRecord =
+  | { type: "start"; at: number }
+  | { type: "reset"; at: number }
+  | { type: "user_message"; at: number; text: string; files: FileReference[] }
   | {
-      type: "session_created";
-      sessionId: string;
-      storageId: string;
-      source: string;
-      context: Record<string, unknown>;
-      createdAt: string;
+      type: "assistant_message";
+      at: number;
+      text: string;
+      files: FileReference[];
+      toolCalls: Record<string, unknown>[];
     }
   | {
-      type: "model_context";
-      sessionId: string;
-      storageId: string;
-      source: string;
-      messageId?: string;
-      iteration?: number;
-      messages: Array<Record<string, unknown>>;
-      createdAt: string;
+      type: "tool_result";
+      at: number;
+      toolCallId: string;
+      output: { toolMessage: Record<string, unknown>; files: FileReference[] };
     }
-  | {
-      type: "incoming";
-      sessionId: string;
-      storageId: string;
-      source: string;
-      messageId: string;
-      context: Record<string, unknown>;
-      text: string | null;
-      files?: Array<{
-        id: string;
-        name: string;
-        mimeType: string;
-        size: number;
-        path: string;
-      }>;
-      receivedAt: string;
-    }
-  | {
-      type: "outgoing";
-      sessionId: string;
-      storageId: string;
-      source: string;
-      origin?: "model" | "system";
-      messageId: string;
-      context: Record<string, unknown>;
-      text: string | null;
-      files?: Array<{
-        id: string;
-        name: string;
-        mimeType: string;
-        size: number;
-        path: string;
-      }>;
-      sentAt: string;
-    }
-  | {
-      type: "session_reset";
-      sessionId: string;
-      storageId: string;
-      source: string;
-      messageId?: string;
-      ok: boolean;
-      createdAt: string;
-    }
-  | {
-      type: "session_compaction";
-      sessionId: string;
-      storageId: string;
-      source: string;
-      messageId?: string;
-      ok: boolean;
-      summary?: string;
-      error?: string;
-      createdAt: string;
-    }
-  | {
-      type: "state";
-      sessionId: string;
-      storageId: string;
-      updatedAt: string;
-      state: Record<string, unknown>;
-    };
+  | { type: "note"; at: number; text: string };
 
 export type EngineEvent = {
   type: string;
@@ -181,12 +126,12 @@ type BackgroundAgentsResponse = {
   agents?: BackgroundAgentState[];
 };
 
-type SessionsResponse = {
-  sessions?: Session[];
+type AgentsResponse = {
+  agents?: AgentSummary[];
 };
 
-type SessionEntriesResponse = {
-  entries?: SessionEntry[];
+type AgentHistoryResponse = {
+  records?: AgentHistoryRecord[];
 };
 
 async function fetchJSON<T>(url: string): Promise<T> {
@@ -217,13 +162,13 @@ export async function fetchBackgroundAgents() {
   return data.agents ?? [];
 }
 
-export async function fetchSessions() {
-  const data = await fetchJSON<SessionsResponse>("/api/v1/engine/sessions");
-  return data.sessions ?? [];
+export async function fetchAgents() {
+  const data = await fetchJSON<AgentsResponse>("/api/v1/engine/agents");
+  return data.agents ?? [];
 }
 
-export async function fetchSessionEntries(storageId: string) {
-  const encoded = encodeURIComponent(storageId);
-  const data = await fetchJSON<SessionEntriesResponse>(`/api/v1/engine/sessions/${encoded}`);
-  return data.entries ?? [];
+export async function fetchAgentHistory(agentId: string) {
+  const encoded = encodeURIComponent(agentId);
+  const data = await fetchJSON<AgentHistoryResponse>(`/api/v1/engine/agents/${encoded}/history`);
+  return data.records ?? [];
 }

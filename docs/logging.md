@@ -51,11 +51,12 @@ Debug logs include key data embedded in the message text using `key=value` forma
 
 | Component | Module | What it logs |
 |-----------|-------|--------------|
-| Engine | `engine.runtime` | Message processing flow, inference loop, tool execution, session lifecycle |
+| Engine | `engine.runtime` | Message processing flow, inference loop, tool execution, agent lifecycle |
+| Agent System | `engine.agent-system` | Agent creation, inbox routing, restore/load |
+| Agent | `engine.agent` | Agent prompt building, history handling |
 | Inference Router | `inference.router` | Provider selection, fallback attempts, client creation, completion calls |
 | Plugin Manager | `plugins.manager` | Plugin load/unload, settings sync, module loading |
 | Plugin Events | `plugins.events` | Event dispatch, handler registration |
-| Session Manager | `sessions.manager` | Session creation, message queue, processing state |
 | Provider Manager | `providers.manager` | Provider sync, load/unload |
 | Connectors | `connectors.registry` | Connector registration, message handling |
 | Inference Registry | `inference.registry` | Provider registration |
@@ -77,19 +78,18 @@ Example output tracing a message:
 [09:41:12] (telegram            ) Received Telegram message chatId=123 messageId=456
 [09:41:12] (telegram            ) Dispatching to handlers handlerCount=1 channelId=123
 [09:41:12] [engine.runtime      ] Handling connector.message event
-[09:41:12] [sessions.manager    ] handleMessage() called source=telegram channelId=123 hasText=true fileCount=0
-[09:41:12] [sessions.manager    ] Creating new session sessionId=anthropic:user-123
-[09:41:12] [engine.runtime      ] handleSessionMessage started sessionId=anthropic:user-123 messageId=abc hasText=true textLength=15 fileCount=0
-[09:41:12] [engine.runtime      ] Inference loop iteration=0 sessionId=anthropic:user-123 messageCount=1
+[09:41:12] [engine.agent-system ] scheduleMessage() called source=telegram channelId=123
+[09:41:12] [engine.agent        ] handleMessage() called agentId=anthropic:user-123 messageId=abc hasText=true textLength=15 fileCount=0
+[09:41:12] [engine.runtime      ] Inference loop iteration=0 agentId=anthropic:user-123 messageCount=1
 [09:41:12] [inference.router    ] Trying provider providerIndex=0 providerId=anthropic model=claude-sonnet-4-20250514
 [09:41:12] [inference.router    ] Creating inference client providerId=anthropic model=claude-sonnet-4-20250514
-[09:41:12] [inference.router    ] Calling client.complete() providerId=anthropic modelId=claude-sonnet-4-20250514 sessionId=anthropic:user-123
+[09:41:12] [inference.router    ] Calling client.complete() providerId=anthropic modelId=claude-sonnet-4-20250514 agentId=anthropic:user-123
 [09:41:12] [inference.router    ] Inference completed successfully providerId=anthropic modelId=claude-sonnet-4-20250514 stopReason=end_turn contentBlocks=1 inputTokens=50 outputTokens=100
 [09:41:12] [engine.modules      ] Extracted tool calls from response toolCallCount=0
 [09:41:12] [engine.runtime      ] No tool calls, breaking inference loop iteration=0
 [09:41:12] (telegram            ) Sending response to user textLength=200 fileCount=0 channelId=123
 [09:41:12] (telegram            ) Response sent successfully
-[09:41:12] [engine.runtime      ] handleSessionMessage completed successfully
+[09:41:12] [engine.runtime      ] handleMessage completed successfully
 ```
 
 ### Filtering Logs
@@ -101,5 +101,5 @@ CLAYBOT_LOG_LEVEL=debug yarn dev 2>&1 | grep -F "[inference.router"
 
 To filter by specific key:
 ```bash
-CLAYBOT_LOG_LEVEL=debug yarn dev 2>&1 | grep "sessionId="
+CLAYBOT_LOG_LEVEL=debug yarn dev 2>&1 | grep "agentId="
 ```

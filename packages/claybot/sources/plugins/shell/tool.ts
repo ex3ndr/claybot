@@ -5,7 +5,7 @@ import path from "node:path";
 import { exec as execCallback, type ExecException } from "node:child_process";
 import { promisify } from "node:util";
 
-import type { ToolDefinition } from "@/types";
+import type { ToolDefinition, ToolExecutionResult } from "@/types";
 import type { SessionPermissions } from "@/types";
 import { resolveWorkspacePath } from "../../engine/permissions.js";
 import { wrapWithSandbox } from "../../sandbox/runtime.js";
@@ -79,14 +79,14 @@ export function buildWorkspaceReadTool(): ToolDefinition {
     tool: {
       name: "read",
       description:
-        "Read a UTF-8 text file from the session workspace or an allowed read directory. The path must be absolute and within the allowed read set. Large files are truncated.",
+        "Read a UTF-8 text file from the agent workspace or an allowed read directory. The path must be absolute and within the allowed read set. Large files are truncated.",
       parameters: readSchema
     },
     execute: async (args, toolContext, toolCall) => {
       const payload = args as ReadArgs;
       const workingDir = toolContext.permissions.workingDir;
       if (!workingDir) {
-        throw new Error("Session workspace is not configured.");
+        throw new Error("Workspace is not configured.");
       }
       ensureAbsolutePath(payload.path);
       const resolved = await resolveReadPathSecure(toolContext.permissions, payload.path);
@@ -100,14 +100,14 @@ export function buildWorkspaceWriteTool(): ToolDefinition {
     tool: {
       name: "write",
       description:
-        "Write UTF-8 text to a file within the session workspace or an allowed write directory. Creates parent directories as needed. If append is true, appends to the file. Paths must be absolute and within the allowed write set.",
+        "Write UTF-8 text to a file within the agent workspace or an allowed write directory. Creates parent directories as needed. If append is true, appends to the file. Paths must be absolute and within the allowed write set.",
       parameters: writeSchema
     },
     execute: async (args, toolContext, toolCall) => {
       const payload = args as WriteArgs;
       const workingDir = toolContext.permissions.workingDir;
       if (!workingDir) {
-        throw new Error("Session workspace is not configured.");
+        throw new Error("Workspace is not configured.");
       }
       ensureAbsolutePath(payload.path);
       const resolved = await resolveWritePathSecure(toolContext.permissions, payload.path);
@@ -127,14 +127,14 @@ export function buildWorkspaceEditTool(): ToolDefinition {
     tool: {
       name: "edit",
       description:
-        "Apply one or more find/replace edits to a file in the session workspace or an allowed write directory. Edits are applied sequentially and must match at least once. Paths must be absolute and within the allowed write set.",
+        "Apply one or more find/replace edits to a file in the agent workspace or an allowed write directory. Edits are applied sequentially and must match at least once. Paths must be absolute and within the allowed write set.",
       parameters: editSchema
     },
     execute: async (args, toolContext, toolCall) => {
       const payload = args as EditArgs;
       const workingDir = toolContext.permissions.workingDir;
       if (!workingDir) {
-        throw new Error("Session workspace is not configured.");
+        throw new Error("Workspace is not configured.");
       }
       ensureAbsolutePath(payload.path);
       const resolved = await resolveWritePathSecure(toolContext.permissions, payload.path);
@@ -148,14 +148,14 @@ export function buildExecTool(): ToolDefinition {
     tool: {
       name: "exec",
       description:
-        "Execute a shell command inside the session workspace (or a subdirectory). The cwd, if provided, must be an absolute path that resolves inside the workspace. Writes are sandboxed to the allowed write directories. Optional allowedDomains enables outbound access to specific domains (supports subdomain wildcards like *.example.com, no global wildcard). Returns stdout/stderr and failure details.",
+        "Execute a shell command inside the agent workspace (or a subdirectory). The cwd, if provided, must be an absolute path that resolves inside the workspace. Writes are sandboxed to the allowed write directories. Optional allowedDomains enables outbound access to specific domains (supports subdomain wildcards like *.example.com, no global wildcard). Returns stdout/stderr and failure details.",
       parameters: execSchema
     },
     execute: async (args, toolContext, toolCall) => {
       const payload = args as ExecArgs;
       const workingDir = toolContext.permissions.workingDir;
       if (!workingDir) {
-        throw new Error("Session workspace is not configured.");
+        throw new Error("Workspace is not configured.");
       }
       if (payload.cwd) {
         ensureAbsolutePath(payload.cwd);
@@ -191,7 +191,7 @@ export function buildExecTool(): ToolDefinition {
         const toolMessage = buildToolMessage(toolCall, text, false, {
           cwd: path.relative(workingDir, cwd) || "."
         });
-        return { toolMessage };
+        return { toolMessage, files: [] };
       } catch (error) {
         const execError = error as ExecException & {
           stdout?: string | Buffer;
@@ -207,7 +207,7 @@ export function buildExecTool(): ToolDefinition {
           exitCode: execError.code ?? null,
           signal: execError.signal ?? null
         });
-        return { toolMessage };
+        return { toolMessage, files: [] };
       }
     }
   };
@@ -221,7 +221,7 @@ async function handleReadSecure(
   resolvedPath: string,
   workingDir: string,
   toolCall: { id: string; name: string }
-): Promise<{ toolMessage: ToolResultMessage }> {
+): Promise<ToolExecutionResult> {
   // Use lstat to check file type without following symlinks
   const stats = await fs.lstat(resolvedPath);
   if (stats.isSymbolicLink()) {
@@ -263,7 +263,7 @@ async function handleReadSecure(
     truncated
   });
 
-  return { toolMessage };
+  return { toolMessage, files: [] };
 }
 
 /**
@@ -276,7 +276,7 @@ async function handleWriteSecure(
   append: boolean,
   workingDir: string,
   toolCall: { id: string; name: string }
-): Promise<{ toolMessage: ToolResultMessage }> {
+): Promise<ToolExecutionResult> {
   await fs.mkdir(path.dirname(resolvedPath), { recursive: true });
 
   // Check if target is a symlink before writing
@@ -310,7 +310,7 @@ async function handleWriteSecure(
     bytes,
     append
   });
-  return { toolMessage };
+  return { toolMessage, files: [] };
 }
 
 /**
@@ -322,7 +322,7 @@ async function handleEditSecure(
   edits: EditSpec[],
   workingDir: string,
   toolCall: { id: string; name: string }
-): Promise<{ toolMessage: ToolResultMessage }> {
+): Promise<ToolExecutionResult> {
   // Check if target is a symlink
   const stats = await fs.lstat(resolvedPath);
   if (stats.isSymbolicLink()) {
@@ -360,7 +360,7 @@ async function handleEditSecure(
       path: displayPath,
       edits: counts
     });
-    return { toolMessage };
+    return { toolMessage, files: [] };
   } finally {
     await handle.close();
   }
@@ -498,17 +498,4 @@ function validateAllowedDomains(allowedDomains: string[], webAllowed: boolean): 
     issues.push("Web permission is required to set allowedDomains.");
   }
   return issues;
-}
-
-function setSessionPermissions(
-  session: { context: { state: unknown } },
-  permissions: SessionPermissions
-): void {
-  const state = session.context.state as { permissions?: SessionPermissions };
-  state.permissions = {
-    workingDir: permissions.workingDir,
-    writeDirs: [...permissions.writeDirs],
-    readDirs: [...permissions.readDirs],
-    web: permissions.web
-  };
 }

@@ -7,13 +7,12 @@ import type { ToolCall } from "@mariozechner/pi-ai";
 
 import { AuthStore } from "../../../auth/store.js";
 import { FileStore } from "../../../files/store.js";
-import { ConnectorRegistry } from "../../../engine/modules/connectorRegistry.js";
-import { ImageGenerationRegistry } from "../../../engine/modules/imageGenerationRegistry.js";
-import { InferenceRegistry } from "../../../engine/modules/inferenceRegistry.js";
-import { ToolResolver } from "../../../engine/modules/toolResolver.js";
+import { ModuleRegistry } from "../../../engine/modules/moduleRegistry.js";
 import { PluginRegistry } from "../../../engine/plugins/registry.js";
-import { Session } from "../../../engine/sessions/session.js";
-import type { SessionPermissions } from "@/types";
+import { Agent } from "../../../engine/agents/agent.js";
+import { AgentInbox } from "../../../engine/agents/ops/agentInbox.js";
+import { agentDescriptorBuild } from "../../../engine/agents/ops/agentDescriptorBuild.js";
+import type { AgentRuntime, AgentState, SessionPermissions } from "@/types";
 import { getLogger } from "../../../log.js";
 import { plugin } from "../plugin.js";
 import { configResolve } from "../../../config/configResolve.js";
@@ -29,35 +28,49 @@ describe("database plugin", () => {
     const config = configResolve({ engine: { dataDir: baseDir } }, path.join(baseDir, "settings.json"));
     const auth = new AuthStore(config);
     const fileStore = new FileStore(config);
-    const connectorRegistry = new ConnectorRegistry({ onMessage: async () => undefined });
-    const inferenceRegistry = new InferenceRegistry();
-    const imageRegistry = new ImageGenerationRegistry();
-    const toolResolver = new ToolResolver();
-    const pluginRegistry = new PluginRegistry(
-      connectorRegistry,
-      inferenceRegistry,
-      imageRegistry,
-      toolResolver
-    );
+    const modules = new ModuleRegistry({ onMessage: async () => undefined });
+    const pluginRegistry = new PluginRegistry(modules);
 
     const instanceId = "database-1";
     const registrar = pluginRegistry.createRegistrar(instanceId);
     const now = new Date();
-    const session = new Session(
-      "session-1",
-      {
-        id: "session-1",
-        createdAt: now,
-        updatedAt: now,
-        state: {}
-      },
-      createId()
-    );
+    const agentId = createId();
     const permissions: SessionPermissions = {
       workingDir: baseDir,
       writeDirs: [],
       readDirs: [],
       web: false
+    };
+    const messageContext = { channelId: "channel-1", userId: "user-1" };
+    const descriptor = agentDescriptorBuild("system", messageContext, agentId);
+    const state: AgentState = {
+      context: { messages: [] },
+      providerId: null,
+      permissions,
+      routing: null,
+      agent: null,
+      createdAt: now.getTime(),
+      updatedAt: now.getTime()
+    };
+    const agent = Agent.restore(
+      agentId,
+      descriptor,
+      state,
+      new AgentInbox(agentId),
+      {} as unknown as Parameters<typeof Agent.restore>[4]
+    );
+    const agentRuntime: AgentRuntime = {
+      startBackgroundAgent: async (_args) => ({ agentId: createId() }),
+      sendAgentMessage: async () => {},
+      runHeartbeatNow: async () => ({ ran: 0, taskIds: [] }),
+      addHeartbeatTask: async () => ({
+        id: "stub",
+        title: "stub",
+        prompt: "stub",
+        filePath: "/tmp/heartbeat.md"
+      }),
+      listHeartbeatTasks: async () => [],
+      removeHeartbeatTask: async () => ({ removed: false })
     };
 
     const api = {
@@ -96,16 +109,17 @@ describe("database plugin", () => {
       }
     };
 
-    const result = await toolResolver.execute(toolCall, {
-      connectorRegistry,
+    const result = await modules.tools.execute(toolCall, {
+      connectorRegistry: modules.connectors,
       fileStore,
       auth,
       logger: getLogger("test.database.tool"),
       assistant: null,
       permissions,
-      session,
+      agent,
       source: "test",
-      messageContext: { channelId: "channel-1", userId: "user-1" }
+      messageContext,
+      agentRuntime
     });
 
     expect(result.toolMessage.isError).toBe(false);

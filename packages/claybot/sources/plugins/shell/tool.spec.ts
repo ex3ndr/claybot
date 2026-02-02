@@ -4,7 +4,11 @@ import path from "node:path";
 import os from "node:os";
 
 import { buildExecTool } from "./tool.js";
-import type { ToolExecutionContext } from "@/types";
+import { Agent } from "../../engine/agents/agent.js";
+import { AgentInbox } from "../../engine/agents/ops/agentInbox.js";
+import { agentDescriptorBuild } from "../../engine/agents/ops/agentDescriptorBuild.js";
+import type { AgentRuntime, AgentState, ToolExecutionContext } from "@/types";
+import { createId } from "@paralleldrive/cuid2";
 
 const toolCall = { id: "tool-call-1", name: "exec" };
 
@@ -47,23 +51,54 @@ describe("exec tool allowedDomains", () => {
 });
 
 function createContext(workingDir: string, web: boolean): ToolExecutionContext {
-  return {
-    connectorRegistry: null,
-    fileStore: null as unknown as ToolExecutionContext["fileStore"],
-    auth: null as unknown as ToolExecutionContext["auth"],
-    logger: console as unknown as ToolExecutionContext["logger"],
-    assistant: null,
+  const agentId = createId();
+  const messageContext = { channelId: "test", userId: "test-user" };
+  const descriptor = agentDescriptorBuild("system", messageContext, agentId);
+  const now = Date.now();
+  const state: AgentState = {
+    context: { messages: [] },
+    providerId: null,
     permissions: {
       workingDir,
       writeDirs: [],
       readDirs: [],
       web
     },
-    session: { context: { state: {} } } as ToolExecutionContext["session"],
+    routing: null,
+    agent: null,
+    createdAt: now,
+    updatedAt: now
+  };
+  const agent = Agent.restore(
+    agentId,
+    descriptor,
+    state,
+    new AgentInbox(agentId),
+    {} as unknown as Parameters<typeof Agent.restore>[4]
+  );
+  const agentRuntime: AgentRuntime = {
+    startBackgroundAgent: async (_args) => ({ agentId: createId() }),
+    sendAgentMessage: async () => {},
+    runHeartbeatNow: async () => ({ ran: 0, taskIds: [] }),
+    addHeartbeatTask: async () => ({
+      id: "stub",
+      title: "stub",
+      prompt: "stub",
+      filePath: "/tmp/heartbeat.md"
+    }),
+    listHeartbeatTasks: async () => [],
+    removeHeartbeatTask: async () => ({ removed: false })
+  };
+  return {
+    connectorRegistry: null as unknown as ToolExecutionContext["connectorRegistry"],
+    fileStore: null as unknown as ToolExecutionContext["fileStore"],
+    auth: null as unknown as ToolExecutionContext["auth"],
+    logger: console as unknown as ToolExecutionContext["logger"],
+    assistant: null,
+    permissions: state.permissions,
+    agent,
     source: "test",
-    messageContext: {
-      channelId: "test",
-      userId: "test-user"
-    }
+    messageContext,
+    agentRuntime
   };
 }

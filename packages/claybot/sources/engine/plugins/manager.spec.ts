@@ -3,10 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { ConnectorRegistry } from "../modules/connectorRegistry.js";
-import { ImageGenerationRegistry } from "../modules/imageGenerationRegistry.js";
-import { InferenceRegistry } from "../modules/inferenceRegistry.js";
-import { ToolResolver } from "../modules/toolResolver.js";
+import { ModuleRegistry } from "../modules/moduleRegistry.js";
 import { InferenceRouter } from "../modules/inference/router.js";
 import { FileStore } from "../../files/store.js";
 import { PluginEventQueue } from "./events.js";
@@ -36,24 +33,14 @@ function createManager(
   rootDir: string,
   queue: PluginEventQueue
 ): PluginManager {
-  const connectorRegistry = new ConnectorRegistry({
-    onMessage: () => {}
-  });
-  const inferenceRegistry = new InferenceRegistry();
-  const imageRegistry = new ImageGenerationRegistry();
-  const toolRegistry = new ToolResolver();
-  const pluginRegistry = new PluginRegistry(
-    connectorRegistry,
-    inferenceRegistry,
-    imageRegistry,
-    toolRegistry
-  );
+  const modules = new ModuleRegistry({ onMessage: () => {} });
+  const pluginRegistry = new PluginRegistry(modules);
   const config = configResolve({ engine: { dataDir: rootDir } }, path.join(rootDir, "settings.json"));
   const auth = new AuthStore(config);
   const fileStore = new FileStore(config);
   const inferenceRouter = new InferenceRouter({
     providers: [],
-    registry: inferenceRegistry,
+    registry: modules.inference,
     auth
   });
   const catalog = new Map([

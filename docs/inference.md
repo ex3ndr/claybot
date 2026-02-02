@@ -37,10 +37,10 @@ Tools are registered dynamically by plugins and core runtime:
 - `web_search` (Brave) performs web search.
 - `generate_image` uses registered image providers and is only added when one is available.
 - `set_reaction` sets connector reactions (Telegram).
-- `read` reads a UTF-8 text file from the session workspace or an allowed read directory (path must be absolute and within the allowed read set; large files may be truncated). By default, the read set includes the filesystem root.
-- `write` writes UTF-8 text to a file in the session workspace or an allowed write directory, creating parent directories as needed (path must be absolute and within the allowed write set; supports append).
-- `edit` applies sequential find/replace edits to a file in the session workspace or an allowed write directory (each edit must match at least once; path must be absolute and within the allowed write set).
-- `exec` runs a shell command with the working directory locked to the session workspace (or a subdirectory within it); cwd must be absolute and resolve inside the workspace. Writes are sandboxed to the allowed write set.
+- `read` reads a UTF-8 text file from the agent workspace or an allowed read directory (path must be absolute and within the allowed read set; large files may be truncated). By default, the read set includes the filesystem root.
+- `write` writes UTF-8 text to a file in the agent workspace or an allowed write directory, creating parent directories as needed (path must be absolute and within the allowed write set; supports append).
+- `edit` applies sequential find/replace edits to a file in the agent workspace or an allowed write directory (each edit must match at least once; path must be absolute and within the allowed write set).
+- `exec` runs a shell command with the working directory locked to the agent workspace (or a subdirectory within it); cwd must be absolute and resolve inside the workspace. Writes are sandboxed to the allowed write set.
 - `request_permission` asks the user to grant a permission like `@write:/path`, `@read:/path`, or `@web` (paths must be absolute).
 
 ```mermaid

@@ -25,11 +25,11 @@ flowchart TD
 
 ## Helper roles
 
-- `permissionBuildDefault`: create the initial session permissions from workspace + config paths.
+- `permissionBuildDefault`: create the initial agent permissions from workspace + config paths.
 - `permissionBuildCron`: build cron-specific permissions that inherit defaults.
-- `permissionEnsureDefaultFile`: merge default read/write directories into a session.
-- `permissionMergeDefault`: combine existing session permissions with defaults.
-- `permissionApply`: apply an approved permission decision to a session.
+- `permissionEnsureDefaultFile`: merge default read/write directories into an agent.
+- `permissionMergeDefault`: combine existing agent permissions with defaults.
+- `permissionApply`: apply an approved permission decision to an agent.
 - `permissionFormatTag`: format the `@web`/`@read`/`@write` tag used in logs.
 - `permissionDescribeDecision`: human-readable label for permission decisions.
 

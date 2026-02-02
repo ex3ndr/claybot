@@ -5,6 +5,7 @@ export type Config = {
   settingsPath: string;
   configDir: string;
   dataDir: string;
+  agentsDir: string;
   filesDir: string;
   authPath: string;
   socketPath: string;

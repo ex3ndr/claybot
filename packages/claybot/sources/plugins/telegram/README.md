@@ -23,7 +23,7 @@ It normalizes incoming messages into `ConnectorMessage` objects and sends respon
 - Ignores messages from users not listed in `allowedUids`.
 - Extracts text or caption and downloads attached photos/documents into the file store.
 - Builds `MessageContext` with `channelId`, `userId`, and `messageId`.
-- Emits normalized payloads to session handling.
+- Emits normalized payloads to agent handling.
 
 ## Outgoing message handling
 - Sends text replies with `reply_to_message_id` when present.

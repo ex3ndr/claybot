@@ -81,7 +81,7 @@ export function resolveWorkspacePath(workingDir: string, target: string): string
   const resolved = path.resolve(workingDir, target);
   const relative = path.relative(workingDir, resolved);
   if (relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new Error("Path is outside the session workspace.");
+    throw new Error("Path is outside the workspace.");
   }
   return resolved;
 }

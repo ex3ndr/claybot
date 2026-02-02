@@ -2,10 +2,10 @@ import { promises as fs } from "node:fs";
 
 import type { Context } from "@mariozechner/pi-ai";
 
-import type { SessionMessage } from "@/types";
+import type { AgentMessage } from "../agents/ops/agentTypes.js";
 
 export async function messageBuildUser(
-  entry: SessionMessage
+  entry: AgentMessage
 ): Promise<Context["messages"][number]> {
   const text = entry.message.text ?? "";
   const files = entry.message.files ?? [];
@@ -13,7 +13,7 @@ export async function messageBuildUser(
     return {
       role: "user",
       content: text,
-      timestamp: Date.now()
+      timestamp: entry.receivedAt
     };
   }
 
@@ -43,6 +43,6 @@ export async function messageBuildUser(
   return {
     role: "user",
     content,
-    timestamp: Date.now()
+    timestamp: entry.receivedAt
   };
 }

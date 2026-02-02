@@ -20,6 +20,7 @@ export function configResolve(
   const resolvedSettingsPath = path.resolve(settingsPath);
   const configDir = path.dirname(resolvedSettingsPath);
   const dataDir = path.resolve(settings.engine?.dataDir ?? DEFAULT_CLAYBOT_DIR);
+  const agentsDir = path.join(dataDir, "agents");
   const filesDir = path.join(dataDir, "files");
   const authPath = path.join(dataDir, "auth.json");
   const socketPath = resolveEngineSocketPath(settings.engine?.socketPath);
@@ -33,6 +34,7 @@ export function configResolve(
     settingsPath: resolvedSettingsPath,
     configDir,
     dataDir,
+    agentsDir,
     filesDir,
     authPath,
     socketPath,

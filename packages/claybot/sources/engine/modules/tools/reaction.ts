@@ -50,7 +50,7 @@ export function buildReactionTool(): ToolDefinition {
         timestamp: Date.now()
       };
 
-      return { toolMessage };
+      return { toolMessage, files: [] };
     }
   };
 }

@@ -5,7 +5,7 @@ import { createId } from "@paralleldrive/cuid2";
 import path from "node:path";
 
 import type { ToolDefinition } from "@/types";
-import type { PermissionAccess, PermissionRequest } from "../connectors/types.js";
+import type { PermissionAccess, PermissionRequest } from "@/types";
 
 const schema = Type.Object(
   {
@@ -79,7 +79,7 @@ export function buildPermissionRequestTool(): ToolDefinition {
         timestamp: Date.now()
       };
 
-      return { toolMessage };
+      return { toolMessage, files: [] };
     }
   };
 }

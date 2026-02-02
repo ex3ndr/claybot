@@ -57,7 +57,7 @@ Use cron for time-sensitive tasks or strict repetition. Use heartbeats for perio
 
 Skills are stored in `{{configDir}}/skills/`. Each skill is a folder containing a `SKILL.md` file with YAML frontmatter (`name`, `description`) and optional bundled resources (`scripts/`, `references/`, `assets/`).
 
-You can create and modify skills in foreground sessions. When creating or editing skills:
+You can create and modify skills in foreground agents. When creating or editing skills:
 1. Work in `{{workspace}}/skills/<skill-name>/` first
 2. Deploy atomically: `rm -rf {{configDir}}/skills/<skill-name> && cp -r {{workspace}}/skills/<skill-name> {{configDir}}/skills/`
 
@@ -74,7 +74,7 @@ and it is {{#if channelType}}{{#if channelIsPrivate}}a private chat{{else}}not a
 {{#if cronTaskId}}
 ## Cron Task
 
-This session was started by a scheduled cron task.
+This agent was started by a scheduled cron task.
 
 - Task: {{cronTaskName}} (id: {{cronTaskId}})
 - Workspace: {{cronFilesPath}}

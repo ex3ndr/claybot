@@ -8,7 +8,6 @@ export type { SessionPermissions } from "./engine/permissions.js";
 export type {
   Connector,
   ConnectorCapabilities,
-  ConnectorCommand,
   ConnectorFile,
   ConnectorFileDisposition,
   ConnectorFileMode,
@@ -35,8 +34,17 @@ export type {
   PluginOnboardingResult
 } from "./engine/plugins/types.js";
 
-// Sessions
-export type { SessionMessage } from "./engine/sessions/types.js";
+// Agents
+export type {
+  AgentMessage,
+  AgentState,
+  AgentHistoryRecord,
+  AgentInboxItem,
+  AgentInboxResult,
+  AgentPostTarget,
+  BackgroundAgentState
+} from "./engine/agents/ops/agentTypes.js";
+export type { AgentDescriptor, AgentFetchStrategy } from "./engine/agents/ops/agentDescriptorTypes.js";
 
 // Inference
 export type {

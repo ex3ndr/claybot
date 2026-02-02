@@ -11,12 +11,7 @@ import type { Config } from "@/types";
 const logger = getLogger("heartbeat.facade");
 
 export type HeartbeatRuntime = {
-  resolveSessionId: () => string;
-  startBackgroundAgent: (args: {
-    prompt: string;
-    sessionId: string;
-    context: { userId: string; heartbeat: Record<string, never> };
-  }) => Promise<{ sessionId: string }>;
+  postHeartbeat: (args: { prompt: string }) => Promise<void>;
 };
 
 export type HeartbeatsOptions = {
@@ -28,7 +23,7 @@ export type HeartbeatsOptions = {
 
 /**
  * Coordinates heartbeat storage + scheduling for engine runtime.
- * Expects: runtime resolves session ids and starts background agents.
+ * Expects: runtime posts heartbeat prompts to the agent system.
  */
 export class Heartbeats {
   private readonly eventBus: EngineEventBus;
@@ -45,13 +40,8 @@ export class Heartbeats {
       store: this.store,
       intervalMs: options.intervalMs,
       onRun: async (tasks) => {
-        const sessionId = this.runtime.resolveSessionId();
         const batch = heartbeatPromptBuildBatch(tasks);
-        await this.runtime.startBackgroundAgent({
-          prompt: batch.prompt,
-          sessionId,
-          context: { userId: "heartbeat", heartbeat: {} }
-        });
+        await this.runtime.postHeartbeat({ prompt: batch.prompt });
       },
       onError: (error, taskIds) => {
         logger.warn({ taskIds, error }, "Heartbeat task failed");

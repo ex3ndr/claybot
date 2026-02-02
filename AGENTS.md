@@ -25,6 +25,7 @@
 - Keep files concise; extract helpers instead of "V2" copies.
 - Aim to keep files under ~700 LOC; guideline only (not a hard guardrail). Split/refactor when it improves clarity or testability.
 - Naming: use **ClayBot** for product/app/docs headings; use `claybot` for CLI command, package/binary, paths, and config keys.
+- Use `@/types` for shared types whenever available instead of deep module imports.
 
 ## Logging
 - Always create a logger with an explicit module via `getLogger("module.name")`.
@@ -58,7 +59,7 @@
 - **Multi-agent safety:** when the user says "push", you may `git pull --rebase` to integrate latest changes (never discard other agents' work). When the user says "commit", scope to your changes only. When the user says "commit all", commit everything in grouped chunks.
 - **Multi-agent safety:** do **not** create/remove/modify `git worktree` checkouts (or edit `.worktrees/*`) unless explicitly requested.
 - **Multi-agent safety:** do **not** switch branches / check out a different branch unless explicitly requested.
-- **Multi-agent safety:** running multiple agents is OK as long as each agent has its own session.
+- **Multi-agent safety:** running multiple agents is OK as long as each agent has its own agent directory.
 - **Multi-agent safety:** when you see unrecognized files, keep going; focus on your changes and commit only those.
 - **Multi-agent safety:** focus reports on your edits; avoid guard-rail disclaimers unless truly blocked; when multiple agents touch the same file, continue if safe; end with a brief "other files present" note only if relevant.
 - Bug investigations: read source code of relevant npm dependencies and all related local code before concluding; aim for high-confidence root cause.
@@ -81,7 +82,7 @@ When a domain needs coordination logic (scheduling, resolving, registry), create
 |---------------|--------------|----------------|
 | `Tool` | `Tools` | resolving, registration, execution |
 | `Heartbeat` | `Heartbeats` | scheduling, lifecycle |
-| `Session` | `Sessions` | lookup, creation, persistence |
+| `Agent` | `Agents` | lookup, creation, persistence |
 | `Module` | `Modules` | loading, dependency wiring |
 
 The facade owns the collection and coordination logic. Domain objects remain simple data or behavior units.
@@ -117,7 +118,7 @@ Place general-purpose helpers in `sources/util/`. This includes:
 - Async primitives (`lock.ts`, `sync.ts`, `debounce.ts`)
 - Shutdown coordination (`shutdown.ts`)
 
-Keep utilities **domain-agnostic**. If a helper is specific to a domain (e.g., permissions, sessions), it belongs in that domain folder instead.
+Keep utilities **domain-agnostic**. If a helper is specific to a domain (e.g., permissions, agents), it belongs in that domain folder instead.
 
 ## Time Handling
 Use **unix timestamps** (milliseconds since epoch) for all time values in the application. Only use `Date` objects at boundaries for parsing or formatting.
@@ -204,7 +205,7 @@ sync.setValue(state3); // replaces again; only state3 persists
 ## File Organization: One Function, Prefix Naming
 
 ### Core Principle
-Write **one public function per file**. Name files and functions using **prefix notation** where the domain/noun comes first: `permissionCreate` not `createPermission`, `sessionNormalize` not `normalizeSession`.
+Write **one public function per file**. Name files and functions using **prefix notation** where the domain/noun comes first: `permissionCreate` not `createPermission`, `agentNormalize` not `normalizeAgent`.
 
 ### Why Prefix Notation
 - **Autocomplete-friendly**: typing `permission` shows all permission operations
@@ -291,10 +292,10 @@ engine/
     permissionFormatTag.ts
     permissionMerge.ts
     permissionTypes.ts         # types can share a file
-  sessions/
-    sessionNormalize.ts
-    sessionDescriptorBuild.ts
-    sessionKeyBuild.ts
+  agents/
+    agentNormalize.ts
+    agentDescriptorBuild.ts
+    agentKeyBuild.ts
   messages/
     messageBuildUser.ts
     messageExtractText.ts
@@ -304,7 +305,7 @@ engine/
 
 ### Pure Functions First
 - **Prefer pure functions**: input → output, no side effects, no mutations
-- **Isolate impure code**: I/O, state mutations, and side effects go in clearly named files (`session-persist.ts`, `connector-send.ts`)
+- **Isolate impure code**: I/O, state mutations, and side effects go in clearly named files (`agent-persist.ts`, `connector-send.ts`)
 - **Dependency injection**: pass dependencies as arguments rather than importing singletons
 
 ### Testing Pure Functions

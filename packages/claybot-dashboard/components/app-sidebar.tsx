@@ -41,8 +41,8 @@ const data = {
       icon: LayoutDashboard
     },
     {
-      title: "Sessions",
-      url: "/sessions",
+      title: "Agents",
+      url: "/agents",
       icon: MessageSquare
     },
     {

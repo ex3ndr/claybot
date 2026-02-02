@@ -70,7 +70,7 @@ export function buildMemoryCreateEntityTool(store: MemoryStore): ToolDefinition 
         timestamp: Date.now()
       };
 
-      return { toolMessage };
+      return { toolMessage, files: [] };
     }
   };
 }
@@ -113,7 +113,7 @@ export function buildMemoryUpsertRecordTool(store: MemoryStore): ToolDefinition 
         timestamp: Date.now()
       };
 
-      return { toolMessage };
+      return { toolMessage, files: [] };
     }
   };
 }
@@ -148,7 +148,7 @@ export function buildMemoryListEntitiesTool(store: MemoryStore): ToolDefinition 
         timestamp: Date.now()
       };
 
-      return { toolMessage };
+      return { toolMessage, files: [] };
     }
   };
 }

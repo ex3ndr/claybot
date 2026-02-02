@@ -11,7 +11,7 @@ ClayBot supports two scheduling mechanisms: **cron** for precise timing and **he
 
 Use cron when:
 - Exact timing matters (e.g., "every day at 9am")
-- Tasks need their own isolated session and memory
+- Tasks need their own isolated agent and memory
 - One-off scheduled tasks (with `deleteAfterRun`)
 - Tasks that produce artifacts in a dedicated workspace
 
@@ -21,7 +21,7 @@ Use cron when:
 
 Use heartbeats when:
 - Approximate timing is acceptable (~30 minute intervals)
-- Tasks need ongoing context from the main session
+- Tasks need ongoing context from the main agent
 - Prompts evolve over time and need periodic review
 - Lightweight status checks or reminders
 
@@ -51,7 +51,7 @@ Use heartbeats when:
 | "Remind me about my todos from time to time" | Lightweight, approximate timing |
 | "Check in on code quality occasionally" | Periodic review that needs reasoning |
 | "Monitor my open PRs and update me" | Ongoing task that evolves |
-| "Review my notes and suggest improvements" | Needs main session context |
+| "Review my notes and suggest improvements" | Needs main agent context |
 | "Periodically summarize what I've been working on" | Flexible interval, ongoing |
 | "Keep track of my daily progress" | Continuous, evolving check-in |
 
@@ -69,7 +69,7 @@ Use heartbeats when:
 **For cron tasks:**
 1. Determine the schedule (cron expression: `minute hour day month weekday`)
 2. Use `add_cron` with name, schedule, and prompt
-3. Each task gets isolated session, memory file, and workspace
+3. Each task gets isolated agent, memory file, and workspace
 
 **For heartbeats:**
 1. Run `heartbeat_list` to see existing tasks
@@ -82,8 +82,8 @@ Use heartbeats when:
 | Feature | Cron | Heartbeats |
 |---------|------|------------|
 | Timing | Exact (cron expression) | ~30 minute intervals |
-| Session | Isolated per task | Shared main session |
-| Memory | Persistent `MEMORY.md` | Main session context |
+| Agent | Isolated per task | Shared main agent |
+| Memory | Persistent `MEMORY.md` | Main agent context |
 | Workspace | Dedicated `files/` dir | None |
 | One-off | Yes (`deleteAfterRun`) | No |
 | Best for | Time-sensitive tasks | Ongoing reviews |

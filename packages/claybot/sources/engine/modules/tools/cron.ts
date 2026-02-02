@@ -103,7 +103,7 @@ export function buildCronTool(crons: Crons): ToolDefinition {
         timestamp: Date.now()
       };
 
-      return { toolMessage };
+      return { toolMessage, files: [] };
     }
   };
 }
@@ -117,7 +117,7 @@ export function buildCronReadTaskTool(crons: Crons): ToolDefinition {
     },
     execute: async (args, context, toolCall) => {
       const payload = args as CronReadTaskArgs;
-      const taskId = resolveTaskId(payload.taskId, context);
+      const taskId = await resolveTaskId(payload.taskId, context);
       const task = await crons.loadTask(taskId);
       if (!task) {
         throw new Error(`Cron task not found: ${taskId}`);
@@ -150,7 +150,7 @@ export function buildCronReadTaskTool(crons: Crons): ToolDefinition {
         timestamp: Date.now()
       };
 
-      return { toolMessage };
+      return { toolMessage, files: [] };
     }
   };
 }
@@ -164,7 +164,7 @@ export function buildCronReadMemoryTool(crons: Crons): ToolDefinition {
     },
     execute: async (args, context, toolCall) => {
       const payload = args as CronReadMemoryArgs;
-      const taskId = resolveTaskId(payload.taskId, context);
+      const taskId = await resolveTaskId(payload.taskId, context);
       const memory = await crons.readMemory(taskId);
 
       const toolMessage: ToolResultMessage = {
@@ -182,7 +182,7 @@ export function buildCronReadMemoryTool(crons: Crons): ToolDefinition {
         timestamp: Date.now()
       };
 
-      return { toolMessage };
+      return { toolMessage, files: [] };
     }
   };
 }
@@ -196,7 +196,7 @@ export function buildCronWriteMemoryTool(crons: Crons): ToolDefinition {
     },
     execute: async (args, context, toolCall) => {
       const payload = args as CronWriteMemoryArgs;
-      const taskId = resolveTaskId(payload.taskId, context);
+      const taskId = await resolveTaskId(payload.taskId, context);
       const content = payload.append
         ? appendMemory(await crons.readMemory(taskId), payload.content)
         : payload.content;
@@ -217,7 +217,7 @@ export function buildCronWriteMemoryTool(crons: Crons): ToolDefinition {
         timestamp: Date.now()
       };
 
-      return { toolMessage };
+      return { toolMessage, files: [] };
     }
   };
 }
@@ -231,7 +231,7 @@ export function buildCronDeleteTaskTool(crons: Crons): ToolDefinition {
     },
     execute: async (args, context, toolCall) => {
       const payload = args as CronDeleteTaskArgs;
-      const taskId = resolveTaskId(payload.taskId, context);
+      const taskId = await resolveTaskId(payload.taskId, context);
       const deleted = await crons.deleteTask(taskId);
 
       const toolMessage: ToolResultMessage = {
@@ -249,17 +249,16 @@ export function buildCronDeleteTaskTool(crons: Crons): ToolDefinition {
         timestamp: Date.now()
       };
 
-      return { toolMessage };
+      return { toolMessage, files: [] };
     }
   };
 }
 
-function resolveTaskId(
+async function resolveTaskId(
   provided: string | undefined,
   context: ToolExecutionContext
-): string {
-  const fromContext = context.messageContext.cron?.taskId;
-  const taskId = provided ?? fromContext;
+): Promise<string> {
+  const taskId = provided ?? await context.agent.resolveCronTaskId();
   if (!taskId) {
     throw new Error("Cron task id is required.");
   }

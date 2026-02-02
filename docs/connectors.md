@@ -1,7 +1,7 @@
 # Connectors
 
 Connectors are plugin modules that bridge ClayBot to external systems.
-They emit messages (text + files) into sessions and send responses back.
+They emit messages (text + files) into agents and send responses back.
 
 ## Connector interface
 Each connector exposes:
@@ -27,10 +27,8 @@ classDiagram
   }
   class MessageContext {
     +channelId: string
-    +userId: string | null
-    +sessionId?: string
+    +userId: string
     +messageId?: string
-    +providerId?: string
   }
 ```
 

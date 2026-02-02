@@ -34,15 +34,16 @@ import {
   fetchCronTasks,
   fetchEngineStatus,
   fetchHeartbeatTasks,
-  fetchSessions,
+  fetchAgents,
   type BackgroundAgentState,
   type CronTask,
   type EngineEvent,
   type EngineStatus,
   type HeartbeatTask,
-  type Session
+  type AgentSummary,
+  type AgentDescriptor
 } from "@/lib/engine-client";
-import { buildSessionType, formatSessionTypeLabel, formatSessionTypeObject } from "@/lib/session-types";
+import { buildAgentType, formatAgentTypeLabel, formatAgentTypeObject } from "@/lib/agent-types";
 import type { LucideIcon } from "lucide-react";
 
 type InventoryItem = {
@@ -55,7 +56,7 @@ export default function Dashboard() {
   const [cron, setCron] = useState<CronTask[]>([]);
   const [heartbeats, setHeartbeats] = useState<HeartbeatTask[]>([]);
   const [backgroundAgents, setBackgroundAgents] = useState<BackgroundAgentState[]>([]);
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,16 +82,16 @@ export default function Dashboard() {
     setBackgroundAgents(agents);
   }, []);
 
-  const fetchSessionsData = useCallback(async () => {
-    const data = await fetchSessions();
-    setSessions(data);
+  const fetchAgentsData = useCallback(async () => {
+    const data = await fetchAgents();
+    setAgents(data);
   }, []);
 
   const refreshAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      await Promise.all([fetchStatus(), fetchCron(), fetchHeartbeats(), fetchBackgroundAgentsData(), fetchSessionsData()]);
+      await Promise.all([fetchStatus(), fetchCron(), fetchHeartbeats(), fetchBackgroundAgentsData(), fetchAgentsData()]);
       setLastUpdated(new Date());
     } catch (err) {
       const message = err instanceof Error ? err.message : "Refresh failed";
@@ -98,7 +99,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [fetchBackgroundAgentsData, fetchCron, fetchHeartbeats, fetchSessionsData, fetchStatus]);
+  }, [fetchAgentsData, fetchBackgroundAgentsData, fetchCron, fetchHeartbeats, fetchStatus]);
 
   useEffect(() => {
     void refreshAll();
@@ -122,14 +123,15 @@ export default function Dashboard() {
         setCron(payload.payload?.cron ?? []);
         setHeartbeats(payload.payload?.heartbeat ?? []);
         setBackgroundAgents(payload.payload?.backgroundAgents ?? []);
-        void fetchSessionsData();
+        void fetchAgentsData();
         return;
       }
 
       switch (payload.type) {
-        case "session.created":
-        case "session.updated":
-          void fetchSessionsData();
+        case "agent.created":
+        case "agent.reset":
+        case "agent.restored":
+          void fetchAgentsData();
           void fetchBackgroundAgentsData();
           break;
         case "cron.task.added":
@@ -153,10 +155,10 @@ export default function Dashboard() {
     return () => {
       source.close();
     };
-  }, [fetchBackgroundAgentsData, fetchCron, fetchHeartbeats, fetchSessionsData, fetchStatus]);
+  }, [fetchAgentsData, fetchBackgroundAgentsData, fetchCron, fetchHeartbeats, fetchStatus]);
 
   const pluginCount = status?.plugins?.length ?? 0;
-  const sessionCount = sessions.length;
+  const agentCount = agents.length;
   const cronCount = cron.length;
   const heartbeatCount = heartbeats.length;
   const backgroundAgentCount = backgroundAgents.length;
@@ -164,7 +166,7 @@ export default function Dashboard() {
   const providerCount = status?.inferenceProviders?.length ?? 0;
   const imageProviderCount = status?.imageProviders?.length ?? 0;
   const toolCount = status?.tools?.length ?? 0;
-  const orderedSessions = useMemo(() => sortSessionsByActivity(sessions), [sessions]);
+  const orderedAgents = useMemo(() => sortAgentsByActivity(agents), [agents]);
 
   const connectorTiles = useMemo(
     () =>
@@ -210,7 +212,7 @@ export default function Dashboard() {
   return (
     <DashboardShell
       title="Engine Overview"
-      subtitle="Monitor the ClayBot runtime, providers, and sessions."
+      subtitle="Monitor the ClayBot runtime, providers, and agents."
       toolbar={
         <>
           <Badge variant={connected ? "default" : "outline"} className={connected ? "bg-emerald-500 text-white" : ""}>
@@ -249,11 +251,11 @@ export default function Dashboard() {
                 tone: "primary"
               },
               {
-                title: "Active sessions",
-                value: sessionCount,
+                title: "Active agents",
+                value: agentCount,
                 description: "Conversation threads online",
-                meta: sessionCount ? "Traffic flowing" : "No active sessions",
-                trend: sessionCount > 0 ? "up" : "down",
+                meta: agentCount ? "Traffic flowing" : "No active agents",
+                trend: agentCount > 0 ? "up" : "down",
                 icon: MessageSquare,
                 tone: "accent"
               },
@@ -261,7 +263,7 @@ export default function Dashboard() {
                 title: "Automations",
                 value: cronCount + heartbeatCount,
                 description: "Scheduled tasks",
-                meta: `${cronCount} cron · ${heartbeatCount} heartbeat`,
+                meta: `${cronCount} cron / ${heartbeatCount} heartbeat`,
                 trend: cronCount + heartbeatCount > 0 ? "up" : "down",
                 icon: AlarmClock,
                 tone: "amber"
@@ -302,10 +304,10 @@ export default function Dashboard() {
           <QuickActions
             actions={[
               {
-                label: "Sessions",
+                label: "Agents",
                 description: "Inspect active conversations",
-                href: "/sessions",
-                value: `${sessionCount} live`,
+                href: "/agents",
+                value: `${agentCount} live`,
                 icon: MessageSquare
               },
               {
@@ -333,8 +335,8 @@ export default function Dashboard() {
           />
           <div className="grid gap-6 px-4 lg:grid-cols-3 lg:px-6">
             <div className="flex flex-col gap-6 lg:col-span-2">
-              <ActivityChart sessionCount={sessionCount} cronCount={cronCount} />
-              <SessionsTable sessions={orderedSessions} />
+              <ActivityChart agentCount={agentCount} cronCount={cronCount} />
+              <AgentsTable agents={orderedAgents} />
             </div>
             <div className="flex flex-col gap-6">
               <InventoryPanel
@@ -492,7 +494,7 @@ function QuickActions({
   );
 }
 
-function ActivityChart({ sessionCount, cronCount }: { sessionCount: number; cronCount: number }) {
+function ActivityChart({ agentCount, cronCount }: { agentCount: number; cronCount: number }) {
   const isMobile = useIsMobile();
   const [range, setRange] = useState("24h");
 
@@ -502,11 +504,11 @@ function ActivityChart({ sessionCount, cronCount }: { sessionCount: number; cron
     }
   }, [isMobile]);
 
-  const chartData = useMemo(() => buildActivitySeries(range, sessionCount, cronCount), [range, sessionCount, cronCount]);
+  const chartData = useMemo(() => buildActivitySeries(range, agentCount, cronCount), [range, agentCount, cronCount]);
 
   const chartConfig = {
-    sessions: {
-      label: "Sessions",
+    agents: {
+      label: "Agents",
       color: "hsl(var(--chart-1))"
     },
     cron: {
@@ -524,7 +526,7 @@ function ActivityChart({ sessionCount, cronCount }: { sessionCount: number; cron
           </div>
           <div>
             <CardTitle>Engine activity</CardTitle>
-            <CardDescription>Sessions and automation triggers over time.</CardDescription>
+            <CardDescription>Agents and automation triggers over time.</CardDescription>
           </div>
         </div>
         <div className="absolute right-4 top-4">
@@ -567,9 +569,9 @@ function ActivityChart({ sessionCount, cronCount }: { sessionCount: number; cron
         <ChartContainer config={chartConfig} className="aspect-auto h-[260px] w-full">
           <AreaChart data={chartData} margin={{ left: 8, right: 8 }}>
             <defs>
-              <linearGradient id="fillSessions" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="var(--color-sessions)" stopOpacity={0.8} />
-                <stop offset="95%" stopColor="var(--color-sessions)" stopOpacity={0.1} />
+              <linearGradient id="fillAgents" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="var(--color-agents)" stopOpacity={0.8} />
+                <stop offset="95%" stopColor="var(--color-agents)" stopOpacity={0.1} />
               </linearGradient>
               <linearGradient id="fillCron" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="var(--color-cron)" stopOpacity={0.8} />
@@ -595,10 +597,10 @@ function ActivityChart({ sessionCount, cronCount }: { sessionCount: number; cron
               content={<ChartTooltipContent labelFormatter={(value) => formatShortDate(value)} indicator="dot" />}
             />
             <Area
-              dataKey="sessions"
+              dataKey="agents"
               type="natural"
-              fill="url(#fillSessions)"
-              stroke="var(--color-sessions)"
+              fill="url(#fillAgents)"
+              stroke="var(--color-agents)"
               stackId="a"
             />
             <Area
@@ -783,21 +785,21 @@ function BackgroundAgentsPanel({ agents }: { agents: BackgroundAgentState[] }) {
           </div>
           <div>
             <CardTitle className="text-lg">Background agents</CardTitle>
-            <CardDescription>Autonomous sessions running behind the scenes.</CardDescription>
+            <CardDescription>Autonomous agents running behind the scenes.</CardDescription>
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {agents.length ? (
           agents.map((agent) => (
-            <div key={agent.sessionId} className="rounded-lg border bg-background/60 px-4 py-3">
+            <div key={agent.agentId} className="rounded-lg border bg-background/60 px-4 py-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <div className="text-sm font-medium text-foreground">
-                    {agent.name ?? agent.sessionId}
+                    {agent.name ?? agent.agentId}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {agent.parentSessionId ? `Parent ${agent.parentSessionId}` : agent.sessionId}
+                    {agent.parentAgentId ? `Parent ${agent.parentAgentId}` : agent.agentId}
                   </div>
                 </div>
                 <Badge variant={agent.status === "running" ? "default" : "outline"} className="text-xs capitalize">
@@ -822,7 +824,7 @@ function BackgroundAgentsPanel({ agents }: { agents: BackgroundAgentState[] }) {
   );
 }
 
-function SessionsTable({ sessions }: { sessions: Session[] }) {
+function AgentsTable({ agents }: { agents: AgentSummary[] }) {
   return (
     <Card className="animate-in fade-in-0 slide-in-from-bottom-2">
       <CardHeader>
@@ -831,69 +833,57 @@ function SessionsTable({ sessions }: { sessions: Session[] }) {
             <Sparkles className="h-4 w-4" />
           </div>
           <div>
-            <CardTitle className="text-lg">Active sessions</CardTitle>
+            <CardTitle className="text-lg">Active agents</CardTitle>
             <CardDescription>Live conversation threads and their latest activity.</CardDescription>
           </div>
         </div>
       </CardHeader>
       <CardContent className="pt-0">
-        {sessions.length ? (
+        {agents.length ? (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Session</TableHead>
+                <TableHead>Agent</TableHead>
                 <TableHead className="hidden md:table-cell">Updated</TableHead>
-                <TableHead className="hidden lg:table-cell">Source</TableHead>
+                <TableHead className="hidden lg:table-cell">Descriptor</TableHead>
                 <TableHead className="hidden xl:table-cell">Type</TableHead>
-                <TableHead className="hidden xl:table-cell">Last message</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sessions.map((session) => {
-                const sessionType = buildSessionType(session);
+              {agents.map((agent) => {
+                const agentType = buildAgentType(agent);
                 return (
-                  <TableRow key={session.sessionId} className="hover:bg-muted/50">
+                  <TableRow key={agent.agentId} className="hover:bg-muted/50">
                     <TableCell>
-                      {session.storageId ? (
-                        <Link
-                          href={`/sessions/${session.storageId}`}
-                          className="text-sm font-medium text-foreground hover:underline"
-                        >
-                          {session.sessionId}
-                        </Link>
-                      ) : (
-                        <div className="text-sm font-medium text-foreground">{session.sessionId}</div>
-                      )}
+                      <Link
+                        href={`/agents/${agent.agentId}`}
+                        className="text-sm font-medium text-foreground hover:underline"
+                      >
+                        {agent.agentId}
+                      </Link>
                       <div className="text-xs text-muted-foreground lg:hidden">
-                        {session.source ?? "unknown"}
+                        {formatAgentDescriptor(agent.descriptor)}
                       </div>
                       <div className="mt-1 text-[11px] text-muted-foreground lg:hidden">
-                        {formatSessionTypeLabel(sessionType)}
+                        {formatAgentTypeLabel(agentType)}
                       </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
-                      {formatSessionTime(session)}
+                      {formatAgentTime(agent)}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
-                      <Badge variant="outline" className="text-xs">
-                        {session.source ?? "unknown"}
-                      </Badge>
+                      <span className="text-xs text-muted-foreground">{formatAgentDescriptor(agent.descriptor)}</span>
                     </TableCell>
                     <TableCell className="hidden xl:table-cell">
                       <div className="flex flex-col gap-1">
                         <Badge variant="outline" className="text-[11px]">
-                          {formatSessionTypeLabel(sessionType)}
+                          {formatAgentTypeLabel(agentType)}
                         </Badge>
                         <span className="line-clamp-2 font-mono text-[10px] text-muted-foreground">
-                          {formatSessionTypeObject(sessionType)}
+                          {formatAgentTypeObject(agentType)}
                         </span>
                       </div>
-                    </TableCell>
-                    <TableCell className="hidden xl:table-cell">
-                      <span className="line-clamp-2 text-xs text-muted-foreground">
-                        {session.lastMessage ?? "No message yet"}
-                      </span>
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="gap-1">
@@ -907,7 +897,7 @@ function SessionsTable({ sessions }: { sessions: Session[] }) {
             </TableBody>
           </Table>
         ) : (
-          <EmptyState label="No sessions yet." />
+          <EmptyState label="No agents yet." />
         )}
       </CardContent>
     </Card>
@@ -918,50 +908,54 @@ function EmptyState({ label }: { label: string }) {
   return <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">{label}</div>;
 }
 
-function formatSessionTime(session: Session) {
-  if (session.updatedAt) {
-    return formatShortDate(session.updatedAt);
-  }
-  if (session.createdAt) {
-    return formatShortDate(session.createdAt);
+function formatAgentTime(agent: AgentSummary) {
+  if (agent.updatedAt) {
+    return formatShortDate(agent.updatedAt);
   }
   return "unknown";
 }
 
-function sortSessionsByActivity(sessions: Session[]) {
-  const sessionTimestamp = (session: Session) => {
-    const updated = session.updatedAt ? Date.parse(session.updatedAt) : Number.NaN;
-    if (!Number.isNaN(updated)) {
-      return updated;
-    }
-    const created = session.createdAt ? Date.parse(session.createdAt) : Number.NaN;
-    if (!Number.isNaN(created)) {
-      return created;
-    }
-    return 0;
+function sortAgentsByActivity(agents: AgentSummary[]) {
+  const agentTimestamp = (agent: AgentSummary) => {
+    return Number.isFinite(agent.updatedAt) ? agent.updatedAt : 0;
   };
 
-  return [...sessions].sort((a, b) => sessionTimestamp(b) - sessionTimestamp(a));
+  return [...agents].sort((a, b) => agentTimestamp(b) - agentTimestamp(a));
 }
 
-function buildActivitySeries(range: string, sessionCount: number, cronCount: number) {
+function buildActivitySeries(range: string, agentCount: number, cronCount: number) {
   const points = range === "7d" ? 7 : range === "6h" ? 6 : 24;
   const stepMs = range === "7d" ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000;
   const now = Date.now();
 
   return Array.from({ length: points }).map((_, index) => {
     const timestamp = new Date(now - (points - 1 - index) * stepMs);
-    const sessionBase = sessionCount || 0;
+    const agentBase = agentCount || 0;
     const cronBase = cronCount || 0;
-    const sessionValue = Math.max(0, Math.round(sessionBase + Math.sin(index / 2) * 2 + (index % 3)));
+    const agentValue = Math.max(0, Math.round(agentBase + Math.sin(index / 2) * 2 + (index % 3)));
     const cronValue = Math.max(0, Math.round(cronBase + Math.cos(index / 2) * 1.5));
 
     return {
       timestamp: timestamp.toISOString(),
-      sessions: sessionValue,
+      agents: agentValue,
       cron: cronValue
     };
   });
+}
+
+function formatAgentDescriptor(descriptor: AgentDescriptor) {
+  switch (descriptor.type) {
+    case "user":
+      return `${descriptor.connector}:${descriptor.userId} / ${descriptor.channelId}`;
+    case "cron":
+      return `cron:${descriptor.id}`;
+    case "heartbeat":
+      return "heartbeat";
+    case "subagent":
+      return descriptor.name ? `${descriptor.name} / ${descriptor.id}` : descriptor.id;
+    default:
+      return "system";
+  }
 }
 
 function formatInterval(ms?: number) {

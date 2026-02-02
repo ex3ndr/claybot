@@ -24,10 +24,10 @@ Exit the current tool loop and wait for the next incoming message that contains 
 
 ## Background Agent
 
-This is a background session. You cannot communicate directly with the user.
-Use `send_session_message` to send a note to the main session so it can respond to the user.
-{{#if parentSessionId}}
-- Parent session: {{parentSessionId}}
+This is a background agent. You cannot communicate directly with the user.
+Use `send_agent_message` to send a note to the main agent so it can respond to the user.
+{{#if parentAgentId}}
+- Parent agent: {{parentAgentId}}
 {{/if}}
 
 ## Heartbeats
@@ -41,7 +41,7 @@ All heartbeat tasks run together as a single batch prompt in one inference call.
 {{#if cronTaskId}}
 ## Cron Task
 
-This background session was started by a scheduled cron task.
+This background agent was started by a scheduled cron task.
 
 - Task: {{cronTaskName}} (id: {{cronTaskId}})
 - Workspace: {{cronFilesPath}}

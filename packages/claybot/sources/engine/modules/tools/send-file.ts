@@ -105,7 +105,8 @@ export function buildSendFileTool(): ToolDefinition<typeof schema> {
       };
 
       return {
-        toolMessage
+        toolMessage,
+        files: []
       };
     }
   };

@@ -14,9 +14,11 @@ The `start` command launches a Fastify server bound to a Unix socket.
 Current endpoints:
 - `GET /v1/engine/status`
 - `GET /v1/engine/cron/tasks`
-- `GET /v1/engine/sessions`
-- `GET /v1/engine/sessions/:storageId`
-- `POST /v1/engine/sessions/:storageId/reset`
+- `GET /v1/engine/heartbeat/tasks`
+- `GET /v1/engine/agents`
+- `GET /v1/engine/agents/background`
+- `GET /v1/engine/agents/:agentId/history`
+- `POST /v1/engine/agents/:agentId/reset`
 - `GET /v1/engine/plugins`
 - `POST /v1/engine/plugins/load`
 - `POST /v1/engine/plugins/unload`
@@ -68,26 +70,26 @@ Heartbeat tasks are collected and executed as a single heartbeat inference call.
 ```mermaid
 flowchart TD
   Scheduler[HeartbeatScheduler] -->|list tasks| Tasks[Heartbeat tasks]
-  Tasks -->|batch prompt| HeartbeatSession[Heartbeat session]
-  HeartbeatSession -->|single inference call| Provider[Inference provider]
-  HeartbeatSession -->|record run per task| Store[Heartbeat state]
+  Tasks -->|batch prompt| HeartbeatAgent[Heartbeat agent]
+  HeartbeatAgent -->|single inference call| Provider[Inference provider]
+  HeartbeatAgent -->|record run per task| Store[Heartbeat state]
   Scheduler --> Events[Event bus]
 ```
 
-## Session descriptor persistence
+## Agent descriptor persistence
 
-Each session writes a type descriptor into the first `session_created` log entry. On startup, the engine restores
-that descriptor into session state and uses it to resolve the most recent matching session when needed.
+Each agent writes `descriptor.json` and `state.json` under `agents/<id>/`. On startup, the engine loads
+those files and enqueues a restore message so the agent can rebuild inference context from history.
 Fetch strategies are limited to `most-recent-foreground` and `heartbeat`.
 
 ```mermaid
 flowchart TD
-  Create[session.created] --> Log[jsonl session_created entry]
-  Log -->|session descriptor| Store[SessionStore]
-  Store --> Restore[Engine restore]
-  Restore --> State[session.state.session]
-  Resolver[Session resolver] -->|descriptor| State
-  State -->|most recent match| Resolver
+  Create[agent.created] --> Descriptor[descriptor.json]
+  Create --> State[state.json]
+  Create --> History[history.jsonl]
+  Boot[Engine boot] --> Load[AgentSystem.load]
+  Load --> Restore[enqueue restore]
+  Restore --> Resolver[Agent resolver]
 ```
 
 ```mermaid
@@ -104,7 +106,7 @@ sequenceDiagram
 ## Permission requests
 
 Permission requests are asynchronous. After a tool call, the engine waits for the connector's decision
-before continuing the session.
+before continuing the agent.
 
 ```mermaid
 sequenceDiagram

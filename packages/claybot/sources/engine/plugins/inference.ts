@@ -63,11 +63,11 @@ export class PluginInferenceService {
       messages: request.messages,
       systemPrompt: request.systemPrompt
     };
-    const sessionId = `plugin:${instanceId}:${createId()}`;
+    const agentId = `plugin:${instanceId}:${createId()}`;
 
     if (strategy === "default") {
       const providersOverride = resolveProvidersOverride(providers, request.providerId);
-      return this.router.complete(context, sessionId, {
+      return this.router.complete(context, agentId, {
         providersOverride
       });
     }
@@ -83,7 +83,7 @@ export class PluginInferenceService {
     logger.debug(
       `Plugin inference selection providerId=${provider.id} strategy=${strategy} model=${providersOverride[0]?.model ?? "default"}`
     );
-    return this.router.complete(context, sessionId, {
+    return this.router.complete(context, agentId, {
       providersOverride
     });
   }

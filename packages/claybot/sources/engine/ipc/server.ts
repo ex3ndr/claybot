@@ -96,30 +96,30 @@ export async function startEngineServer(
     return reply.send({ ok: true, agents });
   });
 
-  app.get("/v1/engine/sessions", async (_request, reply) => {
-    logger.debug("GET /v1/engine/sessions");
-    const sessions = await options.runtime.agentSystem.sessionStore.listSessions();
-    logger.debug(`Sessions retrieved sessionCount=${sessions.length}`);
-    return reply.send({ ok: true, sessions });
+  app.get("/v1/engine/agents", async (_request, reply) => {
+    logger.debug("GET /v1/engine/agents");
+    const agents = options.runtime.agentSystem.listAgents();
+    logger.debug(`Agents retrieved agentCount=${agents.length}`);
+    return reply.send({ ok: true, agents });
   });
 
-  app.get("/v1/engine/sessions/:storageId", async (request, reply) => {
-    const storageId = (request.params as { storageId: string }).storageId;
-    logger.debug(`GET /v1/engine/sessions/:storageId storageId=${storageId}`);
-    const entries = await options.runtime.agentSystem.sessionStore.readSessionEntries(storageId);
-    logger.debug(`Session entries retrieved storageId=${storageId} entryCount=${entries?.length ?? 0}`);
-    return reply.send({ ok: true, entries });
+  app.get("/v1/engine/agents/:agentId/history", async (request, reply) => {
+    const agentId = (request.params as { agentId: string }).agentId;
+    logger.debug(`GET /v1/engine/agents/:agentId/history agentId=${agentId}`);
+    const records = await options.runtime.agentSystem.loadHistory(agentId);
+    logger.debug(`Agent history retrieved agentId=${agentId} recordCount=${records.length}`);
+    return reply.send({ ok: true, records });
   });
 
-  app.post("/v1/engine/sessions/:storageId/reset", async (request, reply) => {
-    const storageId = (request.params as { storageId: string }).storageId;
-    logger.debug(`POST /v1/engine/sessions/:storageId/reset storageId=${storageId}`);
-    const ok = options.runtime.resetSessionByStorageId(storageId);
+  app.post("/v1/engine/agents/:agentId/reset", async (request, reply) => {
+    const agentId = (request.params as { agentId: string }).agentId;
+    logger.debug(`POST /v1/engine/agents/:agentId/reset agentId=${agentId}`);
+    const ok = options.runtime.resetAgent(agentId);
     if (!ok) {
-      logger.debug(`Session reset failed storageId=${storageId}`);
-      return reply.status(404).send({ ok: false, error: "Session not found" });
+      logger.debug(`Agent reset failed agentId=${agentId}`);
+      return reply.status(404).send({ ok: false, error: "Agent not found" });
     }
-    logger.info({ storageId }, "Session reset");
+    logger.info({ agentId }, "Agent reset");
     return reply.send({ ok: true });
   });
 

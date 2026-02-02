@@ -1,7 +1,7 @@
 # Cron scheduler
 
 Cron tasks are stored as markdown files on disk and are loaded at startup. Each task
-has its own session, memory file, and workspace.
+has its own agent, memory file, and workspace.
 
 ## Task storage
 
@@ -36,8 +36,8 @@ Task directory ids should be human-friendly slugs (e.g. `create-image-in-morning
 
 - `Crons` owns storage + scheduling (`CronStore` + `CronScheduler`).
 - `CronScheduler` reads tasks from disk and schedules the next run.
-- Each task runs in its own session id (the `taskId` cuid2 from frontmatter).
-- When a schedule triggers, the task prompt is sent as a message to that session.
+- Each task runs in its own agent id (the `taskId` cuid2 from frontmatter).
+- When a schedule triggers, the task prompt is sent as a message to that agent.
 - The system prompt includes the cron task metadata and the memory file location.
 
 ```mermaid

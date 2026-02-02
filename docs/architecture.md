@@ -1,6 +1,6 @@
 # Architecture
 
-ClayBot is a plugin-driven engine that routes connector traffic through sessions, inference, tools, and memory.
+ClayBot is a plugin-driven engine that routes connector traffic through agents, inference, tools, and memory.
 
 Key pieces:
 - **CLI** (`sources/main.ts`) starts the engine and manages plugins/auth.
@@ -8,9 +8,9 @@ Key pieces:
 - **Providers** register inference and image generation capabilities.
 - **Auth store** (`.claybot/auth.json`) holds provider credentials.
 - **File store** persists attachments for connectors and tools.
-- **Agent system** routes messages into per-session inboxes and persists state.
-- **Memory plugin** records session updates and supports queries.
-- **Cron scheduler** emits timed messages into sessions.
+- **Agent system** routes messages into per-agent inboxes and persists state.
+- **Memory plugin** records agent updates and supports queries.
+- **Cron scheduler** emits timed messages into agents.
 - **Inference router** picks providers from settings.
 - **Engine server** exposes a local HTTP socket + SSE for status/events.
 - **Dashboard** (`claybot-dashboard`) proxies `/api` to the engine socket.
@@ -40,8 +40,8 @@ flowchart LR
 
 ## Message lifecycle
 1. Connector emits a `ConnectorMessage` (text + files).
-2. `AgentSystem` routes to a session and enqueues work in the session inbox.
+2. `AgentSystem` routes to an agent and enqueues work in the agent inbox.
 3. `Engine` builds a LLM context with attachments.
 4. Inference runs with tools (cron, memory, web search, image generation).
 5. Responses and generated files are sent back through the connector.
-6. Session state + memory are updated.
+6. Agent state + memory are updated.

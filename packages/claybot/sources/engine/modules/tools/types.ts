@@ -1,30 +1,29 @@
 import type { Tool, ToolResultMessage } from "@mariozechner/pi-ai";
 import type { TSchema } from "@sinclair/typebox";
 
-import type { FileReference } from "../../../files/types.js";
+import type { FileReference, MessageContext } from "@/types";
 import type { ConnectorRegistry } from "../connectorRegistry.js";
-import type { MessageContext } from "../connectors/types.js";
 import type { FileStore } from "../../../files/store.js";
-import type { Session } from "../../sessions/session.js";
+import type { Agent } from "../../agents/agent.js";
 import type { AuthStore } from "../../../auth/store.js";
 import type { Logger } from "pino";
 import type { AssistantSettings } from "../../../settings.js";
-import type { SessionPermissions } from "../../permissions.js";
+import type { SessionPermissions } from "@/types";
 import type { HeartbeatDefinition } from "../../heartbeat/heartbeatTypes.js";
 
 export type BackgroundAgentStartArgs = {
   prompt: string;
-  sessionId?: string;
+  parentAgentId: string;
+  agentId?: string;
   name?: string;
-  parentSessionId?: string;
 };
 
 export type BackgroundAgentStartResult = {
-  sessionId: string;
+  agentId: string;
 };
 
-export type SessionMessageArgs = {
-  sessionId?: string;
+export type AgentMessageArgs = {
+  agentId?: string;
   text: string;
   origin?: "background" | "system";
 };
@@ -53,7 +52,7 @@ export type AgentRuntime = {
   startBackgroundAgent: (
     args: BackgroundAgentStartArgs
   ) => Promise<BackgroundAgentStartResult>;
-  sendSessionMessage: (args: SessionMessageArgs) => Promise<void>;
+  sendAgentMessage: (args: AgentMessageArgs) => Promise<void>;
   runHeartbeatNow: (args?: HeartbeatRunArgs) => Promise<HeartbeatRunResult>;
   addHeartbeatTask: (args: HeartbeatAddArgs) => Promise<HeartbeatDefinition>;
   listHeartbeatTasks: () => Promise<HeartbeatDefinition[]>;
@@ -61,21 +60,21 @@ export type AgentRuntime = {
 };
 
 export type ToolExecutionContext<State = Record<string, unknown>> = {
-  connectorRegistry: ConnectorRegistry | null;
+  connectorRegistry: ConnectorRegistry;
   fileStore: FileStore;
   auth: AuthStore;
   logger: Logger;
   assistant: AssistantSettings | null;
   permissions: SessionPermissions;
-  session: Session<State>;
+  agent: Agent;
   source: string;
   messageContext: MessageContext;
-  agentRuntime?: AgentRuntime;
+  agentRuntime: AgentRuntime;
 };
 
 export type ToolExecutionResult = {
   toolMessage: ToolResultMessage;
-  files?: FileReference[];
+  files: FileReference[];
 };
 
 export type ToolDefinition<TParams extends TSchema = TSchema> = {

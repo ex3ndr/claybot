@@ -8,7 +8,6 @@ import type {
   ConnectorMessage,
   ConnectorFile,
   ConnectorCapabilities,
-  ConnectorCommand,
   MessageContext,
   MessageHandler,
   PermissionDecision,
@@ -128,15 +127,9 @@ export class TelegramConnector implements Connector {
         files: files.length > 0 ? files : undefined
       };
 
-      const commands = this.extractCommands(message);
       const context: MessageContext = {
         channelId: String(message.chat.id),
-        channelType: (message.chat.type as MessageContext["channelType"]) ?? "unknown",
         userId: String(message.from?.id ?? message.chat.id),
-        userFirstName: message.from?.first_name ?? undefined,
-        userLastName: message.from?.last_name ?? undefined,
-        username: message.from?.username ?? undefined,
-        commands: commands.length > 0 ? commands : undefined,
         messageId: message.message_id ? String(message.message_id) : undefined
       };
 
@@ -733,32 +726,6 @@ export class TelegramConnector implements Connector {
       logger.warn({ error }, "Telegram file download failed");
       return null;
     }
-  }
-
-  private extractCommands(message: TelegramBot.Message): ConnectorCommand[] {
-    const text = typeof message.text === "string" ? message.text : message.caption ?? "";
-    if (!text) {
-      return [];
-    }
-    const entities = message.text ? message.entities : message.caption_entities;
-    if (!entities || entities.length === 0) {
-      return [];
-    }
-    const commands = entities
-      .filter((entity) => entity.type === "bot_command")
-      .map((entity) => {
-        const raw = text.slice(entity.offset, entity.offset + entity.length);
-        const name = raw.startsWith("/") ? raw.slice(1).split("@")[0] ?? "" : raw;
-        const args =
-          entity.offset === 0 ? text.slice(entity.offset + entity.length).trim() : "";
-        return {
-          name,
-          raw,
-          args: args.length > 0 ? args : undefined
-        };
-      })
-      .filter((entry) => entry.name.length > 0);
-    return commands;
   }
 
   private async updatePermissionMessage(

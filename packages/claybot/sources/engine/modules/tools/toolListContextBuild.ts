@@ -19,7 +19,7 @@ const BACKGROUND_TOOL_DENYLIST = new Set([
 ]);
 
 /**
- * Builds the tool list for a session context based on connector capabilities.
+ * Builds the tool list for an agent context based on connector capabilities.
  * Expects: tool names are unique; connector registry is available for capability checks.
  */
 export function toolListContextBuild(options: ToolListOptions): Tool[] {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { Connector } from "../connectors/types.js";
+import type { Connector } from "@/types";
 import { toolListContextBuild } from "./toolListContextBuild.js";
 
 import type { Tool } from "@mariozechner/pi-ai";

@@ -26,7 +26,8 @@ describe("toolResultFormatVerbose", () => {
 
   it("formats error results", () => {
     const result: ToolExecutionResult = {
-      toolMessage: { ...baseToolMessage, isError: true }
+      toolMessage: { ...baseToolMessage, isError: true },
+      files: []
     };
 
     const text = toolResultFormatVerbose(result);

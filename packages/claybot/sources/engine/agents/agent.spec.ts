@@ -1,167 +1,85 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import os from "node:os";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { createId } from "@paralleldrive/cuid2";
 
 import { Agent } from "./agent.js";
-import type { AgentRuntime } from "@/types";
-import { SessionStore } from "../sessions/store.js";
-import type { SessionPermissions } from "@/types";
-import type { SessionDescriptor } from "../sessions/descriptor.js";
-import type { SessionState } from "../sessions/sessionStateTypes.js";
-import type { AgentSystemContext } from "./agentTypes.js";
-import type { ConnectorRegistry } from "../modules/connectorRegistry.js";
-import type { ImageGenerationRegistry } from "../modules/imageGenerationRegistry.js";
-import type { ToolResolver } from "../modules/toolResolver.js";
-import type { InferenceRouter } from "../modules/inference/router.js";
-import type { FileStore } from "../../files/store.js";
-import type { AuthStore } from "../../auth/store.js";
-import type { PluginManager } from "../plugins/manager.js";
+import { AgentInbox } from "./ops/agentInbox.js";
+import { AgentSystem } from "./agentSystem.js";
+import { ConnectorRegistry } from "../modules/connectorRegistry.js";
+import { ImageGenerationRegistry } from "../modules/imageGenerationRegistry.js";
+import { ToolResolver } from "../modules/toolResolver.js";
 import { EngineEventBus } from "../ipc/events.js";
-import type { Crons } from "../cron/crons.js";
+import { AuthStore } from "../../auth/store.js";
+import { FileStore } from "../../files/store.js";
 import { configResolve } from "../../config/configResolve.js";
+import type { AgentDescriptor, AgentRuntime } from "@/types";
+import type { PluginManager } from "../plugins/manager.js";
+import type { InferenceRouter } from "../modules/inference/router.js";
+import type { Crons } from "../cron/crons.js";
 
-const defaultPermissions: SessionPermissions = {
-  workingDir: "/tmp/work",
-  writeDirs: ["/tmp/work"],
-  readDirs: ["/tmp/work"],
-  web: false
-};
-
-const stubRuntime = (): AgentRuntime =>
-  ({
-    startBackgroundAgent: async () => ({ sessionId: "stub" }),
-    sendSessionMessage: async () => {},
-    runHeartbeatNow: async () => ({ ran: 0, taskIds: [] }),
-    addHeartbeatTask: async () => ({
-      id: "stub",
-      title: "stub",
-      prompt: "stub",
-      filePath: "/tmp/heartbeat.md"
-    }),
-    listHeartbeatTasks: async () => [],
-    removeHeartbeatTask: async () => ({ removed: false })
-  }) satisfies AgentRuntime;
-
-const stub = <T>(): T => ({} as unknown as T);
-
-async function createAgentSystem(): Promise<{
-  agentSystem: AgentSystemContext;
-  store: SessionStore;
-  dir: string;
-  cleanup: () => Promise<void>;
-}> {
-  const dir = await mkdtemp(path.join(tmpdir(), "claybot-agent-"));
-  const store = new SessionStore<SessionState>({ basePath: dir });
-  const config = configResolve(
-    {
-      engine: { dataDir: dir },
-      assistant: { workspaceDir: defaultPermissions.workingDir }
-    },
-    path.join(dir, "settings.json")
-  );
-  const agentSystem = {
-    config,
-    sessionStore: store,
-    connectorRegistry: stub<ConnectorRegistry>(),
-    imageRegistry: stub<ImageGenerationRegistry>(),
-    toolResolver: stub<ToolResolver>(),
-    inferenceRouter: stub<InferenceRouter>(),
-    fileStore: stub<FileStore>(),
-    authStore: stub<AuthStore>(),
-    pluginManager: stub<PluginManager>(),
-    eventBus: new EngineEventBus(),
-    crons: stub<Crons>(),
-    agentRuntime: stubRuntime()
-  } satisfies AgentSystemContext;
-  return {
-    agentSystem,
-    store,
-    dir,
-    cleanup: async () => {
-      await rm(dir, { recursive: true, force: true });
-    }
-  };
-}
+const stubRuntime = (): AgentRuntime => ({
+  startBackgroundAgent: async (_args) => ({ agentId: createId() }),
+  sendAgentMessage: async () => {},
+  runHeartbeatNow: async () => ({ ran: 0, taskIds: [] }),
+  addHeartbeatTask: async () => ({
+    id: "stub",
+    title: "stub",
+    prompt: "stub",
+    filePath: "/tmp/heartbeat.md"
+  }),
+  listHeartbeatTasks: async () => [],
+  removeHeartbeatTask: async () => ({ removed: false })
+});
 
 describe("Agent", () => {
-  it("creates and loads an agent by session id", async () => {
-    const { agentSystem, cleanup } = await createAgentSystem();
+  it("persists descriptor, state, and history on create", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "claybot-agent-"));
     try {
-      const descriptor: SessionDescriptor = {
-        type: "user",
-        connector: "slack",
-        channelId: "channel-1",
-        userId: "user-1"
-      };
-      const sessionId = "a".repeat(24);
-      const created = await Agent.create(descriptor, sessionId, agentSystem);
-      expect(created.session.id).toBe(sessionId);
-
-      const loaded = await Agent.load(descriptor, sessionId, agentSystem);
-      expect(loaded.descriptor).toEqual(descriptor);
-    } finally {
-      await cleanup();
-    }
-  });
-
-  it("rejects loads when the descriptor does not match", async () => {
-    const { agentSystem, cleanup } = await createAgentSystem();
-    try {
-      const descriptor: SessionDescriptor = {
-        type: "user",
-        connector: "slack",
-        channelId: "channel-1",
-        userId: "user-1"
-      };
-      const sessionId = "b".repeat(24);
-      await Agent.create(descriptor, sessionId, agentSystem);
-
-      const mismatch: SessionDescriptor = {
-        type: "user",
-        connector: "discord",
-        channelId: "channel-1",
-        userId: "user-1"
-      };
-
-      await expect(Agent.load(mismatch, sessionId, agentSystem)).rejects.toThrow(
-        "Agent descriptor mismatch"
+      const config = configResolve(
+        { engine: { dataDir: dir }, assistant: { workspaceDir: dir } },
+        path.join(dir, "settings.json")
       );
-    } finally {
-      await cleanup();
-    }
-  });
-
-  it("enqueues messages and persists incoming entries", async () => {
-    const { agentSystem, store, dir, cleanup } = await createAgentSystem();
-    try {
-      const descriptor: SessionDescriptor = {
-        type: "user",
-        connector: "slack",
-        channelId: "channel-1",
-        userId: "user-1"
-      };
-      const sessionId = "c".repeat(24);
-      const agent = await Agent.create(descriptor, sessionId, agentSystem);
-
-      const entry = agent.receive({
-        type: "message",
-        source: "slack",
-        message: { text: "hello", files: [] },
-        context: { channelId: "channel-1", userId: "user-1" }
+      const agentSystem = new AgentSystem({
+        config,
+        eventBus: new EngineEventBus(),
+        connectorRegistry: new ConnectorRegistry({ onMessage: async () => undefined }),
+        imageRegistry: new ImageGenerationRegistry(),
+        toolResolver: new ToolResolver(),
+        pluginManager: {} as unknown as PluginManager,
+        inferenceRouter: {} as unknown as InferenceRouter,
+        fileStore: new FileStore(config),
+        authStore: new AuthStore(config),
+        crons: {} as unknown as Crons,
+        agentRuntime: stubRuntime()
       });
 
-      expect(entry.message.rawText).toBe("hello");
+      const agentId = createId();
+      const descriptor: AgentDescriptor = {
+        type: "user",
+        connector: "slack",
+        channelId: "channel-1",
+        userId: "user-1"
+      };
+      await Agent.create(agentId, descriptor, new AgentInbox(agentId), agentSystem);
 
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      const descriptorPath = path.join(config.agentsDir, agentId, "descriptor.json");
+      const statePath = path.join(config.agentsDir, agentId, "state.json");
+      const historyPath = path.join(config.agentsDir, agentId, "history.jsonl");
 
-      const filePath = path.join(dir, `${agent.session.storageId}.jsonl`);
-      const raw = await readFile(filePath, "utf8");
-      expect(raw).toContain("\"type\":\"incoming\"");
-      expect(raw).toContain("\"type\":\"state\"");
+      const descriptorRaw = await readFile(descriptorPath, "utf8");
+      expect(JSON.parse(descriptorRaw)).toEqual(descriptor);
+
+      const stateRaw = await readFile(statePath, "utf8");
+      const state = JSON.parse(stateRaw) as { permissions: { workingDir: string } };
+      expect(state.permissions.workingDir).toBe(config.defaultPermissions.workingDir);
+
+      const historyRaw = await readFile(historyPath, "utf8");
+      expect(historyRaw).toContain("\"type\":\"start\"");
     } finally {
-      await cleanup();
+      await rm(dir, { recursive: true, force: true });
     }
   });
 });

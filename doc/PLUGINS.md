@@ -270,10 +270,10 @@ type MessageContext = {
   userLastName?: string;
   username?: string;
   commands?: ConnectorCommand[];
-  sessionId?: string;
+  agentId?: string;
   messageId?: string;
   providerId?: string;
-  agent?: { kind: "background"; parentSessionId?: string; name?: string };
+  agent?: { kind: "background"; parentAgentId?: string; name?: string };
   cron?: { taskId: string; taskName: string; memoryPath: string; filesPath: string };
 };
 ```
@@ -300,7 +300,7 @@ type Tool = {
 
 type ToolExecutionResult = {
   toolMessage: ToolResultMessage;
-  files?: FileReference[];
+  files: FileReference[];
 };
 ```
 
@@ -308,22 +308,22 @@ type ToolExecutionResult = {
 
 ```typescript
 type ToolExecutionContext = {
-  connectorRegistry: ConnectorRegistry | null;
+  connectorRegistry: ConnectorRegistry;
   fileStore: FileStore;
   auth: AuthStore;
   logger: Logger;
   assistant: AssistantSettings | null;
   permissions: SessionPermissions;
-  session: Session;
+  agent: Agent;
   source: string;
   messageContext: MessageContext;
-  agentRuntime?: AgentRuntime;
+  agentRuntime: AgentRuntime;
 };
 ```
 
 The `agentRuntime` provides:
-- `startBackgroundAgent({ prompt, sessionId?, name?, parentSessionId? })` - Spawn background agents
-- `sendSessionMessage({ sessionId?, text, origin? })` - Send messages to sessions
+- `startBackgroundAgent({ prompt, agentId?, name?, parentAgentId? })` - Spawn background agents
+- `sendAgentMessage({ agentId?, text, origin? })` - Send messages to agents
 - `runHeartbeatNow({ ids? })` - Trigger heartbeat tasks
 
 ### Inference Providers

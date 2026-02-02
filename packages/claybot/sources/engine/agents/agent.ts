@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import type { Context } from "@mariozechner/pi-ai";
+import type { Context, ToolCall } from "@mariozechner/pi-ai";
 import { createId } from "@paralleldrive/cuid2";
 import Handlebars from "handlebars";
 
@@ -10,8 +10,8 @@ import { getLogger } from "../../log.js";
 import { DEFAULT_SOUL_PATH, DEFAULT_USER_PATH } from "../../paths.js";
 import { listActiveInferenceProviders } from "../../providers/catalog.js";
 import { cuid2Is } from "../../utils/cuid2Is.js";
-import { agentPromptBundledRead } from "./agentPromptBundledRead.js";
-import { agentPromptFilesEnsure } from "./agentPromptFilesEnsure.js";
+import { agentPromptBundledRead } from "./ops/agentPromptBundledRead.js";
+import { agentPromptFilesEnsure } from "./ops/agentPromptFilesEnsure.js";
 import type { MessageContext } from "@/types";
 import { messageBuildUser } from "../messages/messageBuildUser.js";
 import { messageFormatIncoming } from "../messages/messageFormatIncoming.js";
@@ -20,237 +20,158 @@ import { permissionBuildCron } from "../permissions/permissionBuildCron.js";
 import { permissionClone } from "../permissions/permissionClone.js";
 import { permissionEnsureDefaultFile } from "../permissions/permissionEnsureDefaultFile.js";
 import { permissionMergeDefault } from "../permissions/permissionMergeDefault.js";
+import { permissionApply } from "../permissions/permissionApply.js";
+import { permissionDescribeDecision } from "../permissions/permissionDescribeDecision.js";
+import { permissionFormatTag } from "../permissions/permissionFormatTag.js";
 import { skillListCore } from "../skills/skillListCore.js";
 import { skillListRegistered } from "../skills/skillListRegistered.js";
 import { skillPromptFormat } from "../skills/skillPromptFormat.js";
-import { Session } from "../sessions/session.js";
-import type { SessionDescriptor } from "../sessions/descriptor.js";
-import { sessionContextIsCron } from "../sessions/sessionContextIsCron.js";
-import { sessionContextIsHeartbeat } from "../sessions/sessionContextIsHeartbeat.js";
-import { sessionDescriptorBuild } from "../sessions/sessionDescriptorBuild.js";
-import { sessionRecordOutgoing } from "../sessions/sessionRecordOutgoing.js";
-import { sessionRecordState } from "../sessions/sessionRecordState.js";
-import { sessionStateNormalize } from "../sessions/sessionStateNormalize.js";
-import type { SessionState } from "../sessions/sessionStateTypes.js";
-import type { SessionMessage } from "@/types";
 import { toolListContextBuild } from "../modules/tools/toolListContextBuild.js";
+import { agentDescriptorIsCron } from "./ops/agentDescriptorIsCron.js";
+import { agentDescriptorIsHeartbeat } from "./ops/agentDescriptorIsHeartbeat.js";
+import { agentRoutingSanitize } from "./ops/agentRoutingSanitize.js";
+import type { AgentDescriptor } from "./ops/agentDescriptorTypes.js";
 import type {
-  AgentDescriptor,
-  AgentInboxEntry,
-  AgentInboxItem,
+  AgentHistoryRecord,
   AgentInboxMessage,
-  AgentInboxResult,
+  AgentInboxPermission,
   AgentInboxReset,
-  AgentReceiveResult,
-  AgentSystemContext
-} from "./agentTypes.js";
-import { agentLoopRun } from "./agentLoopRun.js";
-import { AgentInbox } from "./agentInbox.js";
+  AgentInboxRestore,
+  AgentInboxResult,
+  AgentMessage,
+  AgentState
+} from "./ops/agentTypes.js";
+import { agentLoopRun } from "./ops/agentLoopRun.js";
+import { AgentInbox } from "./ops/agentInbox.js";
+import { agentHistoryAppend } from "./ops/agentHistoryAppend.js";
+import { agentHistoryLoad } from "./ops/agentHistoryLoad.js";
+import { agentStateWrite } from "./ops/agentStateWrite.js";
+import { agentDescriptorWrite } from "./ops/agentDescriptorWrite.js";
+import type { AgentSystem } from "./agentSystem.js";
 
 const logger = getLogger("engine.agent");
 
 export class Agent {
-  readonly session: Session<SessionState>;
-  readonly descriptor: SessionDescriptor;
-  private agentSystem: AgentSystemContext;
-  private sessionStore: AgentSystemContext["sessionStore"];
+  readonly id: string;
+  readonly descriptor: AgentDescriptor;
+  readonly inbox: AgentInbox;
+  readonly state: AgentState;
+  private readonly agentSystem: AgentSystem;
   private processing = false;
+  private started = false;
 
   private constructor(
-    session: Session<SessionState>,
-    descriptor: SessionDescriptor,
-    agentSystem: AgentSystemContext
-  ) {
-    this.session = session;
-    this.descriptor = descriptor;
-    this.agentSystem = agentSystem;
-    this.sessionStore = agentSystem.sessionStore;
-  }
-
-  /**
-   * Loads an agent from the session log.
-   * Expects: id is a cuid2 session id, and the stored descriptor equals the requested descriptor.
-   */
-  static async load(
-    descriptor: AgentDescriptor,
     id: string,
-    agentSystem: AgentSystemContext
-  ): Promise<Agent> {
-    if (!cuid2Is(id)) {
-      throw new Error("Agent session id must be a cuid2 value.");
-    }
-    const store = agentSystem.sessionStore;
-    const restoredSessions = await store.loadSessions();
-    const restored = restoredSessions.find((candidate) => candidate.sessionId === id);
-    if (!restored) {
-      throw new Error(`Agent session not found: ${id}`);
-    }
-    if (!restored.descriptor) {
-      throw new Error(`Agent session missing descriptor: ${id}`);
-    }
-    if (!agentDescriptorEquals(descriptor, restored.descriptor)) {
-      throw new Error(`Agent descriptor mismatch for session: ${id}`);
-    }
-
-    const state = sessionStateNormalize(
-      restored.state,
-      agentSystem.config.defaultPermissions
-    );
-    state.session = restored.descriptor;
-
-    const now = new Date();
-    const session = new Session<SessionState>(
-      id,
-      {
-        id,
-        createdAt: restored.createdAt ?? now,
-        updatedAt: restored.updatedAt ?? now,
-        state
-      },
-      restored.storageId
-    );
-
-    return new Agent(session, restored.descriptor, agentSystem);
+    descriptor: AgentDescriptor,
+    state: AgentState,
+    inbox: AgentInbox,
+    agentSystem: AgentSystem
+  ) {
+    this.id = id;
+    this.descriptor = descriptor;
+    this.state = state;
+    this.inbox = inbox;
+    this.agentSystem = agentSystem;
   }
 
   /**
-   * Creates a new agent session and records a session_created entry.
-   * Expects: id is a cuid2 session id, descriptor is the session type object to persist.
+   * Creates a new agent and persists descriptor + state + history start.
+   * Expects: agentId is a cuid2 value; descriptor is validated.
    */
   static async create(
+    agentId: string,
     descriptor: AgentDescriptor,
-    id: string,
-    agentSystem: AgentSystemContext,
+    inbox: AgentInbox,
+    agentSystem: AgentSystem,
     options?: { source?: string; context?: MessageContext }
   ): Promise<Agent> {
-    if (!cuid2Is(id)) {
-      throw new Error("Agent session id must be a cuid2 value.");
+    if (!cuid2Is(agentId)) {
+      throw new Error("Agent id must be a cuid2 value.");
     }
-    const store = agentSystem.sessionStore;
-    const storageId = store.createStorageId();
-    const now = new Date();
-    const state: SessionState = {
+    const now = Date.now();
+    const state: AgentState = {
       context: { messages: [] },
-      providerId: undefined,
+      providerId: null,
       permissions: permissionClone(agentSystem.config.defaultPermissions),
-      session: descriptor
+      routing: null,
+      agent: descriptor.type === "subagent"
+        ? {
+            kind: "background",
+            parentAgentId: descriptor.parentAgentId ?? null,
+            name: descriptor.name ?? null
+          }
+        : descriptor.type === "cron"
+          ? {
+              kind: "background",
+              parentAgentId: null,
+              name: "cron"
+            }
+          : descriptor.type === "heartbeat"
+            ? {
+                kind: "background",
+                parentAgentId: null,
+                name: "heartbeat"
+              }
+            : null,
+      createdAt: now,
+      updatedAt: now
     };
-    const session = new Session<SessionState>(
-      id,
-      {
-        id,
-        createdAt: now,
-        updatedAt: now,
-        state
-      },
-      storageId
-    );
 
-    const source = options?.source ?? "agent";
-    const context = options?.context ?? agentContextBuild(descriptor, id);
-    await store.recordSessionCreated(session, source, context, descriptor);
-    await store.recordState(session);
-
-    return new Agent(session, descriptor, agentSystem);
-  }
-
-  /**
-   * Rehydrates an agent from an existing session object.
-   * Expects: session already includes descriptor and normalized state.
-   */
-  static restore(
-    session: Session<SessionState>,
-    descriptor: SessionDescriptor,
-    agentSystem: AgentSystemContext
-  ): Agent {
-    return new Agent(session, descriptor, agentSystem);
-  }
-
-  /**
-   * Wraps an existing session for message handling.
-   * Expects: session state will be updated with a descriptor if missing.
-   */
-  static fromMessage(
-    session: Session<SessionState>,
-    source: string,
-    context: MessageContext,
-    agentSystem: AgentSystemContext
-  ): Agent {
-    const descriptor =
-      session.context.state.session ?? sessionDescriptorBuild(source, context, session.id);
-    if (!session.context.state.session) {
-      session.context.state.session = descriptor;
-    }
-    return new Agent(session, descriptor, agentSystem);
-  }
-
-  /**
-   * Wraps an existing session that already has a descriptor.
-   * Expects: session context includes a session descriptor.
-   */
-  static fromSession(session: Session<SessionState>, agentSystem: AgentSystemContext): Agent {
-    const descriptor = session.context.state.session;
-    if (!descriptor) {
-      throw new Error(`Agent session missing descriptor: ${session.id}`);
-    }
-    return new Agent(session, descriptor, agentSystem);
-  }
-
-  /**
-   * Enqueues a message for the agent session.
-   * Expects: inbound context is valid; persistence is queued asynchronously.
-   */
-  receive(inbound: AgentInboxMessage): AgentReceiveResult {
-    const receivedAt = new Date();
-    const messageId = createId();
-    const context = { ...inbound.context, sessionId: this.session.id };
-    const entry: SessionMessage = {
-      id: messageId,
-      message: messageFormatIncoming(inbound.message, context, receivedAt),
-      context,
-      receivedAt
-    };
-    this.session.context.updatedAt = receivedAt;
-    const store = this.sessionStore;
-
-    void (async () => {
-      try {
-        const rawText = entry.message.rawText ?? entry.message.text ?? "";
-        if (!messageIsSystemText(rawText)) {
-          await store.recordIncoming(this.session, entry, inbound.source);
-        }
-        await store.recordState(this.session);
-      } catch (error) {
-        logger.warn({ sessionId: this.session.id, error }, "Agent persistence failed");
-      }
-    })();
-
-    this.agentSystem.eventBus.emit("session.updated", {
-      sessionId: this.session.id,
-      source: inbound.source,
-      messageId: entry.id,
-      entry: {
-        id: entry.id,
-        message: entry.message,
-        context: entry.context,
-        receivedAt: entry.receivedAt
-      }
+    const agent = new Agent(agentId, descriptor, state, inbox, agentSystem);
+    await agentDescriptorWrite(agentSystem.config, agentId, descriptor);
+    await agentStateWrite(agentSystem.config, agentId, state);
+    await agentHistoryAppend(agentSystem.config, agentId, {
+      type: "start",
+      at: now
     });
 
-    return entry;
+    const source = options?.source ?? "agent";
+    const context = options?.context ?? agentContextBuild(descriptor, agentId);
+    agent.captureRouting(source, context);
+    agent.agentSystem.eventBus.emit("agent.created", {
+      agentId,
+      source,
+      context
+    });
+    return agent;
   }
 
   /**
-   * Runs the agent loop for messages pulled from the inbox.
-   * Expects: inbox is exclusively attached to this agent.
+   * Rehydrates an agent from persisted descriptor + state.
+   * Expects: state and descriptor already validated.
    */
-  async run(inbox: AgentInbox): Promise<void> {
-    inbox.attach();
+  static restore(
+    agentId: string,
+    descriptor: AgentDescriptor,
+    state: AgentState,
+    inbox: AgentInbox,
+    agentSystem: AgentSystem
+  ): Agent {
+    return new Agent(agentId, descriptor, state, inbox, agentSystem);
+  }
+
+  start(): void {
+    if (this.started) {
+      return;
+    }
+    this.started = true;
+    void this.runLoop().catch((error) => {
+      this.started = false;
+      logger.warn({ agentId: this.id, error }, "Agent loop exited unexpectedly");
+    });
+  }
+
+  isProcessing(): boolean {
+    return this.processing;
+  }
+
+  private async runLoop(): Promise<void> {
+    this.inbox.attach();
     for (;;) {
-      const entry = await inbox.next();
+      const entry = await this.inbox.next();
       this.processing = true;
       try {
-        const result = await this.handleInboxEntry(entry);
+        const result = await this.handleInboxItem(entry.item);
         entry.completion?.resolve(result);
       } catch (error) {
         const failure = error instanceof Error ? error : new Error(String(error));
@@ -261,235 +182,397 @@ export class Agent {
     }
   }
 
-  isProcessing(): boolean {
-    return this.processing;
+  private async handleInboxItem(item: AgentInboxMessage | AgentInboxReset | AgentInboxRestore | AgentInboxPermission): Promise<AgentInboxResult> {
+    switch (item.type) {
+      case "message": {
+        const responseText = await this.handleMessage(item);
+        return { type: "message", responseText };
+      }
+      case "reset": {
+        const ok = await this.handleReset(item);
+        return { type: "reset", ok };
+      }
+      case "restore": {
+        const ok = await this.handleRestore(item);
+        return { type: "restore", ok };
+      }
+      case "permission": {
+        const ok = await this.handlePermission(item);
+        return { type: "permission", ok };
+      }
+      default:
+        return { type: "restore", ok: false };
+    }
   }
 
-  /**
-   * Processes a queued session message by running the agent loop.
-   * Expects: caller already enqueued the message into the session queue.
-   */
-  async handleMessage(entry: SessionMessage, source: string): Promise<string | null> {
-    const session = this.session;
-    const agentSystem = this.agentSystem;
-    const connectorRegistry = agentSystem.connectorRegistry;
-    const connector = connectorRegistry.get(source);
+  private async handleMessage(item: AgentInboxMessage): Promise<string | null> {
+    const receivedAt = Date.now();
+    const messageId = createId();
+    const context = { ...item.context };
+    const entry: AgentMessage = {
+      id: messageId,
+      message: messageFormatIncoming(item.message, context, new Date(receivedAt)),
+      context,
+      receivedAt
+    };
 
-    const textLen = entry.message.text?.length ?? 0;
-    const fileCount = entry.message.files?.length ?? 0;
-    logger.debug(
-      `handleMessage started sessionId=${session.id} messageId=${entry.id} source=${source} hasText=${!!entry.message.text} textLength=${textLen} fileCount=${fileCount}`
-    );
+    this.state.updatedAt = receivedAt;
+    this.captureRouting(item.source, context);
 
-    if (!entry.message.text && (!entry.message.files || entry.message.files.length === 0)) {
-      logger.debug(
-        `handleMessage skipping - no text or files sessionId=${session.id} messageId=${entry.id}`
-      );
-      return null;
+    const rawText = entry.message.rawText ?? entry.message.text ?? "";
+    const files = toFileReferences(entry.message.files ?? []);
+    if (!messageIsSystemText(rawText)) {
+      await agentHistoryAppend(this.agentSystem.config, this.id, {
+        type: "user_message",
+        at: receivedAt,
+        text: rawText,
+        files
+      });
     }
 
-    const isInternal =
-      !connector &&
-      (source === "system" || entry.context.agent?.kind === "background" || !!entry.context.cron);
-    if (!connector && !isInternal) {
-      logger.debug(
-        `handleMessage skipping - connector not found sessionId=${session.id} source=${source}`
-      );
-      return null;
-    }
-    logger.debug(
-      `Connector ${connector ? "found" : "not required"} source=${source} internal=${isInternal}`
-    );
+    const agentContext = this.state.context;
+    const providers = listActiveInferenceProviders(this.agentSystem.config.settings);
+    const providerId = this.resolveAgentProvider(providers);
 
-    if (!session.context.state.session) {
-      session.context.state.session = this.descriptor;
-    }
-
-    const defaultPermissions = agentSystem.config.defaultPermissions;
-    if (entry.context.cron?.filesPath) {
-      session.context.state.permissions = permissionBuildCron(
-        defaultPermissions,
-        entry.context.cron.filesPath
-      );
-    } else if (sessionContextIsHeartbeat(entry.context, session.context.state.session)) {
-      session.context.state.permissions = permissionMergeDefault(
-        session.context.state.permissions,
-        defaultPermissions
-      );
-      permissionEnsureDefaultFile(session.context.state.permissions, defaultPermissions);
-    }
-
-    await agentPromptFilesEnsure();
-
-    const sessionContext = session.context.state.context;
-    const providers = listActiveInferenceProviders(agentSystem.config.settings);
-    const providerId = this.resolveSessionProvider(session, entry.context, providers);
-    logger.debug(
-      `Building context sessionId=${session.id} existingMessageCount=${sessionContext.messages.length}`
-    );
-
-    const providerSettings = providerId
-      ? providers.find((provider) => provider.id === providerId)
-      : providers[0];
+    const connector = this.agentSystem.connectorRegistry.get(item.source);
     const connectorCapabilities = connector?.capabilities ?? null;
     const fileSendModes = connectorCapabilities?.sendFiles?.modes ?? [];
-    const channelType = entry.context.channelType;
-    const channelIsPrivate = channelType ? channelType === "private" : null;
-    const cronContext = entry.context.cron;
-    const cronTaskIds = (await agentSystem.crons.listTasks()).map((task) => task.id);
-    const pluginManager = agentSystem.pluginManager;
+    const cronTasks = await this.agentSystem.crons.listTasks();
+    const cronTaskIds = cronTasks.map((task) => task.id);
+    const descriptor = this.descriptor;
+    const cronTask = agentDescriptorIsCron(descriptor)
+      ? cronTasks.find((task) => task.taskUid === descriptor.id) ?? null
+      : null;
+    const pluginManager = this.agentSystem.pluginManager;
     const pluginPrompts = await pluginManager.getSystemPrompts();
     const pluginPrompt = pluginPrompts.length > 0 ? pluginPrompts.join("\n\n") : "";
     const coreSkills = await skillListCore();
     const pluginSkills = await skillListRegistered(pluginManager.listRegisteredSkills());
     const skills = [...coreSkills, ...pluginSkills];
     const skillsPrompt = skillPromptFormat(skills);
-    const agentKind = session.context.state.agent?.kind ?? entry.context.agent?.kind;
-    const allowCronTools = sessionContextIsCron(entry.context, session.context.state.session);
+    const agentKind = this.state.agent?.kind ?? "foreground";
+    const allowCronTools = agentDescriptorIsCron(this.descriptor);
+
+    const defaultPermissions = this.agentSystem.config.defaultPermissions;
+    if (cronTask?.filesPath) {
+      this.state.permissions = permissionBuildCron(defaultPermissions, cronTask.filesPath);
+    } else if (agentDescriptorIsHeartbeat(this.descriptor)) {
+      this.state.permissions = permissionMergeDefault(this.state.permissions, defaultPermissions);
+      permissionEnsureDefaultFile(this.state.permissions, defaultPermissions);
+    }
+
+    await agentPromptFilesEnsure();
+
+    const providerSettings = providerId
+      ? providers.find((provider) => provider.id === providerId)
+      : providers[0];
+
     const systemPrompt = await this.buildSystemPrompt({
       provider: providerSettings?.id,
       model: providerSettings?.model,
-      workspace: session.context.state.permissions.workingDir,
-      writeDirs: session.context.state.permissions.writeDirs,
-      web: session.context.state.permissions.web,
-      connector: source,
+      workspace: this.state.permissions.workingDir,
+      writeDirs: this.state.permissions.writeDirs,
+      web: this.state.permissions.web,
+      connector: item.source,
       canSendFiles: fileSendModes.length > 0,
       fileSendModes: fileSendModes.length > 0 ? fileSendModes.join(", ") : "",
       messageFormatPrompt: connectorCapabilities?.messageFormatPrompt ?? "",
-      channelId: entry.context.channelId,
-      channelType,
-      channelIsPrivate,
-      userId: entry.context.userId,
-      userFirstName: entry.context.userFirstName,
-      userLastName: entry.context.userLastName,
-      username: entry.context.username,
-      cronTaskId: cronContext?.taskId,
-      cronTaskName: cronContext?.taskName,
-      cronMemoryPath: cronContext?.memoryPath,
-      cronFilesPath: cronContext?.filesPath,
+      channelId: context.channelId,
+      userId: context.userId,
+      cronTaskId: cronTask?.id,
+      cronTaskName: cronTask?.name,
+      cronMemoryPath: cronTask?.memoryPath,
+      cronFilesPath: cronTask?.filesPath,
       cronTaskIds: cronTaskIds.length > 0 ? cronTaskIds.join(", ") : "",
       soulPath: DEFAULT_SOUL_PATH,
       userPath: DEFAULT_USER_PATH,
       pluginPrompt,
       skillsPrompt,
       agentKind,
-      parentSessionId:
-        session.context.state.agent?.parentSessionId ?? entry.context.agent?.parentSessionId,
-      configDir: agentSystem.config.configDir
+      parentAgentId: this.state.agent?.parentAgentId ?? "",
+      configDir: this.agentSystem.config.configDir
     });
-    const context: Context = {
-      ...sessionContext,
-      tools: this.listContextTools(source, {
+
+    const contextForRun: Context = {
+      ...agentContext,
+      tools: this.listContextTools(item.source, {
         agentKind,
         allowCronTools
       }),
       systemPrompt
     };
-    logger.debug(
-      `Context built toolCount=${context.tools?.length ?? 0} systemPrompt=${context.systemPrompt ? "set" : "none"}`
-    );
 
-    logger.debug("Building user message from entry");
     const userMessage = await messageBuildUser(entry);
-    context.messages.push(userMessage);
-    logger.debug(`User message added to context totalMessages=${context.messages.length}`);
+    contextForRun.messages.push(userMessage);
 
-    const providersForSession = providerId
+    const providersForAgent = providerId
       ? providers.filter((provider) => provider.id === providerId)
       : [];
-    logger.debug(
-      `Session provider resolved sessionId=${session.id} providerId=${providerId ?? "none"} providerCount=${providersForSession.length}`
-    );
 
     const result = await agentLoopRun({
       entry,
-      session,
-      source,
-      context,
+      agent: this,
+      source: item.source,
+      context: contextForRun,
       connector,
-      connectorRegistry,
-      inferenceRouter: agentSystem.inferenceRouter,
-      toolResolver: agentSystem.toolResolver,
-      fileStore: agentSystem.fileStore,
-      authStore: agentSystem.authStore,
-      sessionStore: this.sessionStore,
-      eventBus: agentSystem.eventBus,
-      assistant: agentSystem.config.settings.assistant ?? null,
-      agentRuntime: agentSystem.agentRuntime,
-      providersForSession,
-      verbose: agentSystem.config.verbose,
+      connectorRegistry: this.agentSystem.connectorRegistry,
+      inferenceRouter: this.agentSystem.inferenceRouter,
+      toolResolver: this.agentSystem.toolResolver,
+      fileStore: this.agentSystem.fileStore,
+      authStore: this.agentSystem.authStore,
+      eventBus: this.agentSystem.eventBus,
+      assistant: this.agentSystem.config.settings.assistant ?? null,
+      agentRuntime: this.agentSystem.agentRuntime,
+      providersForAgent,
+      verbose: this.agentSystem.config.verbose,
       logger,
       notifySubagentFailure: (reason, error) => this.notifySubagentFailure(reason, error)
     });
+
+    for (const record of result.historyRecords) {
+      await agentHistoryAppend(this.agentSystem.config, this.id, record);
+    }
+
+    this.state.context = { messages: contextForRun.messages };
+    this.state.updatedAt = Date.now();
+    await agentStateWrite(this.agentSystem.config, this.id, this.state);
+
     return result.responseText ?? null;
   }
 
-  private async handleInboxEntry(entry: AgentInboxEntry): Promise<AgentInboxResult> {
-    const item = entry.item;
-    if (item.type === "reset") {
-      const ok = await this.handleReset(item);
-      return { type: "reset", ok };
-    }
-    const received = this.receive(item);
-    const responseText = await this.handleMessage(received, item.source);
-    return { type: "message", responseText };
-  }
-
-  private async handleReset(item: AgentInboxReset): Promise<boolean> {
-    const now = new Date();
-    this.session.resetContext(now);
-    try {
-      await this.sessionStore.recordSessionReset(this.session, item.source, {
-        messageId: item.messageId,
-        ok: true
-      });
-      await this.sessionStore.recordState(this.session);
-    } catch (error) {
-      logger.warn({ sessionId: this.session.id, error }, "Session reset persistence failed");
-      return false;
-    }
-    this.agentSystem.eventBus.emit("session.reset", {
-      sessionId: this.session.id,
-      source: item.source,
-      context: { channelId: this.session.id, userId: "system", sessionId: this.session.id }
+  private async handleReset(_item: AgentInboxReset): Promise<boolean> {
+    const now = Date.now();
+    this.state.context = { messages: [] };
+    this.state.updatedAt = now;
+    await agentHistoryAppend(this.agentSystem.config, this.id, {
+      type: "reset",
+      at: now
+    });
+    await agentStateWrite(this.agentSystem.config, this.id, this.state);
+    this.agentSystem.eventBus.emit("agent.reset", {
+      agentId: this.id,
+      context: { channelId: this.id, userId: "system" }
     });
     return true;
   }
 
+  private async handleRestore(_item: AgentInboxRestore): Promise<boolean> {
+    const history = await agentHistoryLoad(this.agentSystem.config, this.id);
+    const messages = await this.buildHistoryContext(history);
+    this.state.context = { messages };
+    this.state.updatedAt = Date.now();
+    await agentStateWrite(this.agentSystem.config, this.id, this.state);
+    this.agentSystem.eventBus.emit("agent.restored", { agentId: this.id });
+    return true;
+  }
+
+  private async handlePermission(item: AgentInboxPermission): Promise<boolean> {
+    const context = item.context;
+    const decision = item.decision;
+    if (!context.channelId) {
+      logger.error(
+        { source: item.source, channelId: context.channelId, userId: context.userId },
+        "Permission decision missing channelId"
+      );
+      return false;
+    }
+    const connector = this.agentSystem.connectorRegistry.get(item.source);
+    const permissionTag = permissionFormatTag(decision.access);
+    const permissionLabel = permissionDescribeDecision(decision.access);
+
+    if (!decision.approved) {
+      logger.info(
+        { source: item.source, permission: permissionTag, agentId: this.id },
+        "Permission denied"
+      );
+    }
+
+    if (decision.approved && (decision.access.kind === "read" || decision.access.kind === "write")) {
+      if (!path.isAbsolute(decision.access.path)) {
+        logger.warn({ agentId: this.id, permission: permissionTag }, "Permission path not absolute");
+        if (connector) {
+          await connector.sendMessage(context.channelId, {
+            text: `Permission ignored (path must be absolute): ${permissionLabel}.`,
+            replyToMessageId: context.messageId
+          });
+        }
+        return false;
+      }
+    }
+
+    if (decision.approved) {
+      permissionApply(this.state.permissions, decision);
+      await agentStateWrite(this.agentSystem.config, this.id, this.state);
+      this.agentSystem.eventBus.emit("permission.granted", {
+        agentId: this.id,
+        source: item.source,
+        decision
+      });
+    }
+
+    const resumeText = decision.approved
+      ? `Permission granted for ${permissionLabel}. Please continue with the previous request.`
+      : `Permission denied for ${permissionLabel}. Please continue without that permission.`;
+    const resumeMessage: AgentInboxMessage = {
+      type: "message",
+      source: item.source,
+      message: { text: resumeText, rawText: resumeText },
+      context: { ...context }
+    };
+    await this.handleMessage(resumeMessage);
+    return true;
+  }
+
   /**
-   * Notifies a parent session when a subagent session fails.
-   * Expects: agentRuntime can send messages to other sessions.
+   * Notifies a parent agent when a subagent fails.
+   * Expects: agentRuntime can send messages to other agents.
    */
   async notifySubagentFailure(reason: string, error?: unknown): Promise<void> {
-    const descriptor = this.session.context.state.session;
-    if (descriptor?.type !== "subagent") {
+    if (this.descriptor.type !== "subagent") {
       return;
     }
-    const parentSessionId =
-      descriptor.parentSessionId ?? this.session.context.state.agent?.parentSessionId;
-    if (!parentSessionId) {
-      logger.warn({ sessionId: this.session.id }, "Subagent missing parent session");
+    const parentAgentId =
+      this.descriptor.parentAgentId ?? this.state.agent?.parentAgentId;
+    if (!parentAgentId) {
+      logger.warn({ agentId: this.id }, "Subagent missing parent agent");
       return;
     }
-    const name = descriptor.name ?? this.session.context.state.agent?.name ?? "subagent";
+    const name = this.descriptor.name ?? this.state.agent?.name ?? "subagent";
     const errorText = error instanceof Error ? error.message : error ? String(error) : "";
     const detail = errorText ? `${reason} (${errorText})` : reason;
     try {
-      await this.agentSystem.agentRuntime.sendSessionMessage({
-        sessionId: parentSessionId,
-        text: `Subagent ${name} (${this.session.id}) failed: ${detail}.`,
+      await this.agentSystem.agentRuntime.sendAgentMessage({
+        agentId: parentAgentId,
+        text: `Subagent ${name} (${this.id}) failed: ${detail}.`,
         origin: "background"
       });
     } catch (sendError) {
       logger.warn(
-        { sessionId: this.session.id, parentSessionId, error: sendError },
+        { agentId: this.id, parentAgentId, error: sendError },
         "Subagent failure notification failed"
       );
     }
   }
 
   /**
-   * Builds the system prompt text for the current session.
+   * Resolves the cron task id for this agent when available.
+   * Expects: cron task uid maps to a task on disk.
+   */
+  async resolveCronTaskId(): Promise<string | null> {
+    const descriptor = this.descriptor;
+    if (!agentDescriptorIsCron(descriptor)) {
+      return null;
+    }
+    const tasks = await this.agentSystem.crons.listTasks();
+    const task = tasks.find((entry) => entry.taskUid === descriptor.id) ?? null;
+    return task?.id ?? null;
+  }
+
+  private listContextTools(
+    source?: string,
+    options?: { agentKind?: "background" | "foreground"; allowCronTools?: boolean }
+  ) {
+    return toolListContextBuild({
+      tools: this.agentSystem.toolResolver.listTools(),
+      source,
+      agentKind: options?.agentKind,
+      allowCronTools: options?.allowCronTools,
+      connectorRegistry: this.agentSystem.connectorRegistry,
+      imageRegistry: this.agentSystem.imageRegistry
+    });
+  }
+
+  private resolveAgentProvider(
+    providers: ReturnType<typeof listActiveInferenceProviders>
+  ): string | null {
+    const activeIds = new Set(providers.map((provider) => provider.id));
+
+    let providerId = this.state.providerId ?? null;
+    if (!providerId || !activeIds.has(providerId)) {
+      providerId = providers[0]?.id ?? null;
+    }
+
+    if (providerId && this.state.providerId !== providerId) {
+      this.state.providerId = providerId;
+    }
+
+    return providerId;
+  }
+
+  private captureRouting(source: string, context: MessageContext): void {
+    this.state.routing = {
+      source,
+      context: agentRoutingSanitize(context)
+    };
+  }
+
+  private async buildHistoryContext(
+    records: AgentHistoryRecord[]
+  ): Promise<Context["messages"]> {
+    const messages: Context["messages"] = [];
+    for (const record of records) {
+      if (record.type === "user_message") {
+        const context: MessageContext = {
+          channelId: this.id,
+          userId: "system"
+        };
+        const message = messageFormatIncoming(
+          {
+            text: record.text,
+            files: record.files.map((file) => ({ ...file }))
+          },
+          context,
+          new Date(record.at)
+        );
+        const userEntry: AgentMessage = {
+          id: createId(),
+          message,
+          context,
+          receivedAt: record.at
+        };
+        messages.push(await messageBuildUser(userEntry));
+      }
+      if (record.type === "assistant_message") {
+        const content: Array<{ type: "text"; text: string } | ToolCall> = [];
+        if (record.text.length > 0) {
+          content.push({ type: "text", text: record.text });
+        }
+        for (const toolCall of record.toolCalls) {
+          content.push(toolCall);
+        }
+        messages.push({
+          role: "assistant",
+          content,
+          api: "history",
+          provider: "history",
+          model: "history",
+          usage: {
+            input: 0,
+            output: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 0,
+            cost: {
+              input: 0,
+              output: 0,
+              cacheRead: 0,
+              cacheWrite: 0,
+              total: 0
+            }
+          },
+          stopReason: "stop",
+          timestamp: record.at
+        });
+      }
+      if (record.type === "tool_result") {
+        messages.push(record.output.toolMessage);
+      }
+    }
+    return messages;
+  }
+
+  /**
+   * Builds the system prompt text for the current agent.
    * Expects: prompt templates exist under engine/prompts.
    */
   private async buildSystemPrompt(
@@ -528,12 +611,7 @@ export class Agent {
       fileSendModes: context.fileSendModes ?? "",
       messageFormatPrompt: context.messageFormatPrompt ?? "",
       channelId: context.channelId ?? "unknown",
-      channelType: context.channelType ?? "",
-      channelIsPrivate: context.channelIsPrivate ?? null,
       userId: context.userId ?? "unknown",
-      userFirstName: context.userFirstName ?? "",
-      userLastName: context.userLastName ?? "",
-      username: context.username ?? "",
       cronTaskId: context.cronTaskId ?? "",
       cronTaskName: context.cronTaskName ?? "",
       cronMemoryPath: context.cronMemoryPath ?? "",
@@ -543,7 +621,7 @@ export class Agent {
       userPath,
       pluginPrompt: context.pluginPrompt ?? "",
       skillsPrompt: context.skillsPrompt ?? "",
-      parentSessionId: context.parentSessionId ?? "",
+      parentAgentId: context.parentAgentId ?? "",
       configDir: context.configDir ?? "",
       skillsPath,
       isForeground,
@@ -554,43 +632,6 @@ export class Agent {
     });
 
     return rendered.trim();
-  }
-
-  private listContextTools(
-    source?: string,
-    options?: { agentKind?: "background" | "foreground"; allowCronTools?: boolean }
-  ) {
-    return toolListContextBuild({
-      tools: this.agentSystem.toolResolver.listTools(),
-      source,
-      agentKind: options?.agentKind,
-      allowCronTools: options?.allowCronTools,
-      connectorRegistry: this.agentSystem.connectorRegistry,
-      imageRegistry: this.agentSystem.imageRegistry
-    });
-  }
-
-  private resolveSessionProvider(
-    session: Session<SessionState>,
-    context: MessageContext,
-    providers: ReturnType<typeof listActiveInferenceProviders>
-  ): string | undefined {
-    const activeIds = new Set(providers.map((provider) => provider.id));
-
-    let providerId = session.context.state.providerId ?? context.providerId;
-    if (!providerId || !activeIds.has(providerId)) {
-      const fallback =
-        context.providerId && activeIds.has(context.providerId)
-          ? context.providerId
-          : providers[0]?.id;
-      providerId = fallback;
-    }
-
-    if (providerId && session.context.state.providerId !== providerId) {
-      session.context.state.providerId = providerId;
-    }
-
-    return providerId;
   }
 }
 
@@ -605,12 +646,7 @@ type AgentSystemPromptContext = {
   fileSendModes?: string;
   messageFormatPrompt?: string;
   channelId?: string;
-  channelType?: string;
-  channelIsPrivate?: boolean | null;
   userId?: string;
-  userFirstName?: string;
-  userLastName?: string;
-  username?: string;
   cronTaskId?: string;
   cronTaskName?: string;
   cronMemoryPath?: string;
@@ -621,7 +657,7 @@ type AgentSystemPromptContext = {
   pluginPrompt?: string;
   skillsPrompt?: string;
   agentKind?: "background" | "foreground";
-  parentSessionId?: string;
+  parentAgentId?: string;
   configDir?: string;
   skillsPath?: string;
 };
@@ -662,74 +698,42 @@ async function promptFileRead(filePath: string, fallbackPrompt: string): Promise
   return defaultContent.trim();
 }
 
-function agentDescriptorEquals(
-  expected: SessionDescriptor,
-  actual: SessionDescriptor
-): boolean {
-  if (expected.type !== actual.type) {
-    return false;
-  }
-  switch (expected.type) {
-    case "user":
-      return (
-        actual.type === "user" &&
-        actual.connector === expected.connector &&
-        actual.channelId === expected.channelId &&
-        actual.userId === expected.userId
-      );
-    case "cron":
-      return actual.type === "cron" && actual.id === expected.id;
-    case "heartbeat":
-      return actual.type === "heartbeat";
-    case "subagent":
-      return (
-        actual.type === "subagent" &&
-        actual.id === expected.id &&
-        actual.parentSessionId === expected.parentSessionId &&
-        actual.name === expected.name
-      );
-    default:
-      return false;
-  }
-}
-
-function agentContextBuild(descriptor: SessionDescriptor, sessionId: string): MessageContext {
+function agentContextBuild(descriptor: AgentDescriptor, agentId: string): MessageContext {
   switch (descriptor.type) {
     case "user":
       return {
         channelId: descriptor.channelId,
-        userId: descriptor.userId,
-        sessionId
+        userId: descriptor.userId
       };
     case "cron":
       return {
-        channelId: descriptor.id,
-        userId: "cron",
-        sessionId
+        channelId: `cron:${descriptor.id}`,
+        userId: "cron"
       };
     case "heartbeat":
       return {
-        channelId: sessionId,
-        userId: "heartbeat",
-        sessionId,
-        heartbeat: {}
+        channelId: "heartbeat",
+        userId: "heartbeat"
       };
     case "subagent":
       return {
-        channelId: sessionId,
-        userId: "system",
-        sessionId,
-        agent: {
-          kind: "background",
-          parentSessionId: descriptor.parentSessionId,
-          name: descriptor.name
-        }
+        channelId: agentId,
+        userId: "system"
       };
     default:
       return {
-        channelId: sessionId,
-        userId: "system",
-        sessionId
+        channelId: agentId,
+        userId: "system"
       };
   }
+}
+
+function toFileReferences(files: Array<{ id: string; name: string; path: string; mimeType: string; size: number }>): Array<{ id: string; name: string; path: string; mimeType: string; size: number }> {
+  return files.map((file) => ({
+    id: file.id,
+    name: file.name,
+    path: file.path,
+    mimeType: file.mimeType,
+    size: file.size
+  }));
 }

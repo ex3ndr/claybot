@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata = {
   title: "ClayBot Dashboard",
-  description: "Live status for plugins, sessions, and cron tasks from the local engine socket."
+  description: "Live status for plugins, agents, and cron tasks from the local engine socket."
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

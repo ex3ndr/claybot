@@ -29,11 +29,11 @@ export function NavMain({
         <SidebarMenu>
           <SidebarMenuItem className="flex items-center gap-2">
             <SidebarMenuButton
-              tooltip="New session"
+              tooltip="New agent"
               className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90"
             >
               <PlusCircle />
-              <span>New Session</span>
+              <span>New Agent</span>
             </SidebarMenuButton>
             <Button
               size="icon"

@@ -17,7 +17,7 @@ describe("messageBuildUser", () => {
       id: "msg-1",
       message: { text: "hello" },
       context: baseContext,
-      receivedAt: new Date()
+      receivedAt: Date.now()
     };
 
     const result = await messageBuildUser(entry);
@@ -49,7 +49,7 @@ describe("messageBuildUser", () => {
           ]
         },
         context: baseContext,
-        receivedAt: new Date()
+        receivedAt: Date.now()
       };
 
       const result = await messageBuildUser(entry);

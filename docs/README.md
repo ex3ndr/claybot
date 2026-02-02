@@ -1,6 +1,6 @@
 # ClayBot documentation
 
-This folder documents the current ClayBot CLI, plugins, sessions, and runtime.
+This folder documents the current ClayBot CLI, plugins, agents, and runtime.
 
 ## Index
 - `architecture.md` - system overview and message flow
@@ -14,16 +14,17 @@ This folder documents the current ClayBot CLI, plugins, sessions, and runtime.
 - `inference.md` - inference runtime helpers
 - `util.md` - shared utility helpers
 - `conventions.md` - import and compatibility rules
-- `sessions.md` - session queueing and sequencing
-- `session-types.md` - session descriptors and resolution
+- `agents.md` - agent queueing and sequencing
+- `agent-types.md` - agent descriptors and resolution
+- `engine-message-agent-helpers.md` - extracted message + agent helpers
+- `engine-tool-agent-extractions.md` - extracted tool + agent persistence helpers
 - `config.md` - config files and resolution order
 - `logging.md` - logging configuration and output
 - `engine.md` - engine socket updates and control plane
 - `testing.md` - current test coverage
 - `skills.md` - agent skills and loading workflow
-- `agent-system.md` - agent system lifecycle and session ownership
+- `agent-system.md` - agent system lifecycle and ownership
 - `heartbeat.md` - heartbeat scheduler and storage
-- `config.md` - resolved config snapshots and reload flow
 
 ```mermaid
 flowchart TD
@@ -33,8 +34,10 @@ flowchart TD
   Docs --> Plugins[plugins.md]
   Docs --> Dash[dashboard.md]
   Docs --> Memory[memory.md]
-  Docs --> Sess[sessions.md]
-  Docs --> SessTypes[session-types.md]
+  Docs --> Agents[agents.md]
+  Docs --> AgentTypes[agent-types.md]
+  Docs --> MsgHelpers[engine-message-agent-helpers.md]
+  Docs --> ToolHelpers[engine-tool-agent-extractions.md]
   Docs --> Config[config.md]
   Docs --> Auth[auth.md]
   Docs --> Log[logging.md]
@@ -46,5 +49,4 @@ flowchart TD
   Docs --> Skills[skills.md]
   Docs --> AgentSystem[agent-system.md]
   Docs --> Heartbeat[heartbeat.md]
-  Docs --> Config[config.md]
 ```

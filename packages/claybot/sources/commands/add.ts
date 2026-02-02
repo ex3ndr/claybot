@@ -2,10 +2,9 @@ import path from "node:path";
 
 import { AuthStore } from "../auth/store.js";
 import { promptConfirm, promptInput, promptSelect } from "./prompts.js";
-import { ConnectorRegistry } from "../engine/modules/connectorRegistry.js";
 import { ImageGenerationRegistry } from "../engine/modules/imageGenerationRegistry.js";
 import { InferenceRegistry } from "../engine/modules/inferenceRegistry.js";
-import { ToolResolver } from "../engine/modules/toolResolver.js";
+import { ModuleRegistry } from "../engine/modules/moduleRegistry.js";
 import { FileStore } from "../files/store.js";
 import { InferenceRouter } from "../engine/modules/inference/router.js";
 import { PluginManager } from "../engine/plugins/manager.js";
@@ -261,24 +260,16 @@ async function validatePluginLoad(
   authStore: AuthStore,
   pluginConfig: PluginInstanceSettings
 ): Promise<void> {
-  const connectorRegistry = new ConnectorRegistry({
+  const modules = new ModuleRegistry({
     onMessage: async () => undefined,
     onFatal: () => undefined
   });
-  const inferenceRegistry = new InferenceRegistry();
-  const imageRegistry = new ImageGenerationRegistry();
-  const toolRegistry = new ToolResolver();
-  const pluginRegistry = new PluginRegistry(
-    connectorRegistry,
-    inferenceRegistry,
-    imageRegistry,
-    toolRegistry
-  );
+  const pluginRegistry = new PluginRegistry(modules);
   const pluginEventQueue = new PluginEventQueue();
   const fileStore = new FileStore(config);
   const inferenceRouter = new InferenceRouter({
     providers: listActiveInferenceProviders(config.settings),
-    registry: inferenceRegistry,
+    registry: modules.inference,
     auth: authStore
   });
   const pluginManager = new PluginManager({

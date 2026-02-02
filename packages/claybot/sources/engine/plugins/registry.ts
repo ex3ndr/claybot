@@ -10,6 +10,7 @@ import type { ConnectorRegistry } from "../modules/connectorRegistry.js";
 import type { ImageGenerationRegistry } from "../modules/imageGenerationRegistry.js";
 import type { InferenceRegistry } from "../modules/inferenceRegistry.js";
 import type { ToolResolver } from "../modules/toolResolver.js";
+import { ModuleRegistry } from "../modules/moduleRegistry.js";
 
 type PluginRegistrations = {
   connectors: Set<string>;
@@ -130,15 +131,12 @@ export class PluginRegistry {
   private toolResolver: ToolResolver;
 
   constructor(
-    connectorRegistry: ConnectorRegistry,
-    inferenceRegistry: InferenceRegistry,
-    imageRegistry: ImageGenerationRegistry,
-    toolResolver: ToolResolver
+    modules: ModuleRegistry,
   ) {
-    this.connectorRegistry = connectorRegistry;
-    this.inferenceRegistry = inferenceRegistry;
-    this.imageRegistry = imageRegistry;
-    this.toolResolver = toolResolver;
+    this.connectorRegistry = modules.connectors;
+    this.inferenceRegistry = modules.inference;
+    this.imageRegistry = modules.images;
+    this.toolResolver = modules.tools;
   }
 
   createRegistrar(pluginId: string): PluginRegistrar {

@@ -14,49 +14,60 @@ flowchart LR
   NextApp -->|Server-rendered UI + client data| UI[Dashboard]
 ```
 
-## Sessions streaming
+## Agents streaming
 
-The sessions views subscribe to the engine event stream and refresh session data when session events arrive.
+The agents views subscribe to the engine event stream and refresh agent data when agent events arrive.
 
 ```mermaid
 flowchart LR
-  UI[Sessions UI] -->|EventSource /api/v1/engine/events| Proxy[API Proxy]
+  UI[Agents UI] -->|EventSource /api/v1/engine/events| Proxy[API Proxy]
   Proxy --> Socket[claybot.sock]
   Socket --> Engine[Engine SSE]
-  Engine -->|session.created / session.updated| UI
-  UI -->|fetch /api/v1/engine/sessions| Proxy
+  Engine -->|agent.created / agent.reset / agent.restored| UI
+  UI -->|fetch /api/v1/engine/agents| Proxy
 ```
 
-## Session type object
+## Agent type object
 
-Sessions display a computed session type object so the UI can distinguish connections, scheduled work,
+Agents display a computed type object so the UI can distinguish connections, scheduled work,
 and subagent children.
 
 ```mermaid
 flowchart TD
-  Context[MessageContext] --> Cron{cron.taskUid or taskId}
-  Context --> Heartbeat{heartbeat present}
-  Context --> Agent{agent.kind=background}
-  Context --> Connection{connector source + userId + channelId}
+  Descriptor[AgentDescriptor] --> Cron{type === cron}
+  Descriptor --> Heartbeat{type === heartbeat}
+  Descriptor --> Subagent{type === subagent}
+  Descriptor --> Connection{type === user}
   Cron -->|yes| CronType[Type: cron]
   Heartbeat -->|yes| HeartbeatType[Type: heartbeat]
-  Agent --> Parent{agent.parentSessionId + name}
-  Parent -->|yes| Subagent[Type: subagent]
-  Parent -->|no| System[Type: system]
+  Subagent -->|yes| SubagentType[Type: subagent]
   Connection -->|yes| ConnectionType[Type: connection]
+  Subagent -->|no| System[Type: system]
   Connection -->|no| System
 ```
 
-## Session detail navigation
+## Agent detail navigation
 
-Session rows link to a dedicated detail page that loads the full log for that session.
+Agent rows link to a dedicated detail page that loads the history for that agent.
 
 ```mermaid
 flowchart LR
-  List[Sessions list] -->|select storage id| Detail[Session detail]
-  Detail -->|fetch /api/v1/engine/sessions/:storageId| Proxy[API Proxy]
+  List[Agents list] -->|select agent id| Detail[Agent detail]
+  Detail -->|fetch /api/v1/engine/agents/:agentId/history| Proxy[API Proxy]
   Proxy --> Socket[claybot.sock]
-  Socket --> Engine[Engine sessions store]
+  Socket --> Engine[Engine agent store]
+```
+
+## Agent list filtering
+
+The agents page filters by type and search query before rendering the table.
+
+```mermaid
+flowchart LR
+  Input[Search + type filter] --> Normalize[Normalize query]
+  Normalize --> Filter[Filter agents by type + query]
+  Filter --> Sort[Sort by updatedAt desc]
+  Sort --> UI[Render agents table]
 ```
 
 ## Overview layout
@@ -69,7 +80,7 @@ flowchart TD
   Stats --> Signals[Signal cards]
   Signals --> MainGrid[Main grid]
   MainGrid --> Activity[Activity chart]
-  MainGrid --> Sessions[Active sessions table]
+  MainGrid --> Agents[Active agents table]
   MainGrid --> Inventory[Inventory tabs]
   MainGrid --> Cron[Cron tasks]
 ```
@@ -80,7 +91,7 @@ Action cards jump to the most used operational screens.
 
 ```mermaid
 flowchart LR
-  Actions[Quick actions] --> Sessions[Sessions]
+  Actions[Quick actions] --> Agents[Agents]
   Actions --> Automations[Automations]
   Actions --> Connectors[Connectors]
   Actions --> Providers[Providers]
