@@ -5,8 +5,8 @@ import { createId } from "@paralleldrive/cuid2";
 import path from "node:path";
 
 import type { ToolDefinition } from "@/types";
-import type { PermissionAccess, PermissionRequest } from "@/types";
-import { agentDescriptorTargetResolve } from "../../agents/ops/agentDescriptorTargetResolve.js";
+import type { PermissionAccess } from "@/types";
+import { messageBuildSystemText } from "../../messages/messageBuildSystemText.js";
 
 const schema = Type.Object(
   {
@@ -33,11 +33,6 @@ export function buildPermissionRequestProxyTool(): ToolDefinition {
     },
     execute: async (args, toolContext, toolCall) => {
       const payload = args as PermissionProxyArgs;
-      const connectorRegistry = toolContext.connectorRegistry;
-      if (!connectorRegistry) {
-        throw new Error("Connector registry unavailable.");
-      }
-
       const descriptor = toolContext.agent.descriptor;
       if (descriptor.type === "user") {
         throw new Error("Use request_permission for foreground agents.");
@@ -49,57 +44,30 @@ export function buildPermissionRequestProxyTool(): ToolDefinition {
         throw new Error("No foreground agent available to proxy permission request.");
       }
 
-      const foregroundDescriptor = toolContext.agentSystem.getAgentDescriptor(foregroundAgentId);
-      if (!foregroundDescriptor) {
-        throw new Error("Foreground agent descriptor not found.");
-      }
-
-      const target = agentDescriptorTargetResolve(foregroundDescriptor);
-      if (!target) {
-        throw new Error("Foreground agent has no user target for permission requests.");
-      }
-
-      const connector = connectorRegistry.get(target.connector);
-      if (!connector) {
-        throw new Error("Connector not available for permission requests.");
-      }
-
       const access = parsePermission(payload.permission);
       if (access.kind !== "web" && !path.isAbsolute(access.path)) {
         throw new Error("Path must be absolute.");
       }
 
       const permission = payload.permission.trim();
+      const agentName = descriptor.type === "subagent" ? descriptor.name : descriptor.type;
+      const reason = payload.reason.trim();
       const friendly = describePermission(access);
-      const agentName =
-        descriptor.type === "subagent" || descriptor.type === "permanent"
-          ? descriptor.name
-          : descriptor.type;
-      const text = `Permission request from background agent "${agentName}":\n${friendly}\nReason: ${payload.reason}`;
+      const text = [
+        `Background agent "${agentName}" (${toolContext.agent.id}) needs permission.`,
+        `Access: ${friendly}`,
+        `Reason: ${reason}`,
+        "Please call request_permission with:",
+        `- permission: ${permission}`,
+        `- reason: ${reason}`,
+        `- agentId: ${toolContext.agent.id}`
+      ].join("\n");
+      const systemText = messageBuildSystemText(text, "background");
       const token = createId();
-
-      const request: PermissionRequest = {
-        token,
-        agentId: toolContext.agent.id,
-        reason: payload.reason,
-        message: text,
-        permission,
-        access
-      };
-
-      if (connector.requestPermission) {
-        await connector.requestPermission(
-          target.targetId,
-          request,
-          toolContext.messageContext,
-          foregroundDescriptor
-        );
-      } else {
-        await connector.sendMessage(target.targetId, {
-          text,
-          replyToMessageId: toolContext.messageContext.messageId
-        });
-      }
+      await toolContext.agentSystem.post(
+        { agentId: foregroundAgentId },
+        { type: "message", message: { text: systemText }, context: {} }
+      );
 
       const toolMessage: ToolResultMessage = {
         role: "toolResult",
@@ -109,7 +77,8 @@ export function buildPermissionRequestProxyTool(): ToolDefinition {
         details: {
           permission,
           token,
-          foregroundAgentId
+          foregroundAgentId,
+          agentId: toolContext.agent.id
         },
         isError: false,
         timestamp: Date.now()

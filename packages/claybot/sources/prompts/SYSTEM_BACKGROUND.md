@@ -29,6 +29,9 @@ The decision arrives later and resumes the agent with a message like
 "Permission granted for ..." or "Permission denied for ...".
 If denied, continue without that permission and report back to the parent agent.
 
+This tool sends a `<system_message origin="background">` to the most recent foreground agent
+so it can call `request_permission` on your behalf.
+
 ## Runtime
 
 - OS: {{os}}

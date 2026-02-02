@@ -16,6 +16,7 @@ Exit the current tool loop and wait for the next incoming message that contains 
 Arguments:
 - `permission`: `@web` | `@read:/absolute/path` | `@write:/absolute/path`
 - `reason`: short, concrete justification
+- `agentId`: optional background agent id to grant the permission to (must be your subagent)
 
 Returns a tool result confirming the request was sent (not the decision).
 The decision arrives later and resumes the agent with a message like
@@ -23,6 +24,8 @@ The decision arrives later and resumes the agent with a message like
 If denied, continue without that permission; if granted, proceed with the original step.
 
 Background agents must use `request_permission_via_parent` instead.
+If a `<system_message origin="background">` asks for permission, call `request_permission`
+with the provided `permission`, `reason`, and `agentId`.
 
 ## Agent Communication
 

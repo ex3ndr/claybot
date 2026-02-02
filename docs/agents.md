@@ -64,6 +64,21 @@ flowchart LR
   Wrapped --> Inbox[AgentInbox]
 ```
 
+## Permission request forwarding
+Background agents use `request_permission_via_parent`, which posts a system message to the
+foreground agent. The foreground agent then calls `request_permission` with the background
+agent id so approvals route back to the requester.
+
+```mermaid
+sequenceDiagram
+  participant Background as Background Agent
+  participant AgentSystem
+  participant Foreground as Foreground Agent
+  Background->>AgentSystem: request_permission_via_parent
+  AgentSystem->>Foreground: system_message (permission request)
+  Foreground->>Foreground: request_permission(permission, reason, agentId)
+```
+
 ## Agent persistence
 - Agents are written to `.claybot/agents/<cuid2>/` as discrete files.
 - `descriptor.json` captures the agent type and identity.

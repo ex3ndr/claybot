@@ -11,7 +11,8 @@ import { agentDescriptorTargetResolve } from "../../agents/ops/agentDescriptorTa
 const schema = Type.Object(
   {
     permission: Type.String({ minLength: 1 }),
-    reason: Type.String({ minLength: 1 })
+    reason: Type.String({ minLength: 1 }),
+    agentId: Type.Optional(Type.String({ minLength: 1 }))
   },
   { additionalProperties: false }
 );
@@ -47,13 +48,19 @@ export function buildPermissionRequestTool(): ToolDefinition {
         throw new Error("Path must be absolute.");
       }
 
+      const { agentId, agentName } = resolvePermissionTarget(payload.agentId, toolContext);
       const permission = payload.permission.trim();
+      const reason = payload.reason.trim();
+      const reasonText = agentName
+        ? `Requested by background agent "${agentName}": ${reason}`
+        : reason;
       const friendly = describePermission(access);
-      const text = `Permission request:\n${friendly}\nReason: ${payload.reason}`;
+      const agentLabel = agentName ? ` for background agent "${agentName}"` : "";
+      const text = `Permission request${agentLabel}:\n${friendly}\nReason: ${reasonText}`;
       const request: PermissionRequest = {
         token: createId(),
-        agentId: toolContext.agent.id,
-        reason: payload.reason,
+        agentId,
+        reason: reasonText,
         message: text,
         permission,
         access
@@ -80,7 +87,8 @@ export function buildPermissionRequestTool(): ToolDefinition {
         content: [{ type: "text", text: "Permission request sent." }],
         details: {
           permission,
-          token: request.token
+          token: request.token,
+          agentId
         },
         isError: false,
         timestamp: Date.now()
@@ -89,6 +97,34 @@ export function buildPermissionRequestTool(): ToolDefinition {
       return { toolMessage, files: [] };
     }
   };
+}
+
+function resolvePermissionTarget(
+  requestedAgentId: string | undefined,
+  toolContext: {
+    agent: { id: string; descriptor: { type: string } };
+    agentSystem: { getAgentDescriptor: (agentId: string) => { type: string; parentAgentId?: string; name?: string } | null };
+  }
+): { agentId: string; agentName: string | null } {
+  const agentId = requestedAgentId?.trim();
+  const currentAgentId = toolContext.agent.id;
+  if (!agentId || agentId === currentAgentId) {
+    return { agentId: currentAgentId, agentName: null };
+  }
+  if (toolContext.agent.descriptor.type !== "user") {
+    throw new Error("Only foreground agents can request permissions for other agents.");
+  }
+  const descriptor = toolContext.agentSystem.getAgentDescriptor(agentId);
+  if (!descriptor) {
+    throw new Error("Permission target agent not found.");
+  }
+  if (descriptor.type !== "subagent") {
+    throw new Error("Permission target must be a background agent.");
+  }
+  if (descriptor.parentAgentId !== currentAgentId) {
+    throw new Error("Permission target must be a child of the current agent.");
+  }
+  return { agentId, agentName: descriptor.name ?? "subagent" };
 }
 
 function parsePermission(value: string): PermissionAccess {

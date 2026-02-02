@@ -82,11 +82,16 @@ Foreground agents use `request_permission`:
 ```json
 {
   "permission": "@read:/absolute/path",
-  "reason": "Need to scan the local dataset for the report."
+  "reason": "Need to scan the local dataset for the report.",
+  "agentId": "optional-background-agent-id"
 }
 ```
 
-Background agents use `request_permission_via_parent` with the same payload shape.
+When using `agentId`, it must point to one of your background subagents so the decision routes back correctly.
+
+Background agents use `request_permission_via_parent` with the same payload shape. The request
+is forwarded as a system message to the foreground agent, which then calls `request_permission`
+with the provided `agentId`.
 
 ### Decision flow
 

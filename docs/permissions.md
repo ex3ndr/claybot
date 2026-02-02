@@ -37,6 +37,8 @@ flowchart TD
 
 Foreground agents request permissions directly from users via `request_permission`. The tool returns
 immediately, and the permission decision is delivered later to resume the agent.
+When requesting on behalf of a background agent, include its `agentId` so the decision routes back
+to that agent (it must be one of the foreground agent’s subagents); the user-facing reason should mention the agent name.
 
 ```mermaid
 sequenceDiagram
@@ -55,7 +57,8 @@ Tool payload shape:
 ```json
 {
   "permission": "@web",
-  "reason": "Need to verify the latest docs."
+  "reason": "Need to verify the latest docs.",
+  "agentId": "optional-background-agent-id"
 }
 ```
 
@@ -68,13 +71,17 @@ foreground agent.
 ```mermaid
 sequenceDiagram
   participant Background as Background Agent
-  participant Engine
-  participant User as User
+  participant AgentSystem
+  participant Foreground as Foreground Agent
+  participant Connector
+  participant User
 
-  Background->>Engine: request_permission_via_parent (agentId)
-  Engine->>User: permission request UI (most recent foreground target)
-  User->>Engine: approve/deny
-  Engine->>Background: route decision (agentId)
+  Background->>AgentSystem: request_permission_via_parent
+  AgentSystem->>Foreground: system_message (permission request)
+  Foreground->>Connector: request_permission(permission, reason, agentId)
+  Connector->>User: permission approval UI
+  User->>Connector: approve/deny
+  Connector->>Background: onPermission(decision)
   Background->>Background: permissionApply
 ```
 
