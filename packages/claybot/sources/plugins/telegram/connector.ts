@@ -41,13 +41,14 @@ export type TelegramConnectorOptions = {
 const logger = getLogger("plugin.telegram");
 
 const TELEGRAM_MESSAGE_FORMAT_PROMPT = [
-  "Messages sent on Telegram are parsed as HTML (not Markdown).",
-  "Safest option: plain text with no tags.",
-  "If you need formatting, use only supported tags: <b>, <strong>, <i>, <em>, <u>, <ins>, <s>, <strike>, <del>, <code>, <pre>, <a href=\"...\">, <tg-spoiler>.",
-  "Keep tags balanced and properly nested; avoid mixing tags inside <code> or <pre>.",
-  "Escape any literal <, >, and & as &lt;, &gt;, and &amp; unless part of a supported tag.",
-  "Use only the href attribute on <a>; avoid other attributes or unsupported tags.",
-  "Captions use the same rules."
+  "Messages sent on Telegram are parsed as MarkdownV2.",
+  "Safest option: plain text with no formatting.",
+  "If you need formatting, use MarkdownV2 entities: *bold*, _italic_, __underline__, ~strikethrough~, ||spoiler||, `inline code`, ```code block```, and [label](url).",
+  "Keep entities properly nested; do not nest inside `code` or ```pre``` blocks.",
+  "Outside code/pre, escape these characters with a backslash: _ * [ ] ( ) ~ ` > # + - = | { } . !",
+  "Inside code/pre, escape only ` and the backslash (\\\\).",
+  "Inside link URLs (the (...) part), escape ) and the backslash (\\\\).",
+  "Any ASCII 1-126 character can be escaped with a backslash to force literal text."
 ].join(" ");
 
 export class TelegramConnector implements Connector {
@@ -259,7 +260,7 @@ export class TelegramConnector implements Connector {
     if (files.length === 0) {
       logger.debug(`Sending text-only message targetId=${targetId}`);
       await this.bot.sendMessage(targetId, message.text ?? "", {
-        parse_mode: "HTML"
+        parse_mode: "MarkdownV2"
       });
       logger.debug(`Text message sent targetId=${targetId}`);
       return;
@@ -351,7 +352,7 @@ export class TelegramConnector implements Connector {
     caption?: string
   ): Promise<void> {
     const options = caption
-      ? { caption, parse_mode: "HTML" as TelegramBot.ParseMode }
+      ? { caption, parse_mode: "MarkdownV2" as TelegramBot.ParseMode }
       : undefined;
     const sendAs = file.sendAs ?? "auto";
     if (sendAs === "photo") {
@@ -813,31 +814,32 @@ function formatPermissionMessage(
   status: PermissionStatus
 ): { text: string; parseMode: TelegramBot.ParseMode } {
   const access = describePermissionKind(request.access);
-  const escapedReason = escapeHtml(request.reason);
+  const escapedAccess = escapeMarkdownV2(access);
+  const escapedReason = escapeMarkdownV2(request.reason);
   const escapedPath =
-    request.access.kind === "web" ? null : escapeHtml(request.access.path);
+    request.access.kind === "web" ? null : escapeMarkdownV2Code(request.access.path);
   const heading =
     status === "approved"
-      ? "✅ <b>Permission granted</b>"
+      ? "✅ *Permission granted*"
       : status === "denied"
-        ? "❌ <b>Permission denied</b>"
-        : "🔐 <b>Permission request</b>";
+        ? "❌ *Permission denied*"
+        : "🔐 *Permission request*";
   const footer =
     status === "pending"
-      ? "Approve to continue or deny to refuse."
-      : "Decision recorded.";
+      ? "Approve to continue or deny to refuse\\."
+      : "Decision recorded\\.";
   const lines = [
     heading,
     "",
-    `<b>Access</b>: ${access}`,
-    escapedPath ? `<b>Path</b>: <code>${escapedPath}</code>` : null,
-    `<b>Reason</b>: ${escapedReason}`,
+    `*Access*: ${escapedAccess}`,
+    escapedPath ? `*Path*: \`${escapedPath}\`` : null,
+    `*Reason*: ${escapedReason}`,
     "",
     footer
   ];
   return {
     text: lines.filter((line): line is string => Boolean(line)).join("\n"),
-    parseMode: "HTML"
+    parseMode: "MarkdownV2"
   };
 }
 
@@ -851,11 +853,12 @@ function describePermissionKind(access: PermissionRequest["access"]): string {
   return "Web browsing";
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+function escapeMarkdownV2(value: string): string {
+  return value.replace(/([\\_*\\[\\]\\(\\)~`>#+\-=|{}.!])/g, "\\$1");
+}
+
+function escapeMarkdownV2Code(value: string): string {
+  return value.replace(/([`\\])/g, "\\$1");
 }
 
 function isTelegramConflictError(error: unknown): boolean {

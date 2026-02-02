@@ -41,6 +41,7 @@ Connectors emit a user descriptor alongside `MessageContext` for agent targeting
 - Downloads incoming files into the shared file store.
 - Sends images/documents when tool results include files.
 - Supports chat actions (typing) and reactions.
+- Outgoing text uses MarkdownV2 parse mode.
 
 ```mermaid
 flowchart TD
@@ -53,6 +54,18 @@ flowchart TD
   Poll -->|error| Retry[backoff + retry]
   Shutdown[SIGINT/SIGTERM] --> Stop[stopPolling]
   Stop --> Persist
+```
+
+## Telegram message formatting
+- Connector prompts the model to follow MarkdownV2 rules.
+- Permission prompts are formatted with MarkdownV2-safe escaping.
+
+```mermaid
+flowchart LR
+  Prompt[messageFormatPrompt] --> Model[assistant response]
+  Model --> Format[MarkdownV2 formatting + escaping]
+  Format --> Send[TelegramConnector.sendMessage]
+  Send --> API[Telegram API parse_mode=MarkdownV2]
 ```
 
 ## Telegram commands
