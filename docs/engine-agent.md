@@ -42,6 +42,20 @@ flowchart LR
   Prompts --> System[buildSystemPrompt]
 ```
 
+## Context Compaction
+
+Long-running sessions can be compacted into a single summary message using the
+COMPACTION prompt and a normal-size model selection.
+
+```mermaid
+flowchart LR
+  Context[Context messages] --> Compact[agents/ops/contextCompact.ts]
+  Compact --> Prompt[sources/prompts/COMPACTION.md]
+  Compact --> Router[inference/router.ts]
+  Router --> Model[normal-size model]
+  Model --> Summary[assistant summary message]
+```
+
 ## State vs History
 
 `state.json` only stores durable metadata (permissions, timestamps).

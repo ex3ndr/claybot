@@ -3,9 +3,9 @@ import type { AssistantMessage, Context } from "@mariozechner/pi-ai";
 
 import { getLogger } from "../../log.js";
 import { getProviderDefinition, listActiveInferenceProviders } from "../../providers/catalog.js";
-import type { ProviderModelInfo, ProviderModelSize } from "../../providers/types.js";
 import type { ProviderSettings, SettingsConfig } from "../../settings.js";
 import type { InferenceRouter } from "../modules/inference/router.js";
+import { providerModelSelectBySize } from "../../providers/providerModelSelectBySize.js";
 
 export type PluginInferenceStrategy = "default" | "small" | "normal" | "large";
 
@@ -128,35 +128,9 @@ function resolveModelForStrategy(
     return defaultModel;
   }
 
-  const order = modelSizeOrder(strategy);
-  const match = findModelBySize(models, order);
+  const match = providerModelSelectBySize(models, strategy);
   if (match) {
-    return match.id;
+    return match;
   }
-
   return defaultModel ?? models[0]?.id;
-}
-
-function modelSizeOrder(strategy: Exclude<PluginInferenceStrategy, "default">): ProviderModelSize[] {
-  switch (strategy) {
-    case "small":
-      return ["small", "normal", "large", "unknown"];
-    case "normal":
-      return ["normal", "large", "small", "unknown"];
-    case "large":
-      return ["large", "normal", "small", "unknown"];
-  }
-}
-
-function findModelBySize(
-  models: ProviderModelInfo[],
-  order: ProviderModelSize[]
-): ProviderModelInfo | null {
-  for (const size of order) {
-    const match = models.find((model) => model.size === size);
-    if (match) {
-      return match;
-    }
-  }
-  return null;
 }
