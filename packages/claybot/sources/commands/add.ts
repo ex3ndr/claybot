@@ -129,9 +129,11 @@ async function addPlugin(
   const { module } = await loader.load(definition.entryPath);
   if (module.onboarding) {
     const prompts = createPromptHelpers();
+    const pluginDataDir = path.join(config.dataDir, "plugins", instanceId);
     const result = await module.onboarding({
       instanceId,
       pluginId,
+      dataDir: pluginDataDir,
       auth: authStore,
       prompt: prompts,
       note

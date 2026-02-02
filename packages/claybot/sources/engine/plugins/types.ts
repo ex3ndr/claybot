@@ -65,6 +65,7 @@ export type PluginPrompt = {
 export type PluginOnboardingApi = {
   instanceId: string;
   pluginId: string;
+  dataDir: string;
   auth: AuthStore;
   prompt: PluginPrompt;
   note: (message: string, title?: string) => void;

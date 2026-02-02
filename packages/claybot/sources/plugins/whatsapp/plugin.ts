@@ -1,8 +1,10 @@
+import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import { z } from "zod";
 
 import { WhatsAppConnector, type WhatsAppConnectorOptions } from "./connector.js";
+import { authenticate } from "./authenticate.js";
 import { definePlugin } from "../../engine/plugins/types.js";
 import type { PluginOnboardingApi } from "@/types";
 
@@ -31,16 +33,31 @@ type WhatsAppPluginConfig = Omit<
 export const plugin = definePlugin({
   settingsSchema,
   onboarding: async (api) => {
-    api.note(
-      "WhatsApp uses QR code authentication. After setup, scan the QR code with your phone.",
-      "WhatsApp"
-    );
-
     const allowedPhones = await promptAllowedPhones(api);
     if (!allowedPhones) {
       return null;
     }
 
+    // Create auth directory and run authentication
+    const authDir = path.join(api.dataDir, "whatsapp-auth");
+    await fs.mkdir(authDir, { recursive: true });
+
+    api.note(
+      "Scan the QR code below with WhatsApp on your phone.\nOpen WhatsApp > Settings > Linked Devices > Link a Device",
+      "WhatsApp Authentication"
+    );
+
+    const result = await authenticate({
+      authDir,
+      timeoutMs: 120_000 // 2 minutes to scan
+    });
+
+    if (!result.success) {
+      api.note(`Authentication failed: ${result.reason}`, "WhatsApp");
+      return null;
+    }
+
+    api.note("WhatsApp linked successfully!", "WhatsApp");
     return { settings: { allowedPhones } };
   },
   create: (api) => {
