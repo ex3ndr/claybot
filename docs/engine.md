@@ -108,19 +108,24 @@ sequenceDiagram
 
 ## Permission requests
 
-Permission requests are asynchronous. After a tool call, the engine waits for the connector's decision
-before continuing the agent.
+Permission requests are asynchronous. Foreground agents call `request_permission`. Background agents
+call `request_permission_via_parent`, which targets the most recent foreground agent and routes the
+decision back to the background agent via the proxy registry.
 
 ```mermaid
 sequenceDiagram
-  participant Agent
+  participant Background
   participant Engine
+  participant Proxy as PendingPermissionProxy
   participant Connector
   participant User
-  Agent->>Engine: request_permission tool call
-  Engine->>Connector: requestPermission prompt
+  Background->>Engine: request_permission_via_parent tool call
+  Engine->>Proxy: register(token, backgroundAgentId)
+  Engine->>Connector: requestPermission prompt (most recent foreground target)
   Connector->>User: approval UI
   User->>Connector: allow/deny
   Connector->>Engine: permission decision
-  Engine->>Agent: incoming decision message
+  Engine->>Proxy: resolve(token)
+  Proxy-->>Engine: backgroundAgentId
+  Engine->>Background: incoming decision message
 ```

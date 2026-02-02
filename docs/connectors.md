@@ -86,15 +86,21 @@ sequenceDiagram
 
 ## Telegram permissions
 - Permission prompts render with inline buttons and are edited in-place after a decision.
+- Background agents proxy via `request_permission_via_parent`, but Telegram still receives the same
+  `requestPermission` call from the engine.
 
 ```mermaid
 sequenceDiagram
-  participant U as User
+  participant A as Agent
+  participant E as Engine
   participant T as TelegramConnector
   participant B as Telegram API
-  U->>T: request_permission tool
+  participant U as User
+  A->>E: request_permission(_via_parent)
+  E->>T: requestPermission
   T->>B: sendMessage (inline keyboard)
   U->>B: tap Allow/Deny
   B->>T: callback_query
   T->>B: editMessageText (status)
+  T->>E: onPermission (decision)
 ```
