@@ -34,6 +34,8 @@ Use the `exec` tool's `allowedDomains` argument only when you need outbound netw
 2. Provide `allowedDomains` as a non-empty list of domains. Subdomain wildcards are allowed (for example, `*.example.com`), but a global wildcard (`*`) is rejected.
 3. List every domain you need explicitly. If you discover new domains later, request permission and rerun the command with the updated list.
 
+Only HTTP(S) networking is available. Raw TCP sockets are not available outside the sandbox, and you cannot bind local ports to expose services to other processes on the host.
+
 Example:
 
 ```json

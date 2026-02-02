@@ -105,24 +105,6 @@ flowchart LR
   OpenSecure -->|prevents| TOCTOU
 ```
 
-## Network restrictions
-
-The sandboxed runtime only permits HTTP(S) networking. Raw TCP sockets are not available outside the sandbox, and processes cannot bind local ports to expose services to other processes on the host.
-
-```mermaid
-flowchart LR
-  subgraph Sandbox
-    Proc[Process]
-    Http[HTTP(S) only]
-    NoTcp[No raw TCP]
-    NoBind[No host port binding]
-  end
-
-  Proc --> Http
-  Proc -.-> NoTcp
-  Proc -.-> NoBind
-```
-
 ### Threats mitigated
 
 | Threat | Mitigation | Location |
