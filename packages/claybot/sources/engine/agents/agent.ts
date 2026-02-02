@@ -195,7 +195,12 @@ export class Agent {
    * Expects: inbox item handled successfully.
    */
   private async sleepAfterItem(item: AgentInboxItem): Promise<void> {
-    if (item.type !== "message" && item.type !== "reset" && item.type !== "permission") {
+    if (
+      item.type !== "message" &&
+      item.type !== "reset" &&
+      item.type !== "permission" &&
+      item.type !== "restore"
+    ) {
       return;
     }
     await this.agentSystem.sleepIfIdle(this.id, item.type);
