@@ -27,6 +27,7 @@ export type ConnectorMessage = {
 
 export type MessageContext = {
   messageId?: string;
+  command?: "reset";
 };
 
 export type MessageHandler = (

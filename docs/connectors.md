@@ -53,6 +53,20 @@ flowchart TD
   Stop --> Persist
 ```
 
+## Telegram commands
+- `/reset` clears the agent message history for the current user.
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant T as TelegramConnector
+  participant E as Engine
+  participant AS as AgentSystem
+  U->>T: /reset
+  T->>E: onMessage (command=reset)
+  E->>AS: post(reset)
+```
+
 ## Telegram permissions
 - Permission prompts render with inline buttons and are edited in-place after a decision.
 

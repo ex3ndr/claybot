@@ -121,10 +121,13 @@ export class TelegramConnector implements Connector {
         return;
       }
       logger.debug(`Received Telegram message chatId=${message.chat.id} fromId=${message.from?.id} messageId=${message.message_id} hasText=${!!message.text} hasCaption=${!!message.caption} hasPhoto=${!!message.photo} hasDocument=${!!message.document}`);
-      const files = await this.extractFiles(message);
+      const rawText = typeof message.text === "string" ? message.text : null;
+      const trimmedText = rawText?.trim() ?? "";
+      const isResetCommand = trimmedText === "/reset" || trimmedText.startsWith("/reset@");
+      const files = isResetCommand ? [] : await this.extractFiles(message);
       logger.debug(`Extracted files from message fileCount=${files.length}`);
       const payload: ConnectorMessage = {
-        text: typeof message.text === "string" ? message.text : message.caption ?? null,
+        text: rawText ?? message.caption ?? null,
         files: files.length > 0 ? files : undefined
       };
 
@@ -135,7 +138,8 @@ export class TelegramConnector implements Connector {
         channelId: String(message.chat.id)
       };
       const context: MessageContext = {
-        messageId: message.message_id ? String(message.message_id) : undefined
+        messageId: message.message_id ? String(message.message_id) : undefined,
+        command: isResetCommand ? "reset" : undefined
       };
 
       logger.debug(

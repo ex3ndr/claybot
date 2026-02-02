@@ -70,6 +70,17 @@ export class Engine {
         logger.debug(
           `Connector message received: source=${source} type=${descriptor.type} text=${message.text?.length ?? 0}chars files=${message.files?.length ?? 0}`
         );
+        if (source === "telegram" && context.command === "reset" && descriptor.type === "user") {
+          logger.info(
+            { source, channelId: descriptor.channelId, userId: descriptor.userId },
+            "Reset command received"
+          );
+          void this.agentSystem.post(
+            { descriptor },
+            { type: "reset" }
+          );
+          return;
+        }
         void this.agentSystem.post(
           { descriptor },
           { type: "message", message, context }
