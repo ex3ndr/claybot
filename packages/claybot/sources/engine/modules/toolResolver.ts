@@ -3,6 +3,7 @@ import { validateToolCall } from "@mariozechner/pi-ai";
 
 import { getLogger } from "../../log.js";
 import type { ToolDefinition, ToolExecutionContext, ToolExecutionResult } from "@/types";
+import { toolResultTruncate } from "./tools/toolResultTruncate.js";
 
 type RegisteredTool = ToolDefinition & { pluginId: string };
 
@@ -68,7 +69,7 @@ export class ToolResolver {
       if (!result.toolMessage.toolName) {
         result.toolMessage.toolName = toolCall.name;
       }
-      return result;
+      return toolResultTruncate(result);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Tool execution failed.";
       logger.debug(`Tool execution threw error toolName=${toolCall.name} error=${String(error)}`);

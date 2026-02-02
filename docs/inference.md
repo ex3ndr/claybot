@@ -54,6 +54,19 @@ sequenceDiagram
   Engine-->>Model: toolResult
 ```
 
+## Tool result truncation
+Very large tool outputs are truncated before being stored in the inference context.
+
+```mermaid
+sequenceDiagram
+  participant Tool
+  participant Engine
+  participant Inference
+  Tool-->>Engine: toolResult (raw)
+  Engine->>Engine: toolResultTruncate()
+  Engine-->>Inference: toolResult (truncated)
+```
+
 ```mermaid
 sequenceDiagram
   participant Engine
