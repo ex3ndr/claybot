@@ -27,7 +27,6 @@ export type ConnectorMessage = {
 
 export type MessageContext = {
   messageId?: string;
-  command?: "reset";
 };
 
 export type MessageHandler = (
@@ -36,7 +35,14 @@ export type MessageHandler = (
   descriptor: AgentDescriptor
 ) => void | Promise<void>;
 
+export type CommandHandler = (
+  command: string,
+  context: MessageContext,
+  descriptor: AgentDescriptor
+) => void | Promise<void>;
+
 export type MessageUnsubscribe = () => void;
+export type CommandUnsubscribe = () => void;
 
 export type PermissionKind = "read" | "write" | "web";
 
@@ -69,6 +75,7 @@ export type PermissionHandler = (
 export interface Connector {
   capabilities: ConnectorCapabilities;
   onMessage(handler: MessageHandler): MessageUnsubscribe;
+  onCommand?: (handler: CommandHandler) => CommandUnsubscribe;
   onPermission?: (handler: PermissionHandler) => MessageUnsubscribe;
   sendMessage(targetId: string, message: ConnectorMessage): Promise<void>;
   requestPermission?: (

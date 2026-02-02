@@ -119,7 +119,7 @@ describe("TelegramConnector commands", () => {
     telegramInstances.length = 0;
   });
 
-  it("marks /reset as a reset command", async () => {
+  it("routes /reset to command handlers", async () => {
     const fileStore = { saveFromPath: vi.fn() } as unknown as FileStore;
     const connector = new TelegramConnector({
       token: "token",
@@ -132,27 +132,30 @@ describe("TelegramConnector commands", () => {
       enableGracefulShutdown: false
     });
 
-    const handler = vi.fn(async (_message, _context, _descriptor) => undefined);
-    connector.onMessage(handler);
+    const messageHandlerMock = vi.fn(async (_message, _context, _descriptor) => undefined);
+    const commandHandler = vi.fn(async (_command, _context, _descriptor) => undefined);
+    connector.onMessage(messageHandlerMock);
+    connector.onCommand(commandHandler);
 
     const bot = telegramInstances[0];
     expect(bot).toBeTruthy();
-    const messageHandler = bot!.handlers.get("message")?.[0];
-    await messageHandler?.({
+    const botMessageHandler = bot!.handlers.get("message")?.[0];
+    await botMessageHandler?.({
       message_id: 55,
       chat: { id: 123, type: "private" },
       from: { id: 123 },
       text: "/reset"
     });
 
-    expect(handler).toHaveBeenCalledTimes(1);
-    const [message, context, descriptor] = handler.mock.calls[0] as [
-      { text?: string | null },
+    expect(messageHandlerMock).not.toHaveBeenCalled();
+    expect(commandHandler).toHaveBeenCalledTimes(1);
+    const [command, context, descriptor] = commandHandler.mock.calls[0] as [
+      string,
       MessageContext,
       AgentDescriptor
     ];
-    expect(message.text).toBe("/reset");
-    expect(context).toMatchObject({ messageId: "55", command: "reset" });
+    expect(command).toBe("/reset");
+    expect(context).toMatchObject({ messageId: "55" });
     expect(descriptor).toMatchObject({
       type: "user",
       connector: "telegram",

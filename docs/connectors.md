@@ -6,6 +6,7 @@ They emit messages (text + files) into agents and send responses back.
 ## Connector interface
 Each connector exposes:
 - `onMessage(handler)` to receive `ConnectorMessage` events.
+- `onCommand(handler)` to receive command text events.
 - `sendMessage(targetId, message)` to respond (including files).
 
 Messages are normalized to:
@@ -18,6 +19,7 @@ classDiagram
   class Connector {
     <<interface>>
     +onMessage(handler)
+    +onCommand(handler)
     +sendMessage(targetId, message)
   }
   class ConnectorMessage {

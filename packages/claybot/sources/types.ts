@@ -12,6 +12,8 @@ export type {
   ConnectorFileDisposition,
   ConnectorFileMode,
   ConnectorMessage,
+  CommandHandler,
+  CommandUnsubscribe,
   MessageContext,
   MessageHandler,
   MessageUnsubscribe,

@@ -4,6 +4,8 @@ import type {
   ConnectorMessage,
   MessageContext,
   MessageHandler,
+  CommandHandler,
+  CommandUnsubscribe,
   MessageUnsubscribe,
   PermissionDecision,
   PermissionHandler
@@ -21,6 +23,12 @@ export type ConnectorRegistryOptions = {
     context: MessageContext,
     descriptor: AgentDescriptor
   ) => void | Promise<void>;
+  onCommand?: (
+    source: string,
+    command: string,
+    context: MessageContext,
+    descriptor: AgentDescriptor
+  ) => void | Promise<void>;
   onPermission?: (
     source: string,
     decision: PermissionDecision,
@@ -33,6 +41,7 @@ export type ConnectorRegistryOptions = {
 type ManagedConnector = {
   connector: Connector;
   unsubscribe?: MessageUnsubscribe;
+  commandUnsubscribe?: CommandUnsubscribe;
   permissionUnsubscribe?: MessageUnsubscribe;
   loadedAt: Date;
 };
@@ -40,12 +49,14 @@ type ManagedConnector = {
 export class ConnectorRegistry {
   private connectors = new Map<string, ManagedConnector>();
   private onMessage: ConnectorRegistryOptions["onMessage"];
+  private onCommand?: ConnectorRegistryOptions["onCommand"];
   private onPermission?: ConnectorRegistryOptions["onPermission"];
   private onFatal?: ConnectorRegistryOptions["onFatal"];
   private logger = getLogger("connectors.registry");
 
   constructor(options: ConnectorRegistryOptions) {
     this.onMessage = options.onMessage;
+    this.onCommand = options.onCommand;
     this.onPermission = options.onPermission;
     this.onFatal = options.onFatal;
     this.logger.debug("ConnectorRegistry initialized");
@@ -79,10 +90,12 @@ export class ConnectorRegistry {
 
     this.logger.debug(`Attaching message handler connectorId=${id}`);
     const unsubscribe = this.attach(id, connector);
+    const commandUnsubscribe = this.attachCommand(id, connector);
     const permissionUnsubscribe = this.attachPermission(id, connector);
     this.connectors.set(id, {
       connector,
       unsubscribe,
+      commandUnsubscribe,
       permissionUnsubscribe,
       loadedAt: new Date()
     });
@@ -101,6 +114,7 @@ export class ConnectorRegistry {
 
     this.logger.debug(`Unsubscribing message handler connectorId=${id}`);
     entry.unsubscribe?.();
+    entry.commandUnsubscribe?.();
     entry.permissionUnsubscribe?.();
     try {
       this.logger.debug(`Calling connector.shutdown() connectorId=${id} reason=${reason}`);
@@ -133,6 +147,16 @@ export class ConnectorRegistry {
       return this.onMessage(id, message, context, descriptor);
     };
     return connector.onMessage(handler);
+  }
+
+  private attachCommand(id: string, connector: Connector): CommandUnsubscribe | undefined {
+    if (!this.onCommand || !connector.onCommand) {
+      return undefined;
+    }
+    const handler: CommandHandler = (command, context, descriptor) => {
+      return this.onCommand?.(id, command, context, descriptor);
+    };
+    return connector.onCommand(handler);
   }
 
   private attachPermission(id: string, connector: Connector): MessageUnsubscribe | undefined {

@@ -10,6 +10,7 @@ import type {
   ConnectorCapabilities,
   MessageContext,
   MessageHandler,
+  CommandHandler,
   AgentDescriptor,
   PermissionDecision,
   PermissionHandler,
@@ -61,6 +62,7 @@ export class TelegramConnector implements Connector {
   };
   private bot: TelegramBot;
   private handlers: MessageHandler[] = [];
+  private commandHandlers: CommandHandler[] = [];
   private permissionHandlers: PermissionHandler[] = [];
   private pollingEnabled: boolean;
   private statePath: string | null;
@@ -123,13 +125,7 @@ export class TelegramConnector implements Connector {
       logger.debug(`Received Telegram message chatId=${message.chat.id} fromId=${message.from?.id} messageId=${message.message_id} hasText=${!!message.text} hasCaption=${!!message.caption} hasPhoto=${!!message.photo} hasDocument=${!!message.document}`);
       const rawText = typeof message.text === "string" ? message.text : null;
       const trimmedText = rawText?.trim() ?? "";
-      const isResetCommand = trimmedText === "/reset" || trimmedText.startsWith("/reset@");
-      const files = isResetCommand ? [] : await this.extractFiles(message);
-      logger.debug(`Extracted files from message fileCount=${files.length}`);
-      const payload: ConnectorMessage = {
-        text: rawText ?? message.caption ?? null,
-        files: files.length > 0 ? files : undefined
-      };
+      const isCommand = trimmedText.startsWith("/");
 
       const descriptor: AgentDescriptor = {
         type: "user",
@@ -138,8 +134,25 @@ export class TelegramConnector implements Connector {
         channelId: String(message.chat.id)
       };
       const context: MessageContext = {
-        messageId: message.message_id ? String(message.message_id) : undefined,
-        command: isResetCommand ? "reset" : undefined
+        messageId: message.message_id ? String(message.message_id) : undefined
+      };
+
+      if (isCommand && rawText) {
+        logger.debug(
+          `Dispatching to command handlers handlerCount=${this.commandHandlers.length} channelId=${descriptor.channelId}`
+        );
+        for (const handler of this.commandHandlers) {
+          await handler(rawText, context, descriptor);
+        }
+        logger.debug(`All command handlers completed channelId=${descriptor.channelId}`);
+        return;
+      }
+
+      const files = await this.extractFiles(message);
+      logger.debug(`Extracted files from message fileCount=${files.length}`);
+      const payload: ConnectorMessage = {
+        text: rawText ?? message.caption ?? null,
+        files: files.length > 0 ? files : undefined
       };
 
       logger.debug(
@@ -213,6 +226,16 @@ export class TelegramConnector implements Connector {
       const index = this.handlers.indexOf(handler);
       if (index !== -1) {
         this.handlers.splice(index, 1);
+      }
+    };
+  }
+
+  onCommand(handler: CommandHandler): () => void {
+    this.commandHandlers.push(handler);
+    return () => {
+      const index = this.commandHandlers.indexOf(handler);
+      if (index !== -1) {
+        this.commandHandlers.splice(index, 1);
       }
     };
   }

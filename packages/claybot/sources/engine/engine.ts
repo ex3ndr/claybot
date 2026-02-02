@@ -70,7 +70,20 @@ export class Engine {
         logger.debug(
           `Connector message received: source=${source} type=${descriptor.type} text=${message.text?.length ?? 0}chars files=${message.files?.length ?? 0}`
         );
-        if (source === "telegram" && context.command === "reset" && descriptor.type === "user") {
+        void this.agentSystem.post(
+          { descriptor },
+          { type: "message", message, context }
+        );
+      },
+      onCommand: (source, command, _context, descriptor) => {
+        const parsed = parseCommand(command);
+        if (!parsed) {
+          return;
+        }
+        if (parsed.name === "reset") {
+          if (descriptor.type !== "user") {
+            return;
+          }
           logger.info(
             { source, channelId: descriptor.channelId, userId: descriptor.userId },
             "Reset command received"
@@ -81,10 +94,7 @@ export class Engine {
           );
           return;
         }
-        void this.agentSystem.post(
-          { descriptor },
-          { type: "message", message, context }
-        );
+        logger.debug({ source, command: parsed.name }, "Unknown command ignored");
       },
       onPermission: (source, decision, context, descriptor) => {
         void this.agentSystem.post(
@@ -286,4 +296,22 @@ export class Engine {
     );
   }
 
+}
+
+function parseCommand(command: string): { name: string; args: string[] } | null {
+  const trimmed = command.trim();
+  if (!trimmed.startsWith("/")) {
+    return null;
+  }
+  const body = trimmed.slice(1);
+  if (!body) {
+    return null;
+  }
+  const parts = body.split(/\s+/);
+  const rawName = parts.shift() ?? "";
+  const name = rawName.split("@")[0] ?? "";
+  if (!name) {
+    return null;
+  }
+  return { name, args: parts };
 }
