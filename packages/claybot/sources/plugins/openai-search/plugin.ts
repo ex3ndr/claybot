@@ -42,6 +42,31 @@ type OpenAIResponse = {
   };
 };
 
+async function validateApiKey(apiKey: string): Promise<void> {
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      tools: [{ type: "web_search" }],
+      input: "Test request."
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenAI validation failed: ${response.status} - ${errorText}`);
+  }
+
+  const data = (await response.json()) as OpenAIResponse;
+  if (data.error?.message) {
+    throw new Error(`OpenAI validation failed: ${data.error.message}`);
+  }
+}
+
 export const plugin = definePlugin({
   settingsSchema,
   onboarding: async (api) => {
@@ -58,6 +83,7 @@ export const plugin = definePlugin({
     if (!apiKey) {
       return null;
     }
+    await validateApiKey(apiKey);
     await api.auth.setApiKey(api.instanceId, apiKey);
     return { settings: {} };
   },

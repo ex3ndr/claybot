@@ -42,6 +42,37 @@ type GeminiResponse = {
   };
 };
 
+async function validateApiKey(apiKey: string): Promise<void> {
+  const response = await fetch(
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: "Test request." }]
+          }
+        ],
+        tools: [{ google_search: {} }]
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gemini validation failed: ${response.status} - ${errorText}`);
+  }
+
+  const data = (await response.json()) as GeminiResponse;
+  if (data.error?.message) {
+    throw new Error(`Gemini validation failed: ${data.error.message}`);
+  }
+}
+
 export const plugin = definePlugin({
   settingsSchema,
   onboarding: async (api) => {
@@ -58,6 +89,7 @@ export const plugin = definePlugin({
     if (!apiKey) {
       return null;
     }
+    await validateApiKey(apiKey);
     await api.auth.setApiKey(api.instanceId, apiKey);
     return { settings: {} };
   },

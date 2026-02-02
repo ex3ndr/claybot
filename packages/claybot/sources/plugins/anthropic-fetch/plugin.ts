@@ -35,6 +35,44 @@ type AnthropicResponse = {
   };
 };
 
+async function validateApiKey(apiKey: string): Promise<void> {
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01"
+    },
+    body: JSON.stringify({
+      model: "claude-3-5-sonnet-20240620",
+      max_tokens: 256,
+      tools: [
+        {
+          type: "web_search_20250305",
+          name: "web_search",
+          max_uses: 1
+        }
+      ],
+      messages: [
+        {
+          role: "user",
+          content: "Test request."
+        }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Anthropic validation failed: ${response.status} - ${errorText}`);
+  }
+
+  const data = (await response.json()) as AnthropicResponse;
+  if (data.error?.message) {
+    throw new Error(`Anthropic validation failed: ${data.error.message}`);
+  }
+}
+
 export const plugin = definePlugin({
   settingsSchema,
   onboarding: async (api) => {
@@ -51,6 +89,7 @@ export const plugin = definePlugin({
     if (!apiKey) {
       return null;
     }
+    await validateApiKey(apiKey);
     await api.auth.setApiKey(api.instanceId, apiKey);
     return { settings: {} };
   },

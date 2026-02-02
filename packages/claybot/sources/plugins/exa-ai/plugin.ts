@@ -49,6 +49,26 @@ type ExaSearchResponse = {
   autopromptString?: string;
 };
 
+async function validateApiKey(apiKey: string): Promise<void> {
+  const response = await fetch("https://api.exa.ai/search", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey
+    },
+    body: JSON.stringify({
+      query: "example",
+      numResults: 1,
+      type: "auto"
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Exa validation failed: ${response.status} - ${errorText}`);
+  }
+}
+
 export const plugin = definePlugin({
   settingsSchema,
   onboarding: async (api) => {
@@ -58,6 +78,7 @@ export const plugin = definePlugin({
     if (!apiKey) {
       return null;
     }
+    await validateApiKey(apiKey);
     await api.auth.setApiKey(api.instanceId, apiKey);
     return { settings: {} };
   },

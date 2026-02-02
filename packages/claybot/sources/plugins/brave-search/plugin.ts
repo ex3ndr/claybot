@@ -35,6 +35,24 @@ type BraveSearchResponse = {
   };
 };
 
+async function validateApiKey(apiKey: string): Promise<void> {
+  const url = new URL("https://api.search.brave.com/res/v1/web/search");
+  url.searchParams.set("q", "example");
+  url.searchParams.set("count", "1");
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      Accept: "application/json",
+      "X-Subscription-Token": apiKey
+    }
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Brave search validation failed: ${response.status} - ${errorText}`);
+  }
+}
+
 export const plugin = definePlugin({
   settingsSchema,
   onboarding: async (api) => {
@@ -44,6 +62,7 @@ export const plugin = definePlugin({
     if (!apiKey) {
       return null;
     }
+    await validateApiKey(apiKey);
     await api.auth.setApiKey(api.instanceId, apiKey);
     return { settings: {} };
   },

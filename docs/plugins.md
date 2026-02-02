@@ -137,6 +137,19 @@ flowchart TD
   Content --> Agent["toolResult"]
 ```
 
+During onboarding, plugins that request API keys validate the credential with a lightweight request before saving.
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Plugin
+  participant Provider
+  User->>Plugin: enter API key
+  Plugin->>Provider: validate request
+  Provider-->>Plugin: ok/error
+  Plugin-->>User: saved or retry
+```
+
 ## Built-in plugins
 - `telegram` (connector)
 - `brave-search` (tool)
