@@ -18,8 +18,13 @@ const searchSchema = Type.Object(
     ),
     type: Type.Optional(
       Type.Union(
-        [Type.Literal("keyword"), Type.Literal("neural"), Type.Literal("auto")],
-        { description: "Search type: keyword, neural, or auto" }
+        [
+          Type.Literal("auto"),
+          Type.Literal("fast"),
+          Type.Literal("deep"),
+          Type.Literal("neural")
+        ],
+        { description: "Search type: auto, fast, deep, or neural" }
       )
     ),
     useAutoprompt: Type.Optional(
@@ -66,7 +71,7 @@ export const plugin = definePlugin({
           tool: {
             name: toolName,
             description:
-              "Search the web using Exa AI. Supports keyword, neural, and auto search types.",
+              "Search the web using Exa AI. Supports auto, fast, deep, and neural search types.",
             parameters: searchSchema
           },
           execute: async (args, toolContext, toolCall) => {

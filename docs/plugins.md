@@ -104,6 +104,29 @@ flowchart TD
   Events --> Engine["SSE /v1/engine/events"]
 ```
 
+## Web search + fetch plugins
+ClayBot ships optional plugins that register web search and fetch tools. All require `@web` permission:
+- `openai-search` -> `openai_search`
+- `gemini-search` -> `gemini_search`
+- `anthropic-search` -> `anthropic_search`
+- `anthropic-fetch` -> `anthropic_fetch`
+- `perplexity-search` -> `perplexity_search`
+- `exa-ai` -> `exa_search`
+- `firecrawl` -> `firecrawl_fetch`
+
+```mermaid
+sequenceDiagram
+  participant Agent
+  participant Tool
+  participant Provider
+  participant Web
+  Agent->>Tool: tool call (query or url)
+  Tool->>Provider: HTTP request (API key)
+  Provider->>Web: search or fetch
+  Provider-->>Tool: response + sources
+  Tool-->>Agent: toolResult text
+```
+
 ## Built-in plugins
 - `telegram` (connector)
 - `brave-search` (tool)

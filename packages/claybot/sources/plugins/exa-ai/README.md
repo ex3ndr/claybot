@@ -1,6 +1,6 @@
 # Exa AI Plugin
 
-Web search tool powered by Exa AI's neural and keyword search.
+Web search tool powered by Exa AI's neural, fast, and deep search modes.
 
 ## Tool
 
@@ -12,7 +12,7 @@ Web search tool powered by Exa AI's neural and keyword search.
 |---------------|---------|----------|----------------------------------------------|
 | query         | string  | yes      | The search query                             |
 | numResults    | number  | no       | Number of results (1-10, default 5)          |
-| type          | string  | no       | Search type: keyword, neural, or auto        |
+| type          | string  | no       | Search type: auto, fast, deep, or neural     |
 | useAutoprompt | boolean | no       | Use Exa autoprompt to improve query          |
 
 ## Settings

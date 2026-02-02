@@ -92,12 +92,13 @@ export const plugin = definePlugin({
               );
             }
 
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
             const response = await fetch(url, {
               method: "POST",
               headers: {
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "x-goog-api-key": apiKey
               },
               body: JSON.stringify({
                 contents: [
@@ -105,7 +106,7 @@ export const plugin = definePlugin({
                     parts: [{ text: payload.query }]
                   }
                 ],
-                tools: [{ googleSearch: {} }]
+                tools: [{ google_search: {} }]
               })
             });
 

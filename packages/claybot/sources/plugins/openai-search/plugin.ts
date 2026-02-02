@@ -100,7 +100,7 @@ export const plugin = definePlugin({
               },
               body: JSON.stringify({
                 model,
-                tools: [{ type: "web_search_preview" }],
+                tools: [{ type: "web_search" }],
                 input: payload.query
               })
             });
