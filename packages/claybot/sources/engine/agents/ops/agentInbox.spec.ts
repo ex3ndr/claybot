@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { AgentInbox } from "./agentInbox.js";
 
-const buildReset = () => ({ type: "reset" as const, source: "system" });
+const buildReset = () => ({ type: "reset" as const });
 
 describe("AgentInbox", () => {
   it("delivers queued entries in order", async () => {

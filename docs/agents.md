@@ -14,14 +14,31 @@ sequenceDiagram
   Agent-->>AgentInbox: done
 ```
 
-## Agent routing rules
+## Agent identity rules
 - Agent ids are cuid2 values mapped to user descriptors (`connector + channelId + userId`), cron task uid, or heartbeat.
 - Connectors provide user descriptors for mapping; `MessageContext` only carries message-level metadata.
 - Messages (and files) are queued and processed in order via `AgentInbox`.
 
-## System message routing
+## Message source resolution
+Inbox items store message content and context only; the connector source is resolved from the
+agent descriptor when handling a message.
+
+```mermaid
+flowchart LR
+  Inbox[AgentInboxItem] --> Agent[Agent.handleMessage]
+  Agent --> Descriptor[descriptor.connector]
+  Descriptor --> Connector[connectorRegistry.get]
+```
+
+## System message delivery
 When `send_agent_message` omits a target agent id, the tool asks for the most recent
-foreground agent and posts a system message using the target agent’s routing context.
+foreground agent and posts a system message using the target agent’s connector.
+
+```mermaid
+flowchart LR
+  Target[Target agent descriptor] --> Source[connector source]
+  Source --> Post[agentSystem.post]
+```
 
 ```mermaid
 sequenceDiagram
@@ -39,7 +56,7 @@ sequenceDiagram
 ## Agent persistence
 - Agents are written to `.claybot/agents/<cuid2>/` as discrete files.
 - `descriptor.json` captures the agent type and identity.
-- `state.json` stores provider selection, permissions, routing, and timestamps.
+- `state.json` stores provider selection, permissions, and timestamps.
 - `history.jsonl` stores minimal user/assistant/tool records.
 - History is restored starting after the most recent `start` or `reset` marker.
 

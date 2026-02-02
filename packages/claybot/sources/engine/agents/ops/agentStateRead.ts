@@ -7,12 +7,6 @@ import type { Config } from "@/types";
 import type { AgentState } from "./agentTypes.js";
 import { agentPathBuild } from "./agentPathBuild.js";
 
-const messageContextSchema = z
-  .object({
-    messageId: z.string().min(1).optional()
-  })
-  .strict();
-
 const contextSchema = z
   .object({
     messages: z.array(z.unknown())
@@ -25,13 +19,6 @@ const permissionsSchema = z
     writeDirs: z.array(z.string()),
     readDirs: z.array(z.string()),
     web: z.boolean()
-  })
-  .strict();
-
-const routingSchema = z
-  .object({
-    source: z.string().min(1),
-    context: messageContextSchema
   })
   .strict();
 
@@ -48,12 +35,11 @@ const agentStateSchema = z
     context: contextSchema,
     providerId: z.string().min(1).nullable(),
     permissions: permissionsSchema,
-    routing: routingSchema.nullable(),
     agent: agentMetadataSchema.nullable(),
     createdAt: z.number().int(),
     updatedAt: z.number().int()
   })
-  .passthrough();
+  .strip();
 
 /**
  * Reads and validates agent state from disk.

@@ -42,7 +42,6 @@ export class Heartbeats {
           { descriptor: { type: "heartbeat" } },
           {
             type: "message",
-            source: "heartbeat",
             message: { text: batch.prompt },
             context: {}
           }

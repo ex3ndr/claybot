@@ -64,7 +64,6 @@ function createContext(workingDir: string, web: boolean): ToolExecutionContext {
       readDirs: [],
       web
     },
-    routing: null,
     agent: null,
     createdAt: now,
     updatedAt: now

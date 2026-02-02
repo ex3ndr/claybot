@@ -17,3 +17,16 @@ flowchart TD
   Agent --> Store[agents/ops/*]
   Loop --> Connector[connectors/*]
 ```
+
+## Agent Creation
+
+Agent creation is deterministic and does not depend on inbound message context.
+Message delivery uses the inbound connector source; system messages derive the connector
+from the target agent descriptor.
+
+```mermaid
+flowchart TD
+  Create[Agent.create] --> Persist[descriptor.json + state.json]
+  Message[Agent.handleMessage] --> Source[connector source]
+  Source --> Send[connector.sendMessage]
+```

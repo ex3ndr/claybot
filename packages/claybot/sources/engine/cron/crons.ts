@@ -40,7 +40,6 @@ export class Crons {
           { descriptor },
           {
             type: "message",
-            source: "cron",
             message: { text: task.prompt },
             context: {}
           }

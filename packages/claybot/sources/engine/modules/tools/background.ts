@@ -44,11 +44,9 @@ export function buildStartBackgroundAgentTool(): ToolDefinition {
         parentAgentId: toolContext.agent.id,
         name: payload.name ?? "subagent"
       };
-      const parentContext = toolContext.agent.state.routing?.context ?? null;
-      const context = parentContext ? { ...parentContext } : {};
       await toolContext.agentSystem.post(
         { descriptor },
-        { type: "message", source: "system", message: { text: prompt }, context }
+        { type: "message", message: { text: prompt }, context: {} }
       );
 
       const toolMessage: ToolResultMessage = {
@@ -88,14 +86,10 @@ export function buildSendAgentMessageTool(): ToolDefinition {
       if (!resolvedTarget) {
         throw new Error("No recent foreground agent found.");
       }
-      const routing = toolContext.agentSystem.agentRoutingFor(resolvedTarget);
-      if (!routing) {
-        throw new Error(`Agent routing unavailable: ${resolvedTarget}`);
-      }
       const text = messageBuildSystemText(payload.text, origin);
       await toolContext.agentSystem.post(
         { agentId: resolvedTarget },
-        { type: "message", source: routing.source, message: { text }, context: routing.context }
+        { type: "message", message: { text }, context: {} }
       );
 
       const toolMessage: ToolResultMessage = {

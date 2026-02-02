@@ -47,7 +47,6 @@ describe("database plugin", () => {
       context: { messages: [] },
       providerId: null,
       permissions,
-      routing: null,
       agent: null,
       createdAt: now.getTime(),
       updatedAt: now.getTime()

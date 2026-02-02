@@ -1,7 +1,7 @@
 import type { AgentDescriptor } from "./agentDescriptorTypes.js";
 
 /**
- * Resolves connector routing for user agents.
+ * Resolves connector targeting for user agents.
  * Expects: descriptor is validated.
  */
 export function agentDescriptorTargetResolve(

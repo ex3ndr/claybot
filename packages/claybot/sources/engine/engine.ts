@@ -72,13 +72,13 @@ export class Engine {
         );
         void this.agentSystem.post(
           { descriptor },
-          { type: "message", source, message, context }
+          { type: "message", message, context }
         );
       },
       onPermission: (source, decision, context, descriptor) => {
         void this.agentSystem.post(
           { descriptor },
-          { type: "permission", source, decision, context }
+          { type: "permission", decision, context }
         );
       },
       onFatal: (source, reason, error) => {

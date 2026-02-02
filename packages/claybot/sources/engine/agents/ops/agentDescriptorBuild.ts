@@ -17,5 +17,5 @@ export function agentDescriptorBuild(
       name: "system"
     };
   }
-  throw new Error("Agent descriptor requires explicit routing data for non-system sources");
+  throw new Error("Agent descriptor requires explicit descriptor data for non-system sources");
 }

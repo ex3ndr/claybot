@@ -15,6 +15,5 @@ flowchart TD
   Engine --> AgentTarget[agentDescriptorTargetResolve.ts]
   Engine --> AgentCron[agentDescriptorIsCron.ts]
   Engine --> AgentHeartbeat[agentDescriptorIsHeartbeat.ts]
-  Engine --> AgentRouting[agentRoutingSanitize.ts]
   Engine --> AgentTimestamp[agentTimestampGet.ts]
 ```

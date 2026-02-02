@@ -52,7 +52,7 @@ Debug logs include key data embedded in the message text using `key=value` forma
 | Component | Module | What it logs |
 |-----------|-------|--------------|
 | Engine | `engine.runtime` | Message processing flow, inference loop, tool execution, agent lifecycle |
-| Agent System | `engine.agent-system` | Agent creation, inbox routing, restore/load |
+| Agent System | `engine.agent-system` | Agent creation, inbox handling, restore/load |
 | Agent | `engine.agent` | Agent prompt building, history handling |
 | Inference Router | `inference.router` | Provider selection, fallback attempts, client creation, completion calls |
 | Plugin Manager | `plugins.manager` | Plugin load/unload, settings sync, module loading |

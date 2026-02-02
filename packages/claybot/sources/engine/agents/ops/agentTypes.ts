@@ -21,10 +21,6 @@ export type AgentState = {
   context: Context;
   providerId: string | null;
   permissions: SessionPermissions;
-  routing: {
-    source: string;
-    context: MessageContext;
-  } | null;
   agent: {
     kind: "background";
     parentAgentId: string | null;
@@ -61,17 +57,14 @@ export type AgentHistoryRecord =
 export type AgentInboxItem =
   | {
       type: "message";
-      source: string;
       message: ConnectorMessage;
       context: MessageContext;
     }
   | {
       type: "reset";
-      source: string;
     }
   | {
       type: "permission";
-      source: string;
       decision: PermissionDecision;
       context: MessageContext;
     }

@@ -31,7 +31,6 @@ import { toolListContextBuild } from "../modules/tools/toolListContextBuild.js";
 import { agentDescriptorIsCron } from "./ops/agentDescriptorIsCron.js";
 import { agentDescriptorIsHeartbeat } from "./ops/agentDescriptorIsHeartbeat.js";
 import { agentDescriptorTargetResolve } from "./ops/agentDescriptorTargetResolve.js";
-import { agentRoutingSanitize } from "./ops/agentRoutingSanitize.js";
 import type { AgentDescriptor } from "./ops/agentDescriptorTypes.js";
 import type {
   AgentHistoryRecord,
@@ -84,8 +83,7 @@ export class Agent {
     agentId: string,
     descriptor: AgentDescriptor,
     inbox: AgentInbox,
-    agentSystem: AgentSystem,
-    options?: { source?: string; context?: MessageContext }
+    agentSystem: AgentSystem
   ): Promise<Agent> {
     if (!cuid2Is(agentId)) {
       throw new Error("Agent id must be a cuid2 value.");
@@ -95,7 +93,6 @@ export class Agent {
       context: { messages: [] },
       providerId: null,
       permissions: permissionClone(agentSystem.config.defaultPermissions),
-      routing: null,
       agent: descriptor.type === "subagent"
         ? {
             kind: "background",
@@ -127,13 +124,10 @@ export class Agent {
       at: now
     });
 
-    const source = options?.source ?? "agent";
-    const context = options?.context ?? agentContextBuild(descriptor, agentId);
-    agent.captureRouting(source, context);
     agent.agentSystem.eventBus.emit("agent.created", {
       agentId,
-      source,
-      context
+      source: "agent",
+      context: {}
     });
     return agent;
   }
@@ -217,9 +211,10 @@ export class Agent {
       context,
       receivedAt
     };
+    const source =
+      this.descriptor.type === "user" ? this.descriptor.connector : this.descriptor.type;
 
     this.state.updatedAt = receivedAt;
-    this.captureRouting(item.source, context);
 
     const rawText = entry.message.rawText ?? entry.message.text ?? "";
     const files = toFileReferences(entry.message.files ?? []);
@@ -236,7 +231,7 @@ export class Agent {
     const providers = listActiveInferenceProviders(this.agentSystem.config.settings);
     const providerId = this.resolveAgentProvider(providers);
 
-    const connector = this.agentSystem.connectorRegistry.get(item.source);
+    const connector = this.agentSystem.connectorRegistry.get(source);
     const connectorCapabilities = connector?.capabilities ?? null;
     const fileSendModes = connectorCapabilities?.sendFiles?.modes ?? [];
     const cronTasks = await this.agentSystem.crons.listTasks();
@@ -252,7 +247,7 @@ export class Agent {
             channelId: descriptor.channelId,
             userId: descriptor.userId
           }
-        : { connector: item.source };
+        : { connector: source };
     const pluginManager = this.agentSystem.pluginManager;
     const pluginPrompts = await pluginManager.getSystemPrompts();
     const pluginPrompt = pluginPrompts.length > 0 ? pluginPrompts.join("\n\n") : "";
@@ -305,7 +300,7 @@ export class Agent {
 
     const contextForRun: Context = {
       ...agentContext,
-      tools: this.listContextTools(item.source, {
+      tools: this.listContextTools(source, {
         agentKind,
         allowCronTools
       }),
@@ -322,7 +317,7 @@ export class Agent {
     const result = await agentLoopRun({
       entry,
       agent: this,
-      source: item.source,
+      source,
       context: contextForRun,
       connector,
       connectorRegistry: this.agentSystem.connectorRegistry,
@@ -383,18 +378,19 @@ export class Agent {
     const target = agentDescriptorTargetResolve(this.descriptor);
     if (!target) {
       logger.error(
-        { source: item.source, agentId: this.id },
-        "Permission decision missing user routing"
+        { agentId: this.id },
+        "Permission decision missing user target"
       );
       return false;
     }
+    const source = target.connector;
     const connector = this.agentSystem.connectorRegistry.get(target.connector);
     const permissionTag = permissionFormatTag(decision.access);
     const permissionLabel = permissionDescribeDecision(decision.access);
 
     if (!decision.approved) {
       logger.info(
-        { source: item.source, permission: permissionTag, agentId: this.id },
+        { source, permission: permissionTag, agentId: this.id },
         "Permission denied"
       );
     }
@@ -417,7 +413,7 @@ export class Agent {
       await agentStateWrite(this.agentSystem.config, this.id, this.state);
       this.agentSystem.eventBus.emit("permission.granted", {
         agentId: this.id,
-        source: item.source,
+        source,
         decision
       });
     }
@@ -427,7 +423,6 @@ export class Agent {
       : `Permission denied for ${permissionLabel}. Please continue without that permission.`;
     const resumeMessage: AgentInboxMessage = {
       type: "message",
-      source: item.source,
       message: { text: resumeText, rawText: resumeText },
       context: { ...context }
     };
@@ -437,7 +432,7 @@ export class Agent {
 
   /**
    * Notifies a parent agent when a subagent fails.
-   * Expects: parent agent routing is available.
+   * Expects: parent agent exists.
    */
   async notifySubagentFailure(reason: string, error?: unknown): Promise<void> {
     if (this.descriptor.type !== "subagent") {
@@ -453,18 +448,13 @@ export class Agent {
     const errorText = error instanceof Error ? error.message : error ? String(error) : "";
     const detail = errorText ? `${reason} (${errorText})` : reason;
     try {
-      const routing = this.agentSystem.agentRoutingFor(parentAgentId);
-      if (!routing) {
-        logger.warn({ agentId: this.id, parentAgentId }, "Subagent parent routing unavailable");
-        return;
-      }
       const text = messageBuildSystemText(
         `Subagent ${name} (${this.id}) failed: ${detail}.`,
         "background"
       );
       await this.agentSystem.post(
         { agentId: parentAgentId },
-        { type: "message", source: routing.source, message: { text }, context: routing.context }
+        { type: "message", message: { text }, context: {} }
       );
     } catch (sendError) {
       logger.warn(
@@ -517,13 +507,6 @@ export class Agent {
     }
 
     return providerId;
-  }
-
-  private captureRouting(source: string, context: MessageContext): void {
-    this.state.routing = {
-      source,
-      context: agentRoutingSanitize(context)
-    };
   }
 
   private async buildHistoryContext(
@@ -713,10 +696,6 @@ async function promptFileRead(filePath: string, fallbackPrompt: string): Promise
 
   const defaultContent = await agentPromptBundledRead(fallbackPrompt);
   return defaultContent.trim();
-}
-
-function agentContextBuild(_descriptor: AgentDescriptor, _agentId: string): MessageContext {
-  return {};
 }
 
 function toFileReferences(files: Array<{ id: string; name: string; path: string; mimeType: string; size: number }>): Array<{ id: string; name: string; path: string; mimeType: string; size: number }> {

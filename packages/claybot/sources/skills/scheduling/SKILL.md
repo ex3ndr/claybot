@@ -27,9 +27,9 @@ Use heartbeats when:
 
 **Heartbeat tools:** `heartbeat_add`, `heartbeat_list`, `heartbeat_run`, `heartbeat_remove`
 
-## Routing Examples
+## Selection Examples
 
-### Route to Cron
+### Choose Cron
 
 | User Input | Why Cron |
 |------------|----------|
@@ -42,7 +42,7 @@ Use heartbeats when:
 | "Every 15 minutes, poll the API for updates" | Precise interval timing |
 | "On the 1st of each month, generate a report" | Calendar-based schedule |
 
-### Route to Heartbeats
+### Choose Heartbeats
 
 | User Input | Why Heartbeat |
 |------------|---------------|

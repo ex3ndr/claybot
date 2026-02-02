@@ -30,7 +30,7 @@ classDiagram
   }
 ```
 
-Connectors emit a user descriptor alongside `MessageContext` for routing.
+Connectors emit a user descriptor alongside `MessageContext` for agent targeting.
 
 ## Telegram connector
 - Implemented as the `telegram` plugin.

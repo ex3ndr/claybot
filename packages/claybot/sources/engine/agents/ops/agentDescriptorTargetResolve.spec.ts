@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { agentDescriptorTargetResolve } from "./agentDescriptorTargetResolve.js";
 
 describe("agentDescriptorTargetResolve", () => {
-  it("returns connector routing for user descriptors", () => {
+  it("returns connector target for user descriptors", () => {
     const result = agentDescriptorTargetResolve({
       type: "user",
       connector: "telegram",

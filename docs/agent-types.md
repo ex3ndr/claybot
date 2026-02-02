@@ -2,7 +2,7 @@
 
 Agent types are persisted descriptors that capture what an agent represents
 and how it should be resolved later. They are written once on creation and
-restored on boot to keep routing stable across restarts.
+restored on boot to keep agent identity stable across restarts.
 
 ```mermaid
 flowchart TD
@@ -67,7 +67,7 @@ Operational notes:
 - Heartbeat runs always map to a single `heartbeat` agent that runs a batch prompt.
 - Cron agents are scheduled inputs; they can spawn subagents but are not foreground targets.
 
-## Message routing
+## Message delivery
 
 ### User message to agent
 
@@ -83,7 +83,7 @@ sequenceDiagram
   Agent-->>Connector: response
 ```
 
-Routing notes:
+Delivery notes:
 - Agent id is resolved from the persisted `user` descriptor (connector + user + channel).
 - The agent inbox preserves ordering; updates are persisted on each step.
 
@@ -99,7 +99,7 @@ sequenceDiagram
   Subagent->>AgentSystem: process inbox
 ```
 
-Routing notes:
+Delivery notes:
 - Subagents always carry `parentAgentId` and `name`.
 - Each subagent starts with a new cuid2 id; existing ids are not reused.
 - The subagent descriptor is persisted on creation.
@@ -117,7 +117,7 @@ sequenceDiagram
   AgentSystem->>User: system message
 ```
 
-Routing notes:
+Delivery notes:
 - The `most-recent-foreground` strategy selects the most recent `user` agent.
 - Subagents default to their `parentAgentId`; other agents fall back to
   `most-recent-foreground` when no agent id is provided.

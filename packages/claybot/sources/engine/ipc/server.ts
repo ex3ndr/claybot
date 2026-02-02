@@ -117,7 +117,7 @@ export async function startEngineServer(
   app.post("/v1/engine/agents/:agentId/reset", async (request, reply) => {
     const agentId = (request.params as { agentId: string }).agentId;
     logger.debug(`POST /v1/engine/agents/:agentId/reset agentId=${agentId}`);
-    const ok = options.runtime.agentSystem.post({ agentId }, { type: "reset", source: "system" });
+    const ok = options.runtime.agentSystem.post({ agentId }, { type: "reset" });
     if (!ok) {
       logger.debug(`Agent reset failed agentId=${agentId}`);
       return reply.status(404).send({ ok: false, error: "Agent not found" });

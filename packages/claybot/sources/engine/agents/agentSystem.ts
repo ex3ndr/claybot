@@ -6,7 +6,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { getLogger } from "../../log.js";
 import type { FileStore } from "../../files/store.js";
 import type { AuthStore } from "../../auth/store.js";
-import type { Config, MessageContext } from "@/types";
+import type { Config } from "@/types";
 import { cuid2Is } from "../../utils/cuid2Is.js";
 import type { ConnectorRegistry } from "../modules/connectorRegistry.js";
 import type { ImageGenerationRegistry } from "../modules/imageGenerationRegistry.js";
@@ -154,7 +154,7 @@ export class AgentSystem {
   async post(target: AgentPostTarget, item: AgentInboxItem): Promise<void> {
     if (this.stage === "idle" && item.type === "message") {
       const agentType = "descriptor" in target ? target.descriptor.type : "agent";
-      logger.warn({ source: item.source, agentType }, "AgentSystem received message before load");
+      logger.warn({ agentType }, "AgentSystem received message before load");
     }
     const entry = await this.resolveEntry(target, item);
     entry.inbox.post(item);
@@ -181,7 +181,7 @@ export class AgentSystem {
     if (!entry) {
       return false;
     }
-    entry.inbox.post({ type: "reset", source: "system" });
+    entry.inbox.post({ type: "reset" });
     this.startEntryIfRunning(entry);
     return true;
   }
@@ -199,17 +199,6 @@ export class AgentSystem {
       return bTime - aTime;
     });
     return candidates[0]?.agentId ?? null;
-  }
-
-  agentRoutingFor(agentId: string): { source: string; context: MessageContext } | null {
-    const routing = this.entries.get(agentId)?.agent.state.routing ?? null;
-    if (!routing) {
-      return null;
-    }
-    return {
-      source: routing.source,
-      context: { ...routing.context }
-    };
   }
 
   private async resolveEntry(
@@ -253,10 +242,7 @@ export class AgentSystem {
         ? { ...descriptor, id: agentId }
         : descriptor;
     const inbox = new AgentInbox(agentId);
-    const agent = await Agent.create(agentId, resolvedDescriptor, inbox, this, {
-      source: item.type === "message" ? item.source : "agent",
-      context: item.type === "message" ? item.context : undefined
-    });
+    const agent = await Agent.create(agentId, resolvedDescriptor, inbox, this);
     const entry = this.registerEntry({
       agentId,
       descriptor: resolvedDescriptor,

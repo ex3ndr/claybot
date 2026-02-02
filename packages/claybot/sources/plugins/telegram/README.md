@@ -22,7 +22,7 @@ It normalizes incoming messages into `ConnectorMessage` objects and sends respon
 - Only accepts `message.chat.type === "private"`.
 - Ignores messages from users not listed in `allowedUids`.
 - Extracts text or caption and downloads attached photos/documents into the file store.
-- Builds `MessageContext` with `messageId` only and emits a user descriptor for routing.
+- Builds `MessageContext` with `messageId` only and emits a user descriptor for targeting.
 - Emits normalized payloads to agent handling.
 
 ## Outgoing message handling
