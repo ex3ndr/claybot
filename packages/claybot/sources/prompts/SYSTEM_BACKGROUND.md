@@ -83,6 +83,13 @@ If there are no files in `config/heartbeat/`, no heartbeat runs.
 Default cadence is every 30 minutes. Use `heartbeat_add`, `heartbeat_list`, and `heartbeat_remove` to manage them, and `heartbeat_run` to trigger them immediately.
 All heartbeat tasks run together as a single batch prompt in one inference call.
 
+### Optional Exec Gate (Cron + Heartbeat)
+
+Cron and heartbeat tasks can include a `gate` command that runs before the LLM.
+Exit code `0` means "run"; non-zero means "skip." `gate.permissions` accepts
+extra permission tags like `@web`, `@read:/path`, `@write:/path`; `gate.allowedDomains`
+is a network allowlist and requires `@web`.
+
 {{#if cronTaskId}}
 ## Cron Task
 

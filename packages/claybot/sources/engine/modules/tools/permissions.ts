@@ -8,6 +8,7 @@ import type { ToolDefinition } from "@/types";
 import type { PermissionAccess, PermissionRequest } from "@/types";
 import { agentDescriptorTargetResolve } from "../../agents/ops/agentDescriptorTargetResolve.js";
 import { agentDescriptorLabel } from "../../agents/ops/agentDescriptorLabel.js";
+import { permissionAccessParse } from "../../permissions/permissionAccessParse.js";
 
 const schema = Type.Object(
   {
@@ -78,7 +79,7 @@ export function buildPermissionRequestTool(): ToolDefinition {
         throw new Error("Connector not available for permission requests.");
       }
 
-      const access = parsePermission(permission);
+      const access = permissionAccessParse(permission);
       if (access.kind !== "web" && !path.isAbsolute(access.path)) {
         throw new Error("Path must be absolute.");
       }
@@ -156,28 +157,6 @@ export function buildPermissionRequestTool(): ToolDefinition {
       return { toolMessage, files: [] };
     }
   };
-}
-
-function parsePermission(value: string): PermissionAccess {
-  const trimmed = value.trim();
-  if (trimmed === "@web") {
-    return { kind: "web" };
-  }
-  if (trimmed.startsWith("@read:")) {
-    const pathValue = trimmed.slice("@read:".length).trim();
-    if (!pathValue) {
-      throw new Error("Read permission requires a path.");
-    }
-    return { kind: "read", path: pathValue };
-  }
-  if (trimmed.startsWith("@write:")) {
-    const pathValue = trimmed.slice("@write:".length).trim();
-    if (!pathValue) {
-      throw new Error("Write permission requires a path.");
-    }
-    return { kind: "write", path: pathValue };
-  }
-  throw new Error("Permission must be @web, @read:<path>, or @write:<path>.");
 }
 
 function describePermission(access: PermissionAccess): string {

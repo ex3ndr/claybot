@@ -13,6 +13,7 @@ import type {
   HeartbeatCreateTaskArgs,
   HeartbeatStoreInterface
 } from "../heartbeatTypes.js";
+import { execGateNormalize } from "../../scheduling/execGateNormalize.js";
 
 const logger = getLogger("heartbeat.store");
 
@@ -79,7 +80,11 @@ export class HeartbeatStore implements HeartbeatStoreInterface {
       }
     }
 
-    const frontmatter = { title };
+    const gate = execGateNormalize(definition.gate);
+    const frontmatter: Record<string, unknown> = { title };
+    if (gate) {
+      frontmatter.gate = gate;
+    }
     const content = cronFrontmatterSerialize(frontmatter, prompt);
     await fs.writeFile(filePath, content, "utf8");
 
@@ -88,6 +93,7 @@ export class HeartbeatStore implements HeartbeatStoreInterface {
       title,
       prompt,
       filePath,
+      gate,
       lastRunAt: undefined
     };
   }
@@ -128,6 +134,7 @@ export class HeartbeatStore implements HeartbeatStoreInterface {
         title,
         prompt,
         filePath,
+        gate: execGateNormalize(parsed.frontmatter.gate),
         lastRunAt: typeof lastRunAt === "string" ? lastRunAt : undefined
       };
     } catch (error) {

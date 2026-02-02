@@ -15,6 +15,19 @@ const addSchema = Type.Object(
     id: Type.Optional(Type.String({ minLength: 1 })),
     title: Type.String({ minLength: 1 }),
     prompt: Type.String({ minLength: 1 }),
+    gate: Type.Optional(Type.Object(
+      {
+        command: Type.String({ minLength: 1 }),
+        cwd: Type.Optional(Type.String({ minLength: 1 })),
+        timeoutMs: Type.Optional(Type.Number({ minimum: 100, maximum: 300_000 })),
+        env: Type.Optional(Type.Record(Type.String({ minLength: 1 }), Type.String())),
+        permissions: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { minItems: 1 })),
+        allowedDomains: Type.Optional(
+          Type.Array(Type.String({ minLength: 1 }), { minItems: 1 })
+        )
+      },
+      { additionalProperties: false }
+    )),
     overwrite: Type.Optional(Type.Boolean())
   },
   { additionalProperties: false }
@@ -69,7 +82,7 @@ export function buildHeartbeatAddTool(): ToolDefinition {
   return {
     tool: {
       name: "heartbeat_add",
-      description: "Create or update a heartbeat prompt stored in config/heartbeat.",
+      description: "Create or update a heartbeat prompt stored in config/heartbeat (optional gate).",
       parameters: addSchema
     },
     execute: async (args, toolContext, toolCall) => {
@@ -78,6 +91,7 @@ export function buildHeartbeatAddTool(): ToolDefinition {
         id: payload.id,
         title: payload.title,
         prompt: payload.prompt,
+        gate: payload.gate,
         overwrite: payload.overwrite
       });
 
@@ -94,7 +108,8 @@ export function buildHeartbeatAddTool(): ToolDefinition {
         details: {
           id: result.id,
           title: result.title,
-          filePath: result.filePath
+          filePath: result.filePath,
+          gate: result.gate ?? null
         },
         isError: false,
         timestamp: Date.now()
@@ -135,6 +150,7 @@ export function buildHeartbeatListTool(): ToolDefinition {
             title: task.title,
             prompt: task.prompt,
             filePath: task.filePath,
+            gate: task.gate ?? null,
             lastRunAt: task.lastRunAt ?? null
           }))
         },

@@ -15,6 +15,7 @@ import type {
 import { cronTaskUidResolve } from "./cronTaskUidResolve.js";
 import { cronFrontmatterParse } from "./cronFrontmatterParse.js";
 import { cronFrontmatterSerialize } from "./cronFrontmatterSerialize.js";
+import { execGateNormalize } from "../../scheduling/execGateNormalize.js";
 
 const logger = getLogger("cron.store");
 
@@ -102,6 +103,8 @@ export class CronStore {
           : undefined,
         schedule: String(schedule),
         prompt: parsed.body.trim(),
+        agentId: resolveAgentId(parsed.frontmatter),
+        gate: execGateNormalize(parsed.frontmatter.gate),
         enabled: parsed.frontmatter.enabled !== false,
         deleteAfterRun: deleteAfterRun === true,
         taskPath,
@@ -132,12 +135,19 @@ export class CronStore {
 
     // Write TASK.md
     const taskUid = cuid2Is(definition.taskUid) ? definition.taskUid : createId();
+    const gate = execGateNormalize(definition.gate);
     const frontmatter: Frontmatter = {
       name: definition.name,
       schedule: definition.schedule,
       enabled: definition.enabled ?? true,
       taskId: taskUid
     };
+    if (definition.agentId) {
+      frontmatter.agentId = definition.agentId;
+    }
+    if (gate) {
+      frontmatter.gate = gate;
+    }
     if (definition.description) {
       frontmatter.description = definition.description;
     }
@@ -159,6 +169,8 @@ export class CronStore {
       description: definition.description,
       schedule: definition.schedule,
       prompt: definition.prompt,
+      agentId: definition.agentId,
+      gate,
       enabled: definition.enabled ?? true,
       deleteAfterRun: definition.deleteAfterRun ?? false,
       taskPath,
@@ -177,6 +189,9 @@ export class CronStore {
       return null;
     }
 
+    const gate = updates.gate !== undefined
+      ? execGateNormalize(updates.gate)
+      : existing.gate;
     const updated: CronTaskDefinition = {
       id: taskId,
       taskUid: existing.taskUid,
@@ -184,6 +199,8 @@ export class CronStore {
       description: updates.description ?? existing.description,
       schedule: updates.schedule ?? existing.schedule,
       prompt: updates.prompt ?? existing.prompt,
+      agentId: updates.agentId ?? existing.agentId,
+      gate,
       enabled: updates.enabled ?? existing.enabled,
       deleteAfterRun: updates.deleteAfterRun ?? existing.deleteAfterRun
     };
@@ -194,6 +211,12 @@ export class CronStore {
       enabled: updated.enabled ?? true,
       taskId: existing.taskUid
     };
+    if (updated.agentId) {
+      frontmatter.agentId = updated.agentId;
+    }
+    if (updated.gate) {
+      frontmatter.gate = updated.gate;
+    }
     if (updated.description) {
       frontmatter.description = updated.description;
     }
@@ -324,4 +347,13 @@ export class CronStore {
       logger.warn({ taskId, error }, "Failed to write cron task state");
     }
   }
+}
+
+function resolveAgentId(frontmatter: Frontmatter): string | undefined {
+  const raw = frontmatter.agentId ?? frontmatter.agent_id;
+  if (typeof raw !== "string") {
+    return undefined;
+  }
+  const trimmed = raw.trim();
+  return trimmed ? trimmed : undefined;
 }

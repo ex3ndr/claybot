@@ -17,6 +17,13 @@ taskId: clx9rk1p20000x5p3j7q1x8z1
 name: Daily Report
 schedule: "0 9 * * *"
 enabled: true
+agentId: cu3ql2p5q0000x5p3g7q1l8a9
+gate:
+  command: "ping -c 1 1.1.1.1 >/dev/null 2>&1"
+  permissions:
+    - "@web"
+  allowedDomains:
+    - 1.1.1.1
 ---
 
 Generate the daily status report and summarize any blockers.
@@ -29,6 +36,8 @@ Frontmatter fields:
 - `enabled` (optional) - set to `false` to disable a task
 - `description` (optional) - short description used by `cron_read_task`
 - `deleteAfterRun` (optional) - when `true`, delete the task after it runs once
+- `agentId` (optional) - route the cron prompt to an existing agent id (defaults to the cron agent)
+- `gate` (optional) - exec gate config (command + permissions) that must succeed to run
 
 Task directory ids should be human-friendly slugs (e.g. `create-image-in-morning`).
 
@@ -36,7 +45,8 @@ Task directory ids should be human-friendly slugs (e.g. `create-image-in-morning
 
 - `Crons` owns storage + scheduling (`CronStore` + `CronScheduler`).
 - `CronScheduler` reads tasks from disk and schedules the next run.
-- Each task runs in its own agent id (the `taskId` cuid2 from frontmatter).
+- Each task runs in its own agent id (the `taskId` cuid2 from frontmatter) unless `agentId` routes elsewhere.
+- If a `gate` is provided, the exec command must exit `0` for the task to run.
 - When a schedule triggers, the task prompt is sent as a message to that agent.
 - The system prompt includes the cron task metadata and the memory file location.
 
@@ -45,8 +55,17 @@ flowchart TD
   Engine[engine.ts] --> Crons[cron/crons.ts]
   Crons --> Store[cron/ops/cronStore.ts]
   Crons --> Scheduler[cron/ops/cronScheduler.ts]
-  Scheduler --> AgentSystem[agents/agentSystem.ts]
+  Scheduler --> Gate[execGateCheck]
+  Gate -->|allow| AgentSystem[agents/agentSystem.ts]
+  Gate -->|deny| Skip[Skip run]
 ```
+
+## Exec Gate
+
+`gate` runs a shell command before the LLM to decide if the cron should run.
+Exit code `0` means "run"; non-zero means "skip." Use `gate.permissions` for
+extra permissions (`@web`, `@read:/path`, `@write:/path`). Network access requires
+`@web` plus `gate.allowedDomains` to allowlist hosts.
 
 ## Tools
 

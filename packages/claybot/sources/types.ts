@@ -4,6 +4,9 @@
 // Permissions
 export type { SessionPermissions } from "./engine/permissions.js";
 
+// Scheduling
+export type { ExecGateDefinition } from "./engine/scheduling/execGateTypes.js";
+
 // Connectors
 export type {
   Connector,

@@ -1,3 +1,5 @@
+import type { ExecGateDefinition } from "@/types";
+
 /**
  * Cron task definition as stored/provided by the user.
  */
@@ -8,6 +10,8 @@ export type CronTaskDefinition = {
   description?: string;
   schedule: string;
   prompt: string;
+  agentId?: string;
+  gate?: ExecGateDefinition;
   enabled?: boolean;
   deleteAfterRun?: boolean;
 };
@@ -40,6 +44,7 @@ export type CronTaskContext = {
   prompt: string;
   memoryPath: string;
   filesPath: string;
+  agentId?: string;
 };
 
 /**

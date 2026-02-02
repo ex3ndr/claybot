@@ -33,11 +33,16 @@ export class Crons {
     this.store = new CronStore(basePath);
     this.scheduler = new CronScheduler({
       store: this.store,
+      defaultPermissions: options.config.defaultPermissions,
       onTask: async (task) => {
-        const descriptor = { type: "cron" as const, id: task.taskUid };
-        logger.debug(`CronScheduler.onTask triggered taskUid=${task.taskUid}`);
+        const target = task.agentId
+          ? { agentId: task.agentId }
+          : { descriptor: { type: "cron" as const, id: task.taskUid } };
+        logger.debug(
+          `CronScheduler.onTask triggered taskUid=${task.taskUid} agentId=${task.agentId ?? "cron"}`
+        );
         await this.agentSystem.postAndAwait(
-          { descriptor },
+          target,
           {
             type: "message",
             message: { text: task.prompt },

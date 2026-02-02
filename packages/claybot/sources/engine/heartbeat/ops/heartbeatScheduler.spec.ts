@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { HeartbeatScheduler } from "./heartbeatScheduler.js";
 import { HeartbeatStore } from "./heartbeatStore.js";
+import type { SessionPermissions } from "@/types";
 
 async function createTempStore() {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "claybot-heartbeat-"));
@@ -19,6 +20,12 @@ async function cleanupTempStore(dir: string) {
 
 describe("HeartbeatScheduler", () => {
   const temps: string[] = [];
+  const defaultPermissions = (workingDir: string): SessionPermissions => ({
+    workingDir,
+    writeDirs: [],
+    readDirs: [],
+    web: false
+  });
 
   afterEach(async () => {
     await Promise.all(temps.map((dir) => cleanupTempStore(dir)));
@@ -36,7 +43,8 @@ describe("HeartbeatScheduler", () => {
     const scheduler = new HeartbeatScheduler({
       store,
       onRun,
-      onTaskComplete
+      onTaskComplete,
+      defaultPermissions: defaultPermissions(dir)
     });
 
     const result = await scheduler.runNow();
@@ -64,7 +72,8 @@ describe("HeartbeatScheduler", () => {
 
     const scheduler = new HeartbeatScheduler({
       store,
-      onRun
+      onRun,
+      defaultPermissions: defaultPermissions(dir)
     });
 
     const result = await scheduler.runNow([taskA.id]);
@@ -75,5 +84,40 @@ describe("HeartbeatScheduler", () => {
     const [runTasks] = onRun.mock.calls[0] as [unknown];
     expect(Array.isArray(runTasks)).toBe(true);
     expect((runTasks as { id: string }[]).map((task) => task.id)).toEqual([taskA.id]);
+  });
+
+  it("skips gated tasks when gate check denies", async () => {
+    const { dir, store } = await createTempStore();
+    temps.push(dir);
+    await store.createTask({
+      title: "Alpha",
+      prompt: "Check alpha.",
+      gate: { command: "echo gate" }
+    });
+    await store.createTask({ title: "Beta", prompt: "Check beta." });
+    const onRun = vi.fn();
+    const gateCheck = vi.fn().mockResolvedValue({
+      shouldRun: false,
+      exitCode: 1,
+      stdout: "",
+      stderr: ""
+    });
+
+    const scheduler = new HeartbeatScheduler({
+      store,
+      onRun,
+      gateCheck,
+      defaultPermissions: defaultPermissions(dir)
+    });
+
+    const result = await scheduler.runNow();
+
+    expect(gateCheck).toHaveBeenCalledTimes(1);
+    expect(result.ran).toBe(1);
+    expect(result.taskIds).toEqual(["beta"]);
+    expect(onRun).toHaveBeenCalledTimes(1);
+    const [runTasks] = onRun.mock.calls[0] as [unknown];
+    expect(Array.isArray(runTasks)).toBe(true);
+    expect((runTasks as { id: string }[]).map((task) => task.id)).toEqual(["beta"]);
   });
 });

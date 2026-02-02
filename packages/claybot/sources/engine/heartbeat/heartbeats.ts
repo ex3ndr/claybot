@@ -36,6 +36,7 @@ export class Heartbeats {
     this.scheduler = new HeartbeatScheduler({
       store: this.store,
       intervalMs: options.intervalMs,
+      defaultPermissions: options.config.defaultPermissions,
       onRun: async (tasks) => {
         const batch = heartbeatPromptBuildBatch(tasks);
         await this.agentSystem.postAndAwait(

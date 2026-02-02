@@ -5,10 +5,17 @@ import os from "node:os";
 
 import { CronScheduler } from "./cronScheduler.js";
 import { CronStore } from "./cronStore.js";
+import type { SessionPermissions } from "@/types";
 
 describe("CronScheduler", () => {
   let tempDir: string;
   let store: CronStore;
+  const defaultPermissions = (workingDir: string): SessionPermissions => ({
+    workingDir,
+    writeDirs: [],
+    readDirs: [],
+    web: false
+  });
 
   beforeEach(async () => {
     vi.useFakeTimers();
@@ -31,7 +38,8 @@ describe("CronScheduler", () => {
     const onTask = vi.fn();
     const scheduler = new CronScheduler({
       store,
-      onTask
+      onTask,
+      defaultPermissions: defaultPermissions(tempDir)
     });
 
     await scheduler.start();
@@ -57,13 +65,14 @@ describe("CronScheduler", () => {
     const onTask = vi.fn();
     const scheduler = new CronScheduler({
       store,
-      onTask
+      onTask,
+      defaultPermissions: defaultPermissions(tempDir)
     });
 
     await scheduler.start();
 
     // Advance time to next minute
-    vi.advanceTimersByTime(60 * 1000);
+    await vi.advanceTimersByTimeAsync(60 * 1000);
 
     expect(onTask).toHaveBeenCalledTimes(1);
     expect(onTask).toHaveBeenCalledWith(
@@ -90,7 +99,8 @@ describe("CronScheduler", () => {
     const onTask = vi.fn();
     const scheduler = new CronScheduler({
       store,
-      onTask
+      onTask,
+      defaultPermissions: defaultPermissions(tempDir)
     });
 
     await scheduler.start();
@@ -105,7 +115,8 @@ describe("CronScheduler", () => {
     const onTask = vi.fn();
     const scheduler = new CronScheduler({
       store,
-      onTask
+      onTask,
+      defaultPermissions: defaultPermissions(tempDir)
     });
 
     await scheduler.start();
@@ -134,7 +145,8 @@ describe("CronScheduler", () => {
     const onTask = vi.fn();
     const scheduler = new CronScheduler({
       store,
-      onTask
+      onTask,
+      defaultPermissions: defaultPermissions(tempDir)
     });
 
     await scheduler.start();
@@ -166,16 +178,50 @@ describe("CronScheduler", () => {
       onTask: () => {
         throw new Error("Task failed");
       },
-      onError
+      onError,
+      defaultPermissions: defaultPermissions(tempDir)
     });
 
     await scheduler.start();
-    vi.advanceTimersByTime(60 * 1000);
+    await vi.advanceTimersByTimeAsync(60 * 1000);
 
     expect(onError).toHaveBeenCalledWith(
       expect.any(Error),
       "error-task"
     );
+
+    scheduler.stop();
+  });
+
+  it("skips gated tasks when gate check denies", async () => {
+    vi.setSystemTime(new Date("2024-01-15T10:30:00Z"));
+
+    await store.createTask("gate-task", {
+      name: "Gate Task",
+      schedule: "* * * * *",
+      prompt: "Should be gated",
+      gate: { command: "echo gate" }
+    });
+
+    const onTask = vi.fn();
+    const gateCheck = vi.fn().mockResolvedValue({
+      shouldRun: false,
+      exitCode: 1,
+      stdout: "",
+      stderr: ""
+    });
+    const scheduler = new CronScheduler({
+      store,
+      onTask,
+      gateCheck,
+      defaultPermissions: defaultPermissions(tempDir)
+    });
+
+    await scheduler.start();
+    await vi.advanceTimersByTimeAsync(60 * 1000);
+
+    expect(gateCheck).toHaveBeenCalledTimes(1);
+    expect(onTask).not.toHaveBeenCalled();
 
     scheduler.stop();
   });

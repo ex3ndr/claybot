@@ -4,6 +4,7 @@ import type {
   HeartbeatSchedulerOptions,
   HeartbeatStoreInterface
 } from "../heartbeatTypes.js";
+import { execGateCheck } from "../../scheduling/execGateCheck.js";
 
 const logger = getLogger("heartbeat.scheduler");
 
@@ -18,6 +19,8 @@ export class HeartbeatScheduler {
   private onRun: HeartbeatSchedulerOptions["onRun"];
   private onError?: HeartbeatSchedulerOptions["onError"];
   private onTaskComplete?: HeartbeatSchedulerOptions["onTaskComplete"];
+  private defaultPermissions: HeartbeatSchedulerOptions["defaultPermissions"];
+  private gateCheck: HeartbeatSchedulerOptions["gateCheck"];
   private timer: NodeJS.Timeout | null = null;
   private started = false;
   private stopped = false;
@@ -30,6 +33,8 @@ export class HeartbeatScheduler {
     this.onRun = options.onRun;
     this.onError = options.onError;
     this.onTaskComplete = options.onTaskComplete;
+    this.defaultPermissions = options.defaultPermissions;
+    this.gateCheck = options.gateCheck ?? execGateCheck;
     logger.debug("HeartbeatScheduler initialized");
   }
 
@@ -110,23 +115,27 @@ export class HeartbeatScheduler {
       if (filtered.length === 0) {
         return { ran: 0, taskIds: [] };
       }
+      const gated = await this.filterByGate(filtered);
+      if (gated.length === 0) {
+        return { ran: 0, taskIds: [] };
+      }
       const runAt = new Date();
-      const ids = filtered.map((task) => task.id);
+      const ids = gated.map((task) => task.id);
       logger.info(
         {
-          taskCount: filtered.length,
+          taskCount: gated.length,
           taskIds: ids
         },
         "Heartbeat run started"
       );
       try {
-        await this.onRun(filtered, runAt);
+        await this.onRun(gated, runAt);
       } catch (error) {
         logger.warn({ taskIds: ids, error }, "Heartbeat run failed");
         await this.onError?.(error, ids);
       } finally {
         await this.store.recordRun(runAt);
-        for (const task of filtered) {
+        for (const task of gated) {
           task.lastRunAt = runAt.toISOString();
           await this.onTaskComplete?.(task, runAt);
         }
@@ -138,7 +147,7 @@ export class HeartbeatScheduler {
         },
         "Heartbeat run completed"
       );
-      return { ran: filtered.length, taskIds: ids };
+      return { ran: gated.length, taskIds: ids };
     } catch (error) {
       logger.warn({ error }, "Heartbeat run failed");
       await this.onError?.(error, undefined);
@@ -146,5 +155,38 @@ export class HeartbeatScheduler {
     } finally {
       this.running = false;
     }
+  }
+
+  private async filterByGate(tasks: HeartbeatDefinition[]): Promise<HeartbeatDefinition[]> {
+    const eligible: HeartbeatDefinition[] = [];
+    for (const task of tasks) {
+      if (!task.gate) {
+        eligible.push(task);
+        continue;
+      }
+      const result = await this.gateCheck?.({
+        gate: task.gate,
+        permissions: this.defaultPermissions,
+        workingDir: this.defaultPermissions.workingDir
+      });
+      if (!result) {
+        eligible.push(task);
+        continue;
+      }
+      if (result.error) {
+        logger.warn({ taskId: task.id, error: result.error }, "Heartbeat gate failed");
+        await this.onError?.(result.error, [task.id]);
+        continue;
+      }
+      if (!result.shouldRun) {
+        logger.debug(
+          { taskId: task.id, exitCode: result.exitCode },
+          "Heartbeat gate skipped execution"
+        );
+        continue;
+      }
+      eligible.push(task);
+    }
+    return eligible;
   }
 }

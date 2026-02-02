@@ -100,6 +100,19 @@ title: Check project status
 Review the current state of ongoing tasks and provide a brief status update.
 ```
 
+### Optional Exec Gate (Cron + Heartbeat)
+
+Cron and heartbeat tasks can include a `gate` command that runs before the LLM.
+If the command exits `0`, the task runs; any non-zero exit skips it. Use this
+for cheap checks (ex: ping before notifying). `gate.permissions` accepts extra
+permission tags like `@web`, `@read:/path`, `@write:/path`; `gate.allowedDomains`
+is a network allowlist and requires `@web`.
+
+### Cron Routing
+
+Cron tasks run in their own dedicated cron agent by default. Use `agentId` in
+`add_cron` to route the cron prompt to an existing agent instead.
+
 ### When to Use
 
 Use cron for time-sensitive tasks or strict repetition. Use heartbeats for periodic check-ins that need to be reviewed, updated, or reasoned about.

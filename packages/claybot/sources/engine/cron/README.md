@@ -62,8 +62,15 @@ import { CronStore } from "./cron/ops/cronStore.js";
 import { CronScheduler } from "./cron/ops/cronScheduler.js";
 
 const store = new CronStore("/path/to/cron");
+const defaultPermissions = {
+  workingDir: "/path/to/workspace",
+  writeDirs: [],
+  readDirs: [],
+  web: false
+};
 const scheduler = new CronScheduler({
   store,
+  defaultPermissions,
   onTask: async (context, messageContext) => {
     // Handle task execution
   }

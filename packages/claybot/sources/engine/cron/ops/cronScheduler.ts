@@ -8,14 +8,23 @@ import type {
 } from "../cronTypes.js";
 import { cronTimeGetNext } from "./cronTimeGetNext.js";
 import type { MessageContext } from "@/types";
+import type { SessionPermissions } from "@/types";
+import { permissionBuildCron } from "../../permissions/permissionBuildCron.js";
+import {
+  execGateCheck,
+  type ExecGateCheckInput,
+  type ExecGateCheckResult
+} from "../../scheduling/execGateCheck.js";
 
 const logger = getLogger("cron.scheduler");
 
 export type CronSchedulerOptions = {
   store: CronStore;
+  defaultPermissions: SessionPermissions;
   onTask: (context: CronTaskContext, messageContext: MessageContext) => void | Promise<void>;
   onError?: (error: unknown, taskId: string) => void | Promise<void>;
   onTaskComplete?: (task: CronTaskWithPaths, runAt: Date) => void | Promise<void>;
+  gateCheck?: (input: ExecGateCheckInput) => Promise<ExecGateCheckResult>;
 };
 
 /**
@@ -29,6 +38,8 @@ export class CronScheduler {
   private onTask: CronSchedulerOptions["onTask"];
   private onError?: CronSchedulerOptions["onError"];
   private onTaskComplete?: CronSchedulerOptions["onTaskComplete"];
+  private defaultPermissions: SessionPermissions;
+  private gateCheck: CronSchedulerOptions["gateCheck"];
   private tickTimer: NodeJS.Timeout | null = null;
   private runningTasks = new Set<string>();
 
@@ -37,6 +48,8 @@ export class CronScheduler {
     this.onTask = options.onTask;
     this.onError = options.onError;
     this.onTaskComplete = options.onTaskComplete;
+    this.defaultPermissions = options.defaultPermissions;
+    this.gateCheck = options.gateCheck ?? execGateCheck;
     logger.debug("CronScheduler initialized");
   }
 
@@ -155,7 +168,8 @@ export class CronScheduler {
       taskName: scheduled.task.name,
       prompt: scheduled.task.prompt,
       memoryPath: scheduled.task.memoryPath,
-      filesPath: scheduled.task.filesPath
+      filesPath: scheduled.task.filesPath,
+      agentId: scheduled.task.agentId
     };
   }
 
@@ -185,6 +199,11 @@ export class CronScheduler {
       return;
     }
 
+    const shouldRun = await this.checkGate(task);
+    if (!shouldRun) {
+      return;
+    }
+
     const runAt = new Date();
 
     const taskContext: CronTaskContext = {
@@ -193,7 +212,8 @@ export class CronScheduler {
       taskName: task.name,
       prompt: task.prompt,
       memoryPath: task.memoryPath,
-      filesPath: task.filesPath
+      filesPath: task.filesPath,
+      agentId: task.agentId
     };
 
     const messageContext: MessageContext = {};
@@ -217,6 +237,34 @@ export class CronScheduler {
       return;
     }
     await this.onError(error, taskId);
+  }
+
+  private async checkGate(task: CronTaskWithPaths): Promise<boolean> {
+    if (!task.gate) {
+      return true;
+    }
+    const permissions = permissionBuildCron(this.defaultPermissions, task.filesPath);
+    const result = await this.gateCheck?.({
+      gate: task.gate,
+      permissions,
+      workingDir: permissions.workingDir
+    });
+    if (!result) {
+      return true;
+    }
+    if (result.error) {
+      logger.warn({ taskId: task.id, error: result.error }, "Cron gate failed");
+      await this.reportError(result.error, task.id);
+      return false;
+    }
+    if (!result.shouldRun) {
+      logger.debug(
+        { taskId: task.id, exitCode: result.exitCode },
+        "Cron gate skipped execution"
+      );
+      return false;
+    }
+    return true;
   }
 
   private runTick(): void {

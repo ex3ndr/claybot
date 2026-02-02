@@ -7,12 +7,23 @@ export type EngineStatus = {
   tools?: string[];
 };
 
+export type ExecGate = {
+  command: string;
+  cwd?: string;
+  timeoutMs?: number;
+  env?: Record<string, string>;
+  permissions?: string[];
+  allowedDomains?: string[];
+};
+
 export type CronTask = {
   id: string;
   name?: string;
   description?: string;
   schedule?: string;
   prompt?: string;
+  agentId?: string;
+  gate?: ExecGate;
   enabled?: boolean;
   deleteAfterRun?: boolean;
   lastRunAt?: string;
@@ -24,6 +35,7 @@ export type CronTask = {
 export type HeartbeatTask = {
   id: string;
   title: string;
+  gate?: ExecGate;
   lastRunAt?: string;
 };
 

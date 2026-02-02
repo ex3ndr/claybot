@@ -17,6 +17,12 @@ Use cron when:
 
 **Cron tools:** `add_cron`, `cron_read_task`, `cron_read_memory`, `cron_write_memory`, `cron_delete_task`
 
+### Cron Routing
+
+Cron tasks run in their own dedicated cron agent by default. If you want the cron
+notification to land in an existing agent (e.g. a user chat), include `agentId`
+in `add_cron` to route the prompt to that agent instead.
+
 ## When to Use Heartbeats
 
 Use heartbeats when:
@@ -26,6 +32,18 @@ Use heartbeats when:
 - Lightweight status checks or reminders
 
 **Heartbeat tools:** `heartbeat_add`, `heartbeat_list`, `heartbeat_run`, `heartbeat_remove`
+
+## Optional Exec Gate
+
+Both cron and heartbeat tasks can define an optional `gate` command to decide
+whether to run the LLM. The command runs first; exit code `0` means "run" and
+non-zero means "skip." This keeps checks cheap (ex: ping before notifying).
+
+`gate` supports:
+- `command` (required)
+- `cwd`, `timeoutMs`, `env`
+- `permissions` (extra permissions, use tags like `@web`, `@read:/path`, `@write:/path`)
+- `allowedDomains` (network allowlist; requires `@web`)
 
 ## Selection Examples
 
@@ -68,12 +86,12 @@ Use heartbeats when:
 
 **For cron tasks:**
 1. Determine the schedule (cron expression: `minute hour day month weekday`)
-2. Use `add_cron` with name, schedule, and prompt
+2. Use `add_cron` with name, schedule, and prompt (optional `agentId` + `gate`)
 3. Each task gets isolated agent, memory file, and workspace
 
 **For heartbeats:**
 1. Run `heartbeat_list` to see existing tasks
-2. Use `heartbeat_add` with title and prompt
+2. Use `heartbeat_add` with title and prompt (optional `gate`)
 3. Use `heartbeat_run` to trigger immediately
 4. Use `heartbeat_remove` for cleanup
 
