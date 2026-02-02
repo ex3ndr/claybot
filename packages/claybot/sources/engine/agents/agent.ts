@@ -58,6 +58,7 @@ export class Agent {
   readonly inbox: AgentInbox;
   readonly state: AgentState;
   private readonly agentSystem: AgentSystem;
+  private providerId: string | null = null;
   private processing = false;
   private started = false;
 
@@ -91,7 +92,6 @@ export class Agent {
     const now = Date.now();
     const state: AgentState = {
       context: { messages: [] },
-      providerId: null,
       permissions: permissionClone(agentSystem.config.defaultPermissions),
       agent: descriptor.type === "subagent"
         ? {
@@ -553,13 +553,13 @@ export class Agent {
   ): string | null {
     const activeIds = new Set(providers.map((provider) => provider.id));
 
-    let providerId = this.state.providerId ?? null;
+    let providerId = this.providerId ?? null;
     if (!providerId || !activeIds.has(providerId)) {
       providerId = providers[0]?.id ?? null;
     }
 
-    if (providerId && this.state.providerId !== providerId) {
-      this.state.providerId = providerId;
+    if (providerId && this.providerId !== providerId) {
+      this.providerId = providerId;
     }
 
     return providerId;

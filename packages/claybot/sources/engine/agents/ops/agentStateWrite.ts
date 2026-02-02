@@ -17,7 +17,16 @@ export async function agentStateWrite(
   const basePath = agentPathBuild(config, agentId);
   await fs.mkdir(basePath, { recursive: true });
   const filePath = path.join(basePath, "state.json");
-  const payload = `${JSON.stringify(state, null, 2)}\n`;
+  const payload = `${JSON.stringify(
+    {
+      permissions: state.permissions,
+      agent: state.agent,
+      createdAt: state.createdAt,
+      updatedAt: state.updatedAt
+    },
+    null,
+    2
+  )}\n`;
   await writeFileAtomic(filePath, payload);
 }
 

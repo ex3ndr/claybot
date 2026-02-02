@@ -19,7 +19,6 @@ export type AgentMessage = {
 
 export type AgentState = {
   context: Context;
-  providerId: string | null;
   permissions: SessionPermissions;
   agent: {
     kind: "background";

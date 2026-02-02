@@ -57,7 +57,6 @@ function createContext(workingDir: string, web: boolean): ToolExecutionContext {
   const now = Date.now();
   const state: AgentState = {
     context: { messages: [] },
-    providerId: null,
     permissions: {
       workingDir,
       writeDirs: [],

@@ -41,3 +41,15 @@ flowchart LR
   Read[agentPromptBundledRead] --> Prompts[sources/prompts/*.md]
   Prompts --> System[buildSystemPrompt]
 ```
+
+## State vs History
+
+`state.json` only stores durable metadata (permissions, agent metadata, timestamps).
+Conversation context is rebuilt from `history.jsonl` instead of being persisted in state.
+
+```mermaid
+flowchart LR
+  State[state.json] --> Meta[permissions + agent metadata]
+  History[history.jsonl] --> Context[context messages]
+  Context --> Loop[inference loop]
+```

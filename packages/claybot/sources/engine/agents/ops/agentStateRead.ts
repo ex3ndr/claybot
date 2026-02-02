@@ -7,12 +7,6 @@ import type { Config } from "@/types";
 import type { AgentState } from "./agentTypes.js";
 import { agentPathBuild } from "./agentPathBuild.js";
 
-const contextSchema = z
-  .object({
-    messages: z.array(z.unknown())
-  })
-  .passthrough();
-
 const permissionsSchema = z
   .object({
     workingDir: z.string().min(1),
@@ -32,8 +26,6 @@ const agentMetadataSchema = z
 
 const agentStateSchema = z
   .object({
-    context: contextSchema,
-    providerId: z.string().min(1).nullable(),
     permissions: permissionsSchema,
     agent: agentMetadataSchema.nullable(),
     createdAt: z.number().int(),
@@ -58,5 +50,12 @@ export async function agentStateRead(config: Config, agentId: string): Promise<A
     throw error;
   }
   const parsed = JSON.parse(raw) as unknown;
-  return agentStateSchema.parse(parsed) as AgentState;
+  const state = agentStateSchema.parse(parsed);
+  return {
+    context: { messages: [] },
+    permissions: state.permissions,
+    agent: state.agent,
+    createdAt: state.createdAt,
+    updatedAt: state.updatedAt
+  };
 }

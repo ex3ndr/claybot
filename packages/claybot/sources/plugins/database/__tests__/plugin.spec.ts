@@ -45,7 +45,6 @@ describe("database plugin", () => {
     const descriptor = agentDescriptorBuild("system", messageContext, agentId);
     const state: AgentState = {
       context: { messages: [] },
-      providerId: null,
       permissions,
       agent: null,
       createdAt: now.getTime(),
