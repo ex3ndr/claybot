@@ -8,7 +8,6 @@ import { CronStore } from "./ops/cronStore.js";
 import type { CronTaskDefinition, CronTaskWithPaths } from "./cronTypes.js";
 import type { AgentSystem } from "../agents/agentSystem.js";
 import { permissionBuildCron } from "../permissions/permissionBuildCron.js";
-import { gatePermissionErrorIs } from "../scheduling/gatePermissionErrorIs.js";
 
 const logger = getLogger("cron.facade");
 
@@ -63,21 +62,13 @@ export class Crons {
         );
       },
       onError: async (error, taskId) => {
-        if (!gatePermissionErrorIs(error)) {
-          logger.warn({ taskId, error }, "Cron task failed");
-          return;
-        }
-        logger.warn(
-          { taskId, error },
-          "Cron gate permissions not satisfied; continuing without gate"
-        );
-        const task = await this.store.loadTask(taskId);
-        if (!task) {
-          return;
-        }
-        const missing = error.missing.join(", ");
+        logger.warn({ taskId, error }, "Cron task failed");
+      },
+      onGatePermissionSkip: async (task, missing) => {
         const label = task.name ? `"${task.name}" (${task.id})` : task.id;
-        const notice = `Cron gate permissions not allowed for ${label}: ${missing}. The gate check was skipped and the task ran anyway.`;
+        const notice = `Cron gate permissions not allowed for ${label}: ${missing.join(
+          ", "
+        )}. The gate check was skipped and the task ran anyway.`;
         const target = task.agentId
           ? { agentId: task.agentId }
           : { descriptor: { type: "cron" as const, id: task.taskUid } };

@@ -7,7 +7,7 @@ import type {
 import { execGateCheck } from "../../scheduling/execGateCheck.js";
 import { execGateOutputAppend } from "../../scheduling/execGateOutputAppend.js";
 import { permissionClone } from "../../permissions/permissionClone.js";
-import { gatePermissionErrorIs } from "../../scheduling/gatePermissionErrorIs.js";
+import { gatePermissionsCheck } from "../../scheduling/gatePermissionsCheck.js";
 
 const logger = getLogger("heartbeat.scheduler");
 
@@ -21,6 +21,7 @@ export class HeartbeatScheduler {
   private intervalMs: number;
   private onRun: HeartbeatSchedulerOptions["onRun"];
   private onError?: HeartbeatSchedulerOptions["onError"];
+  private onGatePermissionSkip?: HeartbeatSchedulerOptions["onGatePermissionSkip"];
   private onTaskComplete?: HeartbeatSchedulerOptions["onTaskComplete"];
   private defaultPermissions: HeartbeatSchedulerOptions["defaultPermissions"];
   private resolvePermissions?: HeartbeatSchedulerOptions["resolvePermissions"];
@@ -36,6 +37,7 @@ export class HeartbeatScheduler {
     this.intervalMs = options.intervalMs ?? 30 * 60 * 1000;
     this.onRun = options.onRun;
     this.onError = options.onError;
+    this.onGatePermissionSkip = options.onGatePermissionSkip;
     this.onTaskComplete = options.onTaskComplete;
     this.defaultPermissions = options.defaultPermissions;
     this.resolvePermissions = options.resolvePermissions;
@@ -174,6 +176,16 @@ export class HeartbeatScheduler {
         continue;
       }
       const permissions = permissionClone(basePermissions);
+      const permissionCheck = await gatePermissionsCheck(permissions, task.gate.permissions);
+      if (!permissionCheck.allowed) {
+        logger.warn(
+          { taskId: task.id, missing: permissionCheck.missing },
+          "Heartbeat gate permissions not satisfied; continuing without gate"
+        );
+        await this.onGatePermissionSkip?.(task, permissionCheck.missing);
+        eligible.push(task);
+        continue;
+      }
       const result = await this.gateCheck?.({
         gate: task.gate,
         permissions,
@@ -184,15 +196,6 @@ export class HeartbeatScheduler {
         continue;
       }
       if (result.error) {
-        if (gatePermissionErrorIs(result.error)) {
-          logger.warn(
-            { taskId: task.id, error: result.error },
-            "Heartbeat gate permissions not satisfied; continuing without gate"
-          );
-          await this.onError?.(result.error, [task.id]);
-          eligible.push(task);
-          continue;
-        }
         logger.warn({ taskId: task.id, error: result.error }, "Heartbeat gate failed");
         await this.onError?.(result.error, [task.id]);
         continue;

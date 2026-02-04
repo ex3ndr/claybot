@@ -25,6 +25,10 @@ export type HeartbeatSchedulerOptions = {
   resolvePermissions?: () => Promise<SessionPermissions> | SessionPermissions;
   onRun: (tasks: HeartbeatDefinition[], runAt: Date) => void | Promise<void>;
   onError?: (error: unknown, taskIds?: string[]) => void | Promise<void>;
+  onGatePermissionSkip?: (
+    task: HeartbeatDefinition,
+    missing: string[]
+  ) => void | Promise<void>;
   onTaskComplete?: (task: HeartbeatDefinition, runAt: Date) => void | Promise<void>;
   gateCheck?: (input: ExecGateCheckInput) => Promise<ExecGateCheckResult>;
 };

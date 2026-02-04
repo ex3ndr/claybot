@@ -8,7 +8,6 @@ import { HeartbeatStore } from "./ops/heartbeatStore.js";
 import type { HeartbeatCreateTaskArgs, HeartbeatDefinition } from "./heartbeatTypes.js";
 import type { Config } from "@/types";
 import type { AgentSystem } from "../agents/agentSystem.js";
-import { gatePermissionErrorIs } from "../scheduling/gatePermissionErrorIs.js";
 
 const logger = getLogger("heartbeat.facade");
 
@@ -52,20 +51,13 @@ export class Heartbeats {
         );
       },
       onError: async (error, taskIds) => {
-        if (!gatePermissionErrorIs(error)) {
-          logger.warn({ taskIds, error }, "Heartbeat task failed");
-          return;
-        }
-        logger.warn(
-          { taskIds, error },
-          "Heartbeat gate permissions not satisfied; continuing without gate"
-        );
-        const missing = error.missing.join(", ");
-        const taskList = taskIds && taskIds.length > 0 ? taskIds.join(", ") : "unknown";
+        logger.warn({ taskIds, error }, "Heartbeat task failed");
+      },
+      onGatePermissionSkip: async (task, missing) => {
+        const label = task.title ? `"${task.title}" (${task.id})` : task.id;
         const notice =
-          `Heartbeat gate permissions not allowed: ${missing}. ` +
-          "The gate check was skipped and the heartbeat ran anyway. " +
-          `Tasks: ${taskList}.`;
+          `Heartbeat gate permissions not allowed for ${label}: ${missing.join(", ")}. ` +
+          "The gate check was skipped and the heartbeat ran anyway.";
         await this.agentSystem.post(
           { descriptor: { type: "heartbeat" } },
           {
