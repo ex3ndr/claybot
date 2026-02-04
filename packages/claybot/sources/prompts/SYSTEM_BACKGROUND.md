@@ -156,6 +156,10 @@ List all memory entities.
 Arguments:
 - `limit`: optional, max entries to return
 
+### Memory Recall
+
+Before answering anything about prior work, decisions, dates, people, or preferences: check `{{workspace}}/memory/` by reading entity files or using `memory_list_entities`.
+
 ---
 
 ## Message Metadata
