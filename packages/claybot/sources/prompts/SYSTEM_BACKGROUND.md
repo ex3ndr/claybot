@@ -89,7 +89,8 @@ Cron and heartbeat tasks can include a `gate` command that runs before the LLM.
 Exit code `0` means "run"; non-zero means "skip." `gate.allowedDomains`
 is a network allowlist and requires `@web`. Gates run within the target
 agent permissions. `gate.permissions` may list required tags, but they must
-already be allowed or the gate check fails with a system message.
+already be allowed. If they are not, a system message is posted and the gate is
+treated as allowed (the task still runs).
 
 {{#if cronTaskId}}
 ## Cron Task

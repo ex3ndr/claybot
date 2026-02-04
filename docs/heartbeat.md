@@ -39,7 +39,8 @@ flowchart TD
   Heartbeats --> Scheduler[heartbeat/ops/heartbeatScheduler.ts]
   Scheduler --> Gate[execGateCheck]
   Gate -->|allow| AgentSystem[agents/agentSystem.ts]
-  Gate -->|deny| Skip[Skip task]
+  Gate -->|deny (exit != 0)| Skip[Skip task]
+  Gate -->|permissions missing| Notify[Notify agent + continue]
 ```
 
 ## Exec Gate
@@ -47,17 +48,18 @@ flowchart TD
 Use `gate` to run a shell command before the LLM and skip work when the check
 fails. Exit code `0` means "run"; non-zero means "skip." Trimmed gate output is
 appended to the prompt under `[Gate output]`. Gates run with the heartbeat agent
-permissions. `gate.permissions` may declare required permission tags, but they must
-already be allowed by the heartbeat agent or the gate check fails. Network access
-requires `@web` plus `gate.allowedDomains` to allowlist hosts.
+permissions. `gate.permissions` may declare required permission tags. If they are
+not already allowed by the heartbeat agent, a system message is posted and the gate
+is treated as allowed (the task still runs). Network access requires `@web` plus
+`gate.allowedDomains` to allowlist hosts.
 
 ## Permissions
 
 Heartbeat tasks do not carry permission tags. Prompts run with the
 heartbeat agent's existing permissions only. Any `permissions` entries
 in heartbeat files are ignored. `gate.permissions` are validated against
-the heartbeat agent's permissions and rejected if they are not already allowed,
-and the heartbeat agent receives a system message when a gate check is skipped.
+the heartbeat agent's permissions. If they are not already allowed, a system message
+is posted and the task runs anyway (the gate is treated as successful).
 
 ```mermaid
 flowchart TD
@@ -65,6 +67,7 @@ flowchart TD
   Scheduler --> Gate[execGateCheck]
   Scheduler --> Agent[Heartbeat agent]
   Task -. permission tags ignored .-> Ignore[No task permission grants]
+  Gate -->|permissions missing| Notify[Notify agent + continue]
 ```
 
 ## Tools

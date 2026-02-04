@@ -40,7 +40,8 @@ whether to run the LLM. The command runs first; exit code `0` means "run" and
 non-zero means "skip." This keeps checks cheap (ex: HTTP health check before notifying).
 Trimmed gate output is appended to the prompt under `[Gate output]`.
 Gates run within the target agent permissions. If `gate.permissions` are not already
-allowed, the gate check is skipped and the target agent receives a system message.
+allowed, a system message is posted and the task still runs (the gate is treated as
+successful).
 
 `gate` supports:
 - `command` (required)

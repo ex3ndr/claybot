@@ -112,8 +112,8 @@ If the command exits `0`, the task runs; any non-zero exit skips it. Use this
 for cheap checks (ex: HTTP health check before notifying). `gate.allowedDomains`
 is a network allowlist and requires `@web`.
 Gates run within the target agent permissions. `gate.permissions` may list required
-permission tags, but they must already be allowed by the target agent or the gate
-check fails and a system message is posted.
+permission tags. If they are not already allowed by the target agent, a system
+message is posted and the gate is treated as allowed (the task still runs).
 
 ### Cron Routing
 

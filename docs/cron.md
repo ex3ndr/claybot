@@ -55,7 +55,8 @@ flowchart TD
   Crons --> Scheduler[cron/ops/cronScheduler.ts]
   Scheduler --> Gate[execGateCheck]
   Gate -->|allow| AgentSystem[agents/agentSystem.ts]
-  Gate -->|deny| Skip[Skip run]
+  Gate -->|deny (exit != 0)| Skip[Skip run]
+  Gate -->|permissions missing| Notify[Notify agent + continue]
 ```
 
 ## Exec Gate
@@ -63,17 +64,18 @@ flowchart TD
 `gate` runs a shell command before the LLM to decide if the cron should run.
 Exit code `0` means "run"; non-zero means "skip." Trimmed gate output is appended
 to the prompt under `[Gate output]`. Gates run with the target agent permissions.
-`gate.permissions` may declare required permission tags, but they must already
-be allowed by the target agent or the gate check fails. Network access requires
-`@web` plus `gate.allowedDomains` to allowlist hosts.
+`gate.permissions` may declare required permission tags. If they are not already
+allowed by the target agent, a system message is posted and the gate is treated
+as allowed (the task still runs). Network access requires `@web` plus
+`gate.allowedDomains` to allowlist hosts.
 
 ## Permissions
 
 Cron tasks do not carry permission tags. Task prompts run with the
 target agent's existing permissions only. Any `permissions` entries in
 task files are ignored. `gate.permissions` are validated against the
-target agent's permissions and rejected if they are not already allowed,
-and the target agent receives a system message when a gate check is skipped.
+target agent's permissions. If they are not already allowed, a system message
+is posted and the task runs anyway (the gate is treated as successful).
 
 ```mermaid
 flowchart TD
@@ -81,6 +83,7 @@ flowchart TD
   Scheduler --> Gate[execGateCheck]
   Scheduler --> Agent[Target agent]
   Task -. permission tags ignored .-> Ignore[No task permission grants]
+  Gate -->|permissions missing| Notify[Notify agent + continue]
 ```
 
 ## Tools

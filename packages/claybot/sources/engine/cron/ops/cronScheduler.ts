@@ -11,6 +11,7 @@ import type { MessageContext } from "@/types";
 import type { SessionPermissions } from "@/types";
 import { permissionBuildCron } from "../../permissions/permissionBuildCron.js";
 import { permissionClone } from "../../permissions/permissionClone.js";
+import { gatePermissionErrorIs } from "../../scheduling/gatePermissionErrorIs.js";
 import {
   execGateCheck,
   type ExecGateCheckInput,
@@ -267,6 +268,14 @@ export class CronScheduler {
       return { allowed: true };
     }
     if (result.error) {
+      if (gatePermissionErrorIs(result.error)) {
+        logger.warn(
+          { taskId: task.id, error: result.error },
+          "Cron gate permissions not allowed; continuing without gate"
+        );
+        await this.reportError(result.error, task.id);
+        return { allowed: true };
+      }
       logger.warn({ taskId: task.id, error: result.error }, "Cron gate failed");
       await this.reportError(result.error, task.id);
       return { allowed: false };

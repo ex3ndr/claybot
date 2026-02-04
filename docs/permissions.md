@@ -90,8 +90,8 @@ flowchart TD
 Cron and heartbeat tasks do not carry permission tags. Task prompts run with
 the target agent's existing permissions only. Any `permissions` entries in task
 files are ignored. `gate.permissions` are validated against the target agent's
-permissions and rejected if they are not already allowed, with a system message
-posted to the target agent when a gate check is skipped.
+permissions. If they are not already allowed, a system message is posted and the
+task still runs (the gate is treated as successful).
 
 ```mermaid
 flowchart TD
@@ -99,7 +99,7 @@ flowchart TD
   Scheduler --> Gate[execGateCheck]
   Scheduler --> Agent[Target agent]
   Task -. permission tags ignored .-> Ignore[No task permission grants]
-  Gate -->|permissions missing| Notify[Notify agent]
+  Gate -->|permissions missing| Notify[Notify agent + continue]
 ```
 
 ## Path security utilities

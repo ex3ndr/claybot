@@ -52,14 +52,19 @@ export class Heartbeats {
         );
       },
       onError: async (error, taskIds) => {
-        logger.warn({ taskIds, error }, "Heartbeat task failed");
         if (!gatePermissionErrorIs(error)) {
+          logger.warn({ taskIds, error }, "Heartbeat task failed");
           return;
         }
+        logger.warn(
+          { taskIds, error },
+          "Heartbeat gate permissions not satisfied; continuing without gate"
+        );
         const missing = error.missing.join(", ");
         const taskList = taskIds && taskIds.length > 0 ? taskIds.join(", ") : "unknown";
         const notice =
-          `Heartbeat gate skipped because required gate permissions are not allowed: ${missing}. ` +
+          `Heartbeat gate permissions not allowed: ${missing}. ` +
+          "The gate check was skipped and the heartbeat ran anyway. " +
           `Tasks: ${taskList}.`;
         await this.agentSystem.post(
           { descriptor: { type: "heartbeat" } },

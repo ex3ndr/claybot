@@ -63,17 +63,21 @@ export class Crons {
         );
       },
       onError: async (error, taskId) => {
-        logger.warn({ taskId, error }, "Cron task failed");
         if (!gatePermissionErrorIs(error)) {
+          logger.warn({ taskId, error }, "Cron task failed");
           return;
         }
+        logger.warn(
+          { taskId, error },
+          "Cron gate permissions not satisfied; continuing without gate"
+        );
         const task = await this.store.loadTask(taskId);
         if (!task) {
           return;
         }
         const missing = error.missing.join(", ");
         const label = task.name ? `"${task.name}" (${task.id})` : task.id;
-        const notice = `Cron gate skipped for ${label} because required gate permissions are not allowed: ${missing}.`;
+        const notice = `Cron gate permissions not allowed for ${label}: ${missing}. The gate check was skipped and the task ran anyway.`;
         const target = task.agentId
           ? { agentId: task.agentId }
           : { descriptor: { type: "cron" as const, id: task.taskUid } };
