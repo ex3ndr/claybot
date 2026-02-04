@@ -33,6 +33,8 @@ describe("skillPromptFormat", () => {
     const prompt = skillPromptFormat(skills);
 
     expect(prompt).toContain("<skills>");
+    expect(prompt).toContain("<mandatory>");
+    expect(prompt).toContain("Before replying, scan the skill descriptions");
     expect(prompt).toContain("<name>deploy</name>");
     expect(prompt).toContain("Use &lt;cron&gt; &amp; heartbeat");
     expect(prompt).toContain("<source>plugin:alpha</source>");

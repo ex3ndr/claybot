@@ -23,6 +23,7 @@ export function skillPromptFormat(skills: AgentSkill[]): string {
   const lines = [
     "<skills>",
     "  <instructions>",
+    "    <mandatory>Before replying, scan the skill descriptions below. If exactly one skill clearly applies, read its SKILL.md at the path shown, then follow it. If multiple could apply, choose the most specific one. If none clearly apply, do not read any SKILL.md. Never read more than one skill up front.</mandatory>",
     "    <load>Read the skill file to load it.</load>",
     "    <reload>Read the skill file again to reload it.</reload>",
     "    <unload>Explicitly ignore the skill guidance to unload it.</unload>",
