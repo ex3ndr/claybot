@@ -1,4 +1,5 @@
 import type { ExecGateDefinition } from "@/types";
+import { envNormalize } from "../../util/envNormalize.js";
 
 /**
  * Normalizes an exec gate definition from untyped input.
@@ -37,14 +38,9 @@ export function execGateNormalize(value: unknown): ExecGateDefinition | undefine
     next.timeoutMs = candidate.timeoutMs;
   }
 
-  if (candidate.env && typeof candidate.env === "object") {
-    const envEntries = Object.entries(candidate.env as Record<string, unknown>)
-      .filter(([, value]) => typeof value === "string");
-    if (envEntries.length > 0) {
-      next.env = Object.fromEntries(
-        envEntries.map(([key, value]) => [key, String(value)])
-      );
-    }
+  const env = envNormalize(candidate.env);
+  if (env) {
+    next.env = env;
   }
 
   const permissions = normalizeStringArray(candidate.permissions);

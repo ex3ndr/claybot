@@ -13,7 +13,7 @@ describe("execGateNormalize", () => {
       command: "  echo ok  ",
       cwd: " /tmp ",
       timeoutMs: 1500,
-      env: { FOO: "bar", SKIP: 3 },
+      env: { FOO: "bar", SKIP: 3, FLAG: true },
       permissions: ["@web", "  @read:/tmp  ", "", "@web"],
       allowedDomains: ["example.com", " example.com "]
     });
@@ -21,7 +21,7 @@ describe("execGateNormalize", () => {
       command: "echo ok",
       cwd: "/tmp",
       timeoutMs: 1500,
-      env: { FOO: "bar" },
+      env: { FOO: "bar", SKIP: "3", FLAG: "true" },
       permissions: ["@web", "@read:/tmp"],
       allowedDomains: ["example.com"]
     });

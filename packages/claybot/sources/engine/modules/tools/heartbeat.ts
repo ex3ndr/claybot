@@ -1,7 +1,13 @@
 import { Type, type Static } from "@sinclair/typebox";
 import type { ToolResultMessage } from "@mariozechner/pi-ai";
 
+import { execGateNormalize } from "../../scheduling/execGateNormalize.js";
 import type { ToolDefinition } from "@/types";
+
+const envSchema = Type.Record(
+  Type.String({ minLength: 1 }),
+  Type.Union([Type.String(), Type.Number(), Type.Boolean()])
+);
 
 const runSchema = Type.Object(
   {
@@ -20,7 +26,7 @@ const addSchema = Type.Object(
         command: Type.String({ minLength: 1 }),
         cwd: Type.Optional(Type.String({ minLength: 1 })),
         timeoutMs: Type.Optional(Type.Number({ minimum: 100, maximum: 300_000 })),
-        env: Type.Optional(Type.Record(Type.String({ minLength: 1 }), Type.String())),
+        env: Type.Optional(envSchema),
         permissions: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { minItems: 1 })),
         allowedDomains: Type.Optional(
           Type.Array(Type.String({ minLength: 1 }), { minItems: 1 })
@@ -88,11 +94,12 @@ export function buildHeartbeatAddTool(): ToolDefinition {
     execute: async (args, toolContext, toolCall) => {
       const payload = args as AddHeartbeatArgs;
 
+      const gate = execGateNormalize(payload.gate);
       const result = await toolContext.heartbeats.addTask({
         id: payload.id,
         title: payload.title,
         prompt: payload.prompt,
-        gate: payload.gate,
+        gate,
         overwrite: payload.overwrite
       });
 

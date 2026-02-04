@@ -4,7 +4,13 @@ import type { ToolResultMessage } from "@mariozechner/pi-ai";
 import { taskIdIsSafe } from "../../../utils/taskIdIsSafe.js";
 import { cronExpressionParse as parseCronExpression } from "../../cron/ops/cronExpressionParse.js";
 import type { Crons } from "../../cron/crons.js";
+import { execGateNormalize } from "../../scheduling/execGateNormalize.js";
 import type { ToolDefinition, ToolExecutionContext } from "@/types";
+
+const envSchema = Type.Record(
+  Type.String({ minLength: 1 }),
+  Type.Union([Type.String(), Type.Number(), Type.Boolean()])
+);
 
 const addCronSchema = Type.Object(
   {
@@ -19,7 +25,7 @@ const addCronSchema = Type.Object(
         command: Type.String({ minLength: 1 }),
         cwd: Type.Optional(Type.String({ minLength: 1 })),
         timeoutMs: Type.Optional(Type.Number({ minimum: 100, maximum: 300_000 })),
-        env: Type.Optional(Type.Record(Type.String({ minLength: 1 }), Type.String())),
+        env: Type.Optional(envSchema),
         permissions: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { minItems: 1 })),
         allowedDomains: Type.Optional(
           Type.Array(Type.String({ minLength: 1 }), { minItems: 1 })
@@ -88,6 +94,7 @@ export function buildCronTool(crons: Crons): ToolDefinition {
         throw new Error("Cron task id contains invalid characters.");
       }
 
+      const gate = execGateNormalize(payload.gate);
       const task = await crons.addTask({
         id: payload.id,
         name: payload.name,
@@ -95,7 +102,7 @@ export function buildCronTool(crons: Crons): ToolDefinition {
         schedule: payload.schedule,
         prompt: payload.prompt,
         agentId: payload.agentId,
-        gate: payload.gate,
+        gate,
         enabled: payload.enabled,
         deleteAfterRun: payload.deleteAfterRun
       });

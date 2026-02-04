@@ -9,6 +9,7 @@ import type { ToolDefinition, ToolExecutionResult } from "@/types";
 import type { SessionPermissions } from "@/types";
 import { resolveWorkspacePath } from "../../engine/permissions.js";
 import { wrapWithSandbox } from "../../sandbox/runtime.js";
+import { envNormalize } from "../../util/envNormalize.js";
 import {
   pathResolveSecure,
   isWithinSecure,
@@ -59,12 +60,17 @@ type WriteArgs = Static<typeof writeSchema>;
 type EditArgs = Static<typeof editSchema>;
 type EditSpec = Static<typeof editItemSchema>;
 
+const envSchema = Type.Record(
+  Type.String({ minLength: 1 }),
+  Type.Union([Type.String(), Type.Number(), Type.Boolean()])
+);
+
 const execSchema = Type.Object(
   {
     command: Type.String({ minLength: 1 }),
     cwd: Type.Optional(Type.String({ minLength: 1 })),
     timeoutMs: Type.Optional(Type.Number({ minimum: 100, maximum: 300_000 })),
-    env: Type.Optional(Type.Record(Type.String({ minLength: 1 }), Type.String())),
+    env: Type.Optional(envSchema),
     allowedDomains: Type.Optional(
       Type.Array(Type.String({ minLength: 1 }), { minItems: 1 })
     )
@@ -171,7 +177,8 @@ export function buildExecTool(): ToolDefinition {
       if (domainIssues.length > 0) {
         throw new Error(domainIssues.join(" "));
       }
-      const env = payload.env ? { ...process.env, ...payload.env } : process.env;
+      const envOverrides = envNormalize(payload.env);
+      const env = envOverrides ? { ...process.env, ...envOverrides } : process.env;
       const timeout = payload.timeoutMs ?? DEFAULT_EXEC_TIMEOUT;
       const sandboxConfig = buildSandboxConfig(toolContext.permissions, allowedDomains);
       const sandboxedCommand = await wrapWithSandbox(payload.command, sandboxConfig);
