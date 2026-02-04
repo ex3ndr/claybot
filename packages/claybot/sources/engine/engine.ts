@@ -232,9 +232,8 @@ export class Engine {
     this.modules.tools.register("core", buildSendFileTool());
     this.modules.tools.register("core", buildPermissionRequestTool());
     this.modules.tools.register("core", buildPermissionGrantTool());
-    this.modules.tools.register("core", compactToolBuild());
     logger.debug(
-      "Core tools registered: cron, cron_memory, heartbeat, background, permanent_agents, image_generation, reaction, send_file, request_permission, grant_permission, compact"
+      "Core tools registered: cron, cron_memory, heartbeat, background, permanent_agents, image_generation, reaction, send_file, request_permission, grant_permission"
     );
 
     logger.debug("Starting agent system");
