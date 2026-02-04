@@ -15,8 +15,7 @@ const startSchema = Type.Object(
 const sendSchema = Type.Object(
   {
     text: Type.String({ minLength: 1 }),
-    agentId: Type.Optional(Type.String({ minLength: 1 })),
-    silent: Type.Optional(Type.Boolean())
+    agentId: Type.Optional(Type.String({ minLength: 1 }))
   },
   { additionalProperties: false }
 );
@@ -73,7 +72,7 @@ export function buildSendAgentMessageTool(): ToolDefinition {
     tool: {
       name: "send_agent_message",
       description:
-        "Send a system message to another agent (defaults to the most recent foreground agent). Supports silent delivery to skip inference.",
+        "Send a system message to another agent (defaults to the most recent foreground agent).",
       parameters: sendSchema
     },
     execute: async (args, toolContext, toolCall) => {
@@ -90,12 +89,7 @@ export function buildSendAgentMessageTool(): ToolDefinition {
       }
       await toolContext.agentSystem.post(
         { agentId: resolvedTarget },
-        {
-          type: "system_message",
-          text: payload.text,
-          origin,
-          silent: payload.silent ?? false
-        }
+        { type: "system_message", text: payload.text, origin }
       );
 
       const toolMessage: ToolResultMessage = {

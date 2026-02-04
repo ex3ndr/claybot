@@ -40,7 +40,6 @@ Use `send_agent_message` to send a system message to another agent.
 Arguments:
 - `text`: message content (required)
 - `agentId`: optional target; defaults to the parent agent if you are a subagent, otherwise the most recent foreground agent.
-- `silent`: optional; when true, the system message is stored in history but does not trigger an inference step.
 
 Messages are wrapped as `<system_message origin="<agentId>">...</system_message>` where the origin
 is the sender’s agent id.

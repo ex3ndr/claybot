@@ -54,7 +54,6 @@ Use `send_agent_message` to send a note to the main agent so it can respond to t
 Arguments:
 - `text`: message content (required)
 - `agentId`: optional target; defaults to the parent agent, otherwise the most recent foreground agent.
-- `silent`: optional; when true, the system message is stored in history but does not trigger an inference step.
 
 Messages are wrapped as `<system_message origin="<agentId>">...</system_message>` using the sender’s agent id.
 Treat them as internal updates, not user requests.
