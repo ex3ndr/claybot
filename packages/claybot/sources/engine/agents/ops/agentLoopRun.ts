@@ -168,7 +168,16 @@ export async function agentLoopRun(options: AgentLoopRunOptions): Promise<AgentL
               size: tokenUsage.size
             };
       if (tokenUsage.source === "usage" && tokensEntry) {
-        tokenStatsUpdates.push(tokensEntry);
+        tokenStatsUpdates.push({
+          provider: tokensEntry.provider,
+          model: tokensEntry.model,
+          size: {
+            input: tokensEntry.size.input,
+            output: tokensEntry.size.output,
+            cacheRead: tokensEntry.size.cacheRead,
+            cacheWrite: tokensEntry.size.cacheWrite
+          }
+        });
       }
 
       logger.debug(

@@ -10,6 +10,7 @@ type TokenDelta = {
     output: number;
     cacheRead: number;
     cacheWrite: number;
+    total: number;
   };
   source: "usage" | "estimate";
 };
@@ -29,12 +30,14 @@ export function tokensResolve(
 
   const input = symbolsToTokens(estimateContextSymbols(context));
   const output = symbolsToTokens(estimateMessageSymbols(message));
+  const total = input + output;
   return {
     size: {
       input,
       output,
       cacheRead: 0,
-      cacheWrite: 0
+      cacheWrite: 0,
+      total
     },
     source: "estimate"
   };
@@ -49,15 +52,18 @@ function resolveUsageDelta(message: AssistantMessage): TokenDelta | null {
   const output = normalizeTokenValue(usage.output);
   const cacheRead = normalizeTokenValue(usage.cacheRead);
   const cacheWrite = normalizeTokenValue(usage.cacheWrite);
-  if (input <= 0 && output <= 0 && cacheRead <= 0 && cacheWrite <= 0) {
+  const total = normalizeTokenValue(usage.totalTokens);
+  if (input <= 0 && output <= 0 && cacheRead <= 0 && cacheWrite <= 0 && total <= 0) {
     return null;
   }
+  const resolvedTotal = total > 0 ? total : input + output + cacheRead + cacheWrite;
   return {
     size: {
       input,
       output,
       cacheRead,
-      cacheWrite
+      cacheWrite,
+      total: resolvedTotal
     },
     source: "usage"
   };

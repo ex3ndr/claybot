@@ -38,7 +38,8 @@ describe("tokensResolve", () => {
         input: 12,
         output: 3,
         cacheRead: 0,
-        cacheWrite: 0
+        cacheWrite: 0,
+        total: 15
       },
       source: "usage"
     });
@@ -78,7 +79,8 @@ describe("tokensResolve", () => {
         input: 3,
         output: 1,
         cacheRead: 0,
-        cacheWrite: 0
+        cacheWrite: 0,
+        total: 4
       },
       source: "estimate"
     });

@@ -45,6 +45,7 @@ export type {
   AgentState,
   AgentTokenEntry,
   AgentTokenSize,
+  AgentTokenSnapshotSize,
   AgentTokenStats,
   AgentLifecycleState,
   AgentHistoryRecord,

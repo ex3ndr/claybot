@@ -25,11 +25,17 @@ const tokenSizeSchema = z
   })
   .strict();
 
+const tokenSnapshotSizeSchema = tokenSizeSchema
+  .extend({
+    total: z.number().int().nonnegative()
+  })
+  .strict();
+
 const tokensSchema = z
   .object({
     provider: z.string().min(1),
     model: z.string().min(1),
-    size: tokenSizeSchema
+    size: tokenSnapshotSizeSchema
   })
   .strict()
   .nullable();

@@ -24,10 +24,14 @@ export type AgentTokenSize = {
   cacheWrite: number;
 };
 
+export type AgentTokenSnapshotSize = AgentTokenSize & {
+  total: number;
+};
+
 export type AgentTokenEntry = {
   provider: string;
   model: string;
-  size: AgentTokenSize;
+  size: AgentTokenSnapshotSize;
 };
 
 export type AgentTokenStats = Record<string, Record<string, AgentTokenSize>>;
