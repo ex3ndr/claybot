@@ -179,50 +179,33 @@ describe("TelegramConnector polling", () => {
     telegramInstances.length = 0;
   });
 
-  it("keeps retrying after polling conflict", async () => {
-    vi.useFakeTimers();
-    try {
-      const onFatal = vi.fn();
-      const fileStore = { saveFromPath: vi.fn() } as unknown as FileStore;
-      const connector = new TelegramConnector({
-        token: "token",
-        allowedUids: ["123"],
-        polling: false,
-        clearWebhook: false,
-        statePath: null,
-        fileStore,
-        dataDir: "/tmp",
-        enableGracefulShutdown: false,
-        onFatal
-      });
+  it("clears the webhook on polling conflict without local retry", async () => {
+    const fileStore = { saveFromPath: vi.fn() } as unknown as FileStore;
+    const connector = new TelegramConnector({
+      token: "token",
+      allowedUids: ["123"],
+      polling: false,
+      clearWebhook: false,
+      statePath: null,
+      fileStore,
+      dataDir: "/tmp",
+      enableGracefulShutdown: false
+    });
 
-      const bot = telegramInstances[0];
-      expect(bot).toBeTruthy();
+    const bot = telegramInstances[0];
+    expect(bot).toBeTruthy();
 
-      await Promise.resolve();
-      await Promise.resolve();
+    const pollingErrorHandler = bot!.handlers.get("polling_error")?.[0];
+    expect(pollingErrorHandler).toBeTruthy();
 
-      const state = connector as unknown as {
-        clearedWebhook: boolean;
-        pollingEnabled: boolean;
-      };
-      state.clearedWebhook = true;
-      state.pollingEnabled = true;
+    bot!.deleteWebHook.mockClear();
+    bot!.startPolling.mockClear();
 
-      const pollingErrorHandler = bot!.handlers.get("polling_error")?.[0];
-      expect(pollingErrorHandler).toBeTruthy();
+    pollingErrorHandler?.({ code: "ETELEGRAM", response: { statusCode: 409 } });
+    await Promise.resolve();
 
-      bot!.startPolling.mockClear();
-
-      pollingErrorHandler?.({ code: "ECONNRESET" });
-      pollingErrorHandler?.({ code: "ETELEGRAM", response: { statusCode: 409 } });
-
-      expect(onFatal).not.toHaveBeenCalled();
-      await vi.advanceTimersByTimeAsync(60000);
-      expect(bot!.startPolling).toHaveBeenCalledTimes(1);
-      void connector;
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(bot!.deleteWebHook).toHaveBeenCalledTimes(1);
+    expect(bot!.startPolling).not.toHaveBeenCalled();
+    void connector;
   });
 });

@@ -74,8 +74,6 @@ export class TelegramConnector implements Connector {
   private lastUpdateId: number | null = null;
   private fileStore: FileStore;
   private dataDir: string;
-  private retryAttempt = 0;
-  private pendingRetry: NodeJS.Timeout | null = null;
   private persistTimer: NodeJS.Timeout | null = null;
   private typingTimers = new Map<string, NodeJS.Timeout>();
   private startingPolling = false;
@@ -85,17 +83,13 @@ export class TelegramConnector implements Connector {
     { request: PermissionRequest; context: MessageContext; descriptor: AgentDescriptor }
   >();
   private shuttingDown = false;
-  private retryOptions?: TelegramConnectorOptions["retry"];
   private clearWebhookOnStart: boolean;
   private clearedWebhook = false;
-  private onFatal?: TelegramConnectorOptions["onFatal"];
 
   constructor(options: TelegramConnectorOptions) {
     logger.debug(`TelegramConnector constructor polling=${options.polling} clearWebhook=${options.clearWebhook} dataDir=${options.dataDir}`);
     this.pollingEnabled = options.polling ?? true;
     this.clearWebhookOnStart = options.clearWebhook ?? true;
-    this.retryOptions = options.retry;
-    this.onFatal = options.onFatal;
     this.fileStore = options.fileStore;
     this.dataDir = options.dataDir;
     this.allowedUids = new Set(options.allowedUids.map((uid) => String(uid)));
@@ -217,7 +211,7 @@ export class TelegramConnector implements Connector {
       if (this.shuttingDown) {
         return;
       }
-      this.scheduleRetry(error);
+      this.handlePollingError(error);
     });
 
     if (options.enableGracefulShutdown ?? true) {
@@ -584,7 +578,7 @@ export class TelegramConnector implements Connector {
     try {
       logger.debug("Starting Telegram polling");
       await this.bot.startPolling({
-        restart: false,
+        restart: true,
         polling: pollingOptions
       });
       if (this.shuttingDown || !this.pollingEnabled) {
@@ -592,100 +586,22 @@ export class TelegramConnector implements Connector {
         await this.stopPolling("disabled");
         return;
       }
-      this.retryAttempt = 0;
       logger.debug("Telegram polling started successfully");
     } catch (error) {
-      logger.debug(`Polling start failed, scheduling retry error=${String(error)}`);
-      this.scheduleRetry(error);
+      this.handlePollingError(error);
     } finally {
       this.startingPolling = false;
     }
   }
 
-  private scheduleRetry(error: unknown): void {
-    if (isTelegramConflictError(error)) {
-      if (!this.clearedWebhook) {
-        logger.warn(
-          { error },
-          "Telegram polling conflict; clearing webhook and retrying"
-        );
-        this.pendingRetry = setTimeout(() => {
-          this.pendingRetry = null;
-          void this.ensureWebhookCleared().then(() => this.restartPolling());
-        }, 1000);
-        return;
-      }
-
-      if (this.pendingRetry || !this.pollingEnabled) {
-        return;
-      }
-
-      const delayMs = this.nextRetryDelay();
-      logger.warn(
-        { error, delayMs },
-        "Telegram polling conflict, retrying"
-      );
-      void this.stopPolling("conflict");
-      this.pendingRetry = setTimeout(() => {
-        this.pendingRetry = null;
-        void this.restartPolling();
-      }, delayMs);
+  private handlePollingError(error: unknown): void {
+    if (isTelegramConflictError(error) && !this.clearedWebhook) {
+      logger.warn({ error }, "Telegram polling conflict; clearing webhook");
+      void this.ensureWebhookCleared();
       return;
     }
 
-    if (this.pendingRetry || !this.pollingEnabled) {
-      return;
-    }
-
-    const delayMs = this.nextRetryDelay();
-    logger.warn(
-      { error, delayMs },
-      "Telegram polling error, retrying"
-    );
-
-    this.pendingRetry = setTimeout(() => {
-      this.pendingRetry = null;
-      void this.restartPolling();
-    }, delayMs);
-  }
-
-  private async restartPolling(): Promise<void> {
-    if (this.shuttingDown || !this.pollingEnabled) {
-      return;
-    }
-
-    try {
-      if (this.bot.isPolling()) {
-        await this.bot.stopPolling({ cancel: true, reason: "retry" });
-      }
-    } catch (error) {
-      logger.warn({ error }, "Telegram polling stop failed");
-    }
-
-    await this.startPolling();
-  }
-
-  private nextRetryDelay(): number {
-    const config = this.retryConfig();
-    const baseDelay =
-      config.minDelayMs * Math.pow(config.factor, this.retryAttempt);
-    const cappedDelay = Math.min(config.maxDelayMs, baseDelay);
-    const jitterSpan = cappedDelay * config.jitter;
-    const jitteredDelay = cappedDelay + (Math.random() * 2 - 1) * jitterSpan;
-
-    this.retryAttempt += 1;
-
-    return Math.max(0, Math.floor(jitteredDelay));
-  }
-
-  private retryConfig(): Required<NonNullable<TelegramConnectorOptions["retry"]>> {
-    return {
-      minDelayMs: 1000,
-      maxDelayMs: 30000,
-      factor: 2,
-      jitter: 0.2,
-      ...(this.retryOptions ?? {})
-    };
+    logger.warn({ error }, "Telegram polling error; relying on library restart");
   }
 
   private isAllowedUid(uid: string | number | null | undefined): boolean {
@@ -721,12 +637,6 @@ export class TelegramConnector implements Connector {
 
     this.shuttingDown = true;
     logger.debug("Beginning shutdown sequence");
-
-    if (this.pendingRetry) {
-      logger.debug("Clearing pending retry timer");
-      clearTimeout(this.pendingRetry);
-      this.pendingRetry = null;
-    }
 
     if (this.persistTimer) {
       logger.debug("Clearing persist timer");

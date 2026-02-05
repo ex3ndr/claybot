@@ -6,14 +6,12 @@ This note documents how the Telegram connector handles polling errors and confli
 flowchart TD
   A[Polling error] --> B{Conflict 409?}
   B -- yes --> C{Webhook cleared?}
-  C -- no --> D[Clear webhook + retry soon]
-  C -- yes --> E[Stop polling + retry w/ backoff]
-  B -- no --> F{Pending retry or polling disabled?}
-  F -- yes --> G[Ignore]
-  F -- no --> H[Schedule retry w/ backoff]
+  C -- no --> D[Clear webhook]
+  C -- yes --> E[Log + rely on library restart]
+  B -- no --> F[Log + rely on library restart]
 ```
 
 ## Notes
-- Polling restarts are owned by the connector retry logic; the underlying library is started with `restart: false`.
-- A polling conflict stops the current polling loop and continues retrying with backoff.
+- Polling restarts are handled by the Telegram library (`restart: true`).
+- The connector clears the webhook once when it encounters a 409 conflict.
 - `startPolling` is guarded to avoid concurrent start attempts while a previous start is still in flight.
