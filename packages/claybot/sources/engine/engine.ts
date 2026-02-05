@@ -40,6 +40,7 @@ import { permissionDescribeDecision } from "./permissions/permissionDescribeDeci
 import { InvalidateSync } from "../util/sync.js";
 import { ReadWriteLock } from "../util/readWriteLock.js";
 import { valueDeepEqual } from "../util/valueDeepEqual.js";
+import { configLoad } from "../config/configLoad.js";
 
 const logger = getLogger("engine.runtime");
 
@@ -63,9 +64,6 @@ export class Engine {
   readonly eventBus: EngineEventBus;
   private readonly runtimeLock: ReadWriteLock;
   private readonly reloadSync: InvalidateSync;
-  // Latest config requested for reload; InvalidateSync coalesces requests and guarantees
-  // an additional apply run after any invalidate that happens during an in-flight apply.
-  private pendingConfig: Config | null = null;
 
   constructor(options: EngineOptions) {
     logger.debug(`Engine constructor starting, dataDir=${options.config.dataDir}`);
@@ -73,7 +71,7 @@ export class Engine {
     this.eventBus = options.eventBus;
     this.runtimeLock = new ReadWriteLock();
     this.reloadSync = new InvalidateSync(async () => {
-      await this.reloadApplyPending();
+      await this.reloadApplyLatest();
     });
     this.authStore = new AuthStore(this.config);
     this.fileStore = new FileStore(this.config);
@@ -364,8 +362,7 @@ export class Engine {
     }
   }
 
-  async reload(config: Config): Promise<void> {
-    this.pendingConfig = config;
+  async reload(): Promise<void> {
     await this.reloadSync.invalidateAndAwait();
   }
 
@@ -383,12 +380,8 @@ export class Engine {
     return this.runtimeLock.inReadLock(operation);
   }
 
-  private async reloadApplyPending(): Promise<void> {
-    const config = this.pendingConfig;
-    if (!config) {
-      return;
-    }
-    this.pendingConfig = null;
+  private async reloadApplyLatest(): Promise<void> {
+    const config = await configLoad(this.config.settingsPath, { verbose: this.config.verbose });
     await this.runtimeLock.inWriteLock(async () => {
       if (!this.isReloadable(config)) {
         throw new Error("Config reload requires restart (paths changed).");

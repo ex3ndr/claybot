@@ -1,7 +1,7 @@
 # Config reload locking
 
 Engine config reload now applies online through `Engine.reload()` using `InvalidateSync`.
-Reload requests coalesce, then the latest config is applied inside a runtime write lock.
+Reload requests coalesce; each sync run loads config from disk, then applies it inside a runtime write lock.
 
 Read-locked runtime paths now include:
 - connector message/command/permission handlers

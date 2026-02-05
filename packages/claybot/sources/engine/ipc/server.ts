@@ -15,7 +15,6 @@ import {
   updateSettingsFile,
   upsertPlugin
 } from "../../settings.js";
-import { configLoad } from "../../config/configLoad.js";
 import { buildPluginCatalog } from "../plugins/catalog.js";
 import { PluginModuleLoader } from "../plugins/loader.js";
 import { resolveExclusivePlugins } from "../plugins/exclusive.js";
@@ -236,7 +235,7 @@ export async function startEngineServer(
     }
 
     try {
-      await reloadRuntime(options.settingsPath, options.runtime);
+      await reloadRuntime(options.runtime);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Runtime reload failed.";
       reply.status(400).send({ error: message });
@@ -278,7 +277,7 @@ export async function startEngineServer(
     }));
 
     try {
-      await reloadRuntime(options.settingsPath, options.runtime);
+      await reloadRuntime(options.runtime);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Runtime reload failed.";
       reply.status(400).send({ error: message });
@@ -313,7 +312,7 @@ export async function startEngineServer(
   app.post("/v1/engine/reload", async (_request, reply) => {
     logger.info("Reload requested via API");
     try {
-      await reloadRuntime(options.settingsPath, options.runtime);
+      await reloadRuntime(options.runtime);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Runtime reload failed.";
       reply.status(400).send({ ok: false, error: message });
@@ -392,7 +391,6 @@ async function closeServer(app: FastifyInstance): Promise<void> {
   await app.close();
 }
 
-async function reloadRuntime(settingsPath: string, runtime: Engine): Promise<void> {
-  const config = await configLoad(settingsPath, { verbose: runtime.config.verbose });
-  await runtime.reload(config);
+async function reloadRuntime(runtime: Engine): Promise<void> {
+  await runtime.reload();
 }
