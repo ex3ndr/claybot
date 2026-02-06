@@ -403,27 +403,32 @@ export class TelegramConnector implements Connector {
     sendAs: ConnectorFile["sendAs"] | "auto",
     options?: TelegramBot.SendPhotoOptions | TelegramBot.SendVideoOptions | TelegramBot.SendDocumentOptions
   ): Promise<void> {
+    const fileOptions: TelegramBot.FileOptions = {
+      filename: file.name,
+      contentType: file.mimeType
+    };
+
     if (sendAs === "photo") {
-      await this.bot.sendPhoto(targetId, file.path, options);
+      await this.bot.sendPhoto(targetId, file.path, options, fileOptions);
       return;
     }
     if (sendAs === "video") {
-      await this.bot.sendVideo(targetId, file.path, options);
+      await this.bot.sendVideo(targetId, file.path, options, fileOptions);
       return;
     }
     if (sendAs === "document") {
-      await this.bot.sendDocument(targetId, file.path, options);
+      await this.bot.sendDocument(targetId, file.path, options, fileOptions);
       return;
     }
     if (file.mimeType.startsWith("image/")) {
-      await this.bot.sendPhoto(targetId, file.path, options);
+      await this.bot.sendPhoto(targetId, file.path, options, fileOptions);
       return;
     }
     if (file.mimeType.startsWith("video/")) {
-      await this.bot.sendVideo(targetId, file.path, options);
+      await this.bot.sendVideo(targetId, file.path, options, fileOptions);
       return;
     }
-    await this.bot.sendDocument(targetId, file.path, options);
+    await this.bot.sendDocument(targetId, file.path, options, fileOptions);
   }
 
   private async initialize(): Promise<void> {

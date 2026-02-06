@@ -8,6 +8,9 @@ type MockFn = ReturnType<typeof vi.fn>;
 type TelegramBotMock = {
   handlers: Map<string, Handler[]>;
   sendMessage: MockFn;
+  sendPhoto: MockFn;
+  sendVideo: MockFn;
+  sendDocument: MockFn;
   editMessageText: MockFn;
   answerCallbackQuery: MockFn;
   startPolling: MockFn;
@@ -20,6 +23,9 @@ vi.mock("node-telegram-bot-api", () => {
   class TelegramBotMockClass {
     handlers = new Map<string, Handler[]>();
     sendMessage = vi.fn(async () => ({ message_id: 101, chat: { id: 123 } }));
+    sendPhoto = vi.fn(async () => ({ message_id: 101, chat: { id: 123 } }));
+    sendVideo = vi.fn(async () => ({ message_id: 101, chat: { id: 123 } }));
+    sendDocument = vi.fn(async () => ({ message_id: 101, chat: { id: 123 } }));
     editMessageText = vi.fn(async () => undefined);
     answerCallbackQuery = vi.fn(async () => undefined);
     isPolling = vi.fn(() => false);
@@ -207,5 +213,48 @@ describe("TelegramConnector polling", () => {
     expect(bot!.deleteWebHook).toHaveBeenCalledTimes(1);
     expect(bot!.startPolling).not.toHaveBeenCalled();
     void connector;
+  });
+});
+
+describe("TelegramConnector file uploads", () => {
+  beforeEach(() => {
+    telegramInstances.length = 0;
+  });
+
+  it("sends explicit contentType and filename for document uploads", async () => {
+    const fileStore = { saveFromPath: vi.fn() } as unknown as FileStore;
+    const connector = new TelegramConnector({
+      token: "token",
+      allowedUids: ["123"],
+      polling: false,
+      clearWebhook: false,
+      statePath: null,
+      fileStore,
+      dataDir: "/tmp",
+      enableGracefulShutdown: false
+    });
+
+    await connector.sendMessage("123", {
+      text: "Here's the file",
+      files: [
+        {
+          id: "f-1",
+          name: "report.txt",
+          mimeType: "text/plain",
+          size: 12,
+          path: "/tmp/file-without-extension",
+          sendAs: "document"
+        }
+      ]
+    });
+
+    const bot = telegramInstances[0];
+    expect(bot).toBeTruthy();
+    expect(bot!.sendDocument).toHaveBeenCalledTimes(1);
+    const call = bot!.sendDocument.mock.calls[0];
+    expect(call?.[3]).toMatchObject({
+      filename: "report.txt",
+      contentType: "text/plain"
+    });
   });
 });
