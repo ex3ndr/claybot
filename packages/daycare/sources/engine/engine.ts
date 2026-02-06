@@ -100,10 +100,7 @@ export class Engine {
             { connector, channelId: descriptor.channelId, userId: descriptor.userId },
             "Reset command received"
           );
-          await this.agentSystem.post(
-            { descriptor },
-            { type: "reset", message: "Manual reset requested by the user." }
-          );
+          await this.handleResetCommand(descriptor, context);
           return;
         }
         if (parsed.name === "context") {
@@ -353,6 +350,34 @@ export class Engine {
       });
     } catch (error) {
       logger.warn({ connector: target.connector, error }, "Context command failed to send response");
+    }
+  }
+
+  private async handleResetCommand(
+    descriptor: AgentDescriptor,
+    context: MessageContext
+  ): Promise<void> {
+    await this.agentSystem.post(
+      { descriptor },
+      { type: "reset", message: "Manual reset requested by the user." }
+    );
+
+    const target = agentDescriptorTargetResolve(descriptor);
+    if (!target) {
+      return;
+    }
+    const connector = this.modules.connectors.get(target.connector);
+    if (!connector?.capabilities.sendText) {
+      return;
+    }
+
+    try {
+      await connector.sendMessage(target.targetId, {
+        text: "Session reset.",
+        replyToMessageId: context.messageId
+      });
+    } catch (error) {
+      logger.warn({ connector: target.connector, error }, "Reset command failed to send response");
     }
   }
 
