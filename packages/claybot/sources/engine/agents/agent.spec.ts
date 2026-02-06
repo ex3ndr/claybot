@@ -19,6 +19,7 @@ import type { AgentDescriptor } from "@/types";
 import type { PluginManager } from "../plugins/manager.js";
 import type { InferenceRouter } from "../modules/inference/router.js";
 import type { Crons } from "../cron/crons.js";
+import { ConfigModule } from "../config/configModule.js";
 
 describe("Agent", () => {
   it("persists descriptor, state, and history on create", async () => {
@@ -29,7 +30,7 @@ describe("Agent", () => {
         path.join(dir, "settings.json")
       );
       const agentSystem = new AgentSystem({
-        config,
+        configModule: new ConfigModule(config),
         eventBus: new EngineEventBus(),
         connectorRegistry: new ConnectorRegistry({
           onMessage: async () => undefined

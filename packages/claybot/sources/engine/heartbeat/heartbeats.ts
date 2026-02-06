@@ -6,13 +6,13 @@ import { heartbeatPromptBuildBatch } from "./ops/heartbeatPromptBuildBatch.js";
 import { HeartbeatScheduler } from "./ops/heartbeatScheduler.js";
 import { HeartbeatStore } from "./ops/heartbeatStore.js";
 import type { HeartbeatCreateTaskArgs, HeartbeatDefinition } from "./heartbeatTypes.js";
-import type { Config } from "@/types";
 import type { AgentSystem } from "../agents/agentSystem.js";
+import type { ConfigModule } from "../config/configModule.js";
 
 const logger = getLogger("heartbeat.facade");
 
 export type HeartbeatsOptions = {
-  config: Config;
+  configModule: ConfigModule;
   eventBus: EngineEventBus;
   agentSystem: AgentSystem;
   intervalMs?: number;
@@ -32,12 +32,13 @@ export class Heartbeats {
   constructor(options: HeartbeatsOptions) {
     this.eventBus = options.eventBus;
     this.agentSystem = options.agentSystem;
-    const basePath = path.join(options.config.configDir, "heartbeat");
+    const config = options.configModule.configGet();
+    const basePath = path.join(config.configDir, "heartbeat");
     this.store = new HeartbeatStore(basePath);
     this.scheduler = new HeartbeatScheduler({
       store: this.store,
       intervalMs: options.intervalMs,
-      defaultPermissions: options.config.defaultPermissions,
+      defaultPermissions: config.defaultPermissions,
       runWithReadLock: options.runWithReadLock,
       resolvePermissions: async () =>
         this.agentSystem.permissionsForTarget({ descriptor: { type: "heartbeat" } }),

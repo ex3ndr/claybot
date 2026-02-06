@@ -29,6 +29,7 @@ import { resolveExclusivePlugins } from "../engine/plugins/exclusive.js";
 import { configLoad } from "../config/configLoad.js";
 import type { Config } from "@/types";
 import { engineReloadRequest } from "./engineReloadRequest.js";
+import { ConfigModule } from "../engine/config/configModule.js";
 
 export type AddOptions = {
   settings?: string;
@@ -273,7 +274,7 @@ async function validatePluginLoad(
     auth: authStore
   });
   const pluginManager = new PluginManager({
-    config,
+    configModule: new ConfigModule(config),
     registry: pluginRegistry,
     auth: authStore,
     fileStore,

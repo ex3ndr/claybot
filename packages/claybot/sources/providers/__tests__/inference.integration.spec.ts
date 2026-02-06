@@ -15,6 +15,7 @@ import { InferenceRegistry } from "../../engine/modules/inferenceRegistry.js";
 import { ProviderManager } from "../manager.js";
 import { listActiveInferenceProviders } from "../catalog.js";
 import { configResolve } from "../../config/configResolve.js";
+import { ConfigModule } from "../../engine/config/configModule.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..", "..", "..", "..", "..");
@@ -215,7 +216,7 @@ async function setupProvider(providerId: string, config: ProviderConfig) {
   const imageRegistry = new ImageGenerationRegistry();
 
   const providerManager = new ProviderManager({
-    config: resolvedConfig,
+    configModule: new ConfigModule(resolvedConfig),
     auth,
     fileStore: new FileStore(resolvedConfig),
     inferenceRegistry,

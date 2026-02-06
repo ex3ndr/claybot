@@ -2,6 +2,8 @@
 
 Engine config reload now applies online through `Engine.reload()` using `InvalidateSync`.
 Reload requests coalesce; each sync run loads config from disk, then applies it inside a runtime write lock.
+Runtime config state and lock now live in `ConfigModule` (`current config` + `configurationLock`),
+and that module is shared across engine modules.
 
 Read-locked runtime paths now include:
 - connector message/command/permission handlers
@@ -39,6 +41,15 @@ sequenceDiagram
   Engine-->>Lock: apply complete
   Lock-->>Sync: release write lock
   Sync-->>API: reload resolved
+```
+
+```mermaid
+flowchart TD
+  Engine --> ConfigModule
+  ConfigModule -->|configGet/configSet| AgentSystem
+  ConfigModule -->|configGet/configSet| ProviderManager
+  ConfigModule -->|configGet/configSet| PluginManager
+  ConfigModule -->|inReadLock/inWriteLock| RuntimePaths
 ```
 
 ```mermaid

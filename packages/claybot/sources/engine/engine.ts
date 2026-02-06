@@ -38,9 +38,9 @@ import { agentDescriptorLabel } from "./agents/ops/agentDescriptorLabel.js";
 import { agentDescriptorTargetResolve } from "./agents/ops/agentDescriptorTargetResolve.js";
 import { permissionDescribeDecision } from "./permissions/permissionDescribeDecision.js";
 import { InvalidateSync } from "../util/sync.js";
-import { ReadWriteLock } from "../util/readWriteLock.js";
 import { valueDeepEqual } from "../util/valueDeepEqual.js";
 import { configLoad } from "../config/configLoad.js";
+import { ConfigModule } from "./config/configModule.js";
 
 const logger = getLogger("engine.runtime");
 
@@ -50,7 +50,7 @@ export type EngineOptions = {
 };
 
 export class Engine {
-  config: Config;
+  readonly configModule: ConfigModule;
   readonly authStore: AuthStore;
   readonly fileStore: FileStore;
   readonly modules: ModuleRegistry;
@@ -62,14 +62,12 @@ export class Engine {
   readonly heartbeats: Heartbeats;
   readonly inferenceRouter: InferenceRouter;
   readonly eventBus: EngineEventBus;
-  private readonly runtimeLock: ReadWriteLock;
   private readonly reloadSync: InvalidateSync;
 
   constructor(options: EngineOptions) {
     logger.debug(`Engine constructor starting, dataDir=${options.config.dataDir}`);
-    this.config = options.config;
+    this.configModule = new ConfigModule(options.config);
     this.eventBus = options.eventBus;
-    this.runtimeLock = new ReadWriteLock();
     this.reloadSync = new InvalidateSync(async () => {
       await this.reloadApplyLatest();
     });
@@ -165,13 +163,13 @@ export class Engine {
       auth: this.authStore,
       // Hold read lock for the full inference lifecycle so write-locked reload reaches
       // a strict quiescent point with no active model calls.
-      runWithReadLock: async (operation) => this.inReadLock(operation)
+      runWithReadLock: async (operation) => this.configModule.inReadLock(operation)
     });
 
     this.pluginRegistry = new PluginRegistry(this.modules);
 
     this.pluginManager = new PluginManager({
-      config: this.config,
+      configModule: this.configModule,
       registry: this.pluginRegistry,
       auth: this.authStore,
       fileStore: this.fileStore,
@@ -184,7 +182,7 @@ export class Engine {
     });
 
     this.providerManager = new ProviderManager({
-      config: this.config,
+      configModule: this.configModule,
       auth: this.authStore,
       fileStore: this.fileStore,
       inferenceRegistry: this.modules.inference,
@@ -192,7 +190,7 @@ export class Engine {
     });
 
     this.agentSystem = new AgentSystem({
-      config: this.config,
+      configModule: this.configModule,
       eventBus: this.eventBus,
       connectorRegistry: this.modules.connectors,
       imageRegistry: this.modules.images,
@@ -205,19 +203,19 @@ export class Engine {
     });
 
     this.crons = new Crons({
-      config: this.config,
+      configModule: this.configModule,
       eventBus: this.eventBus,
       agentSystem: this.agentSystem,
-      runWithReadLock: async (operation) => this.inReadLock(operation)
+      runWithReadLock: async (operation) => this.configModule.inReadLock(operation)
     });
     this.agentSystem.setCrons(this.crons);
 
     const heartbeats = new Heartbeats({
-      config: this.config,
+      configModule: this.configModule,
       eventBus: this.eventBus,
       intervalMs: 30 * 60 * 1000,
       agentSystem: this.agentSystem,
-      runWithReadLock: async (operation) => this.inReadLock(operation)
+      runWithReadLock: async (operation) => this.configModule.inReadLock(operation)
     });
     this.heartbeats = heartbeats;
     this.agentSystem.setHeartbeats(heartbeats);
@@ -366,12 +364,16 @@ export class Engine {
     await this.reloadSync.invalidateAndAwait();
   }
 
+  get config(): Config {
+    return this.configModule.configGet();
+  }
+
   private isReloadable(next: Config): boolean {
     return configReloadPathsEqual(this.config, next);
   }
 
   private async inReadLock<T>(operation: () => Promise<T>): Promise<T> {
-    return this.runtimeLock.inReadLock(operation);
+    return this.configModule.inReadLock(operation);
   }
 
   private async runConnectorCallback(
@@ -387,7 +389,7 @@ export class Engine {
 
   private async reloadApplyLatest(): Promise<void> {
     const config = await configLoad(this.config.settingsPath, { verbose: this.config.verbose });
-    await this.runtimeLock.inWriteLock(async () => {
+    await this.configModule.inWriteLock(async () => {
       if (!this.isReloadable(config)) {
         throw new Error("Config reload requires restart (paths changed).");
       }
@@ -395,13 +397,10 @@ export class Engine {
         logger.debug("Reload requested but config is unchanged.");
         return;
       }
-      this.config = config;
-      this.agentSystem.reload(config);
-      this.pluginManager.reload(config);
+      this.configModule.configSet(config);
       await ensureWorkspaceDir(this.config.defaultPermissions.workingDir);
-      this.providerManager.reload(config);
       await this.providerManager.sync();
-      await this.pluginManager.syncWithConfig(this.config);
+      await this.pluginManager.syncWithConfig(config);
       this.inferenceRouter.updateProviders(listActiveInferenceProviders(this.config.settings));
       logger.info("Runtime configuration reloaded");
     });

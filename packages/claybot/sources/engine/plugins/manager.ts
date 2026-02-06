@@ -20,9 +20,10 @@ import { resolveExclusivePlugins } from "./exclusive.js";
 import type { InferenceRouter } from "../modules/inference/router.js";
 import { PluginInferenceService } from "./inference.js";
 import { valueDeepEqual } from "../../util/valueDeepEqual.js";
+import type { ConfigModule } from "../config/configModule.js";
 
 export type PluginManagerOptions = {
-  config: Config;
+  configModule: ConfigModule;
   registry: PluginRegistry;
   auth: AuthStore;
   fileStore: FileStore;
@@ -43,7 +44,7 @@ type LoadedPlugin = {
 };
 
 export class PluginManager {
-  private config: Config;
+  private readonly configModule: ConfigModule;
   private registry: PluginRegistry;
   private auth: AuthStore;
   private fileStore: FileStore;
@@ -56,7 +57,7 @@ export class PluginManager {
   private logger = getLogger("plugins.manager");
 
   constructor(options: PluginManagerOptions) {
-    this.config = options.config;
+    this.configModule = options.configModule;
     this.registry = options.registry;
     this.auth = options.auth;
     this.fileStore = options.fileStore;
@@ -69,6 +70,10 @@ export class PluginManager {
       getSettings: () => this.config.settings
     });
     this.logger.debug(`PluginManager initialized catalogSize=${options.pluginCatalog.size} dataDir=${this.config.dataDir} mode=${this.mode}`);
+  }
+
+  private get config(): Config {
+    return this.configModule.configGet();
   }
 
   listLoaded(): string[] {
@@ -128,12 +133,12 @@ export class PluginManager {
   }
 
   reload(config: Config): void {
-    this.config = config;
+    this.configModule.configSet(config);
   }
 
   async syncWithConfig(config: Config): Promise<void> {
     this.logger.debug(`syncWithSettings starting loadedCount=${this.loaded.size}`);
-    this.config = config;
+    this.configModule.configSet(config);
     const settings = config.settings;
     const desired = this.resolveEnabledPlugins(settings);
     const desiredMap = new Map(desired.map((plugin) => [plugin.instanceId, plugin]));
@@ -328,7 +333,7 @@ export class PluginManager {
   }
 
   async loadEnabled(config: Config): Promise<void> {
-    this.config = config;
+    this.configModule.configSet(config);
     const enabled = this.resolveEnabledPlugins(config.settings);
     const enabledIds = enabled.map(p => p.instanceId).join(",");
     this.logger.debug(`loadEnabled() starting enabledCount=${enabled.length} enabledIds=${enabledIds}`);

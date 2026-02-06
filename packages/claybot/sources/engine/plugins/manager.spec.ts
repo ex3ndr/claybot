@@ -12,6 +12,7 @@ import { PluginRegistry } from "./registry.js";
 import { AuthStore } from "../../auth/store.js";
 import type { PluginInstanceSettings } from "../../settings.js";
 import { configResolve } from "../../config/configResolve.js";
+import { ConfigModule } from "../config/configModule.js";
 
 const tempRoots: string[] = [];
 
@@ -62,13 +63,13 @@ function createManager(
   return {
     modules,
     manager: new PluginManager({
-    config,
-    registry: pluginRegistry,
-    auth,
-    fileStore,
-    pluginCatalog: catalog,
-    inferenceRouter,
-    onEvent
+      configModule: new ConfigModule(config),
+      registry: pluginRegistry,
+      auth,
+      fileStore,
+      pluginCatalog: catalog,
+      inferenceRouter,
+      onEvent
     })
   };
 }

@@ -10,6 +10,7 @@ import { ImageGenerationRegistry } from "../engine/modules/imageGenerationRegist
 import { InferenceRegistry } from "../engine/modules/inferenceRegistry.js";
 import { ProviderManager } from "./manager.js";
 import type { ProviderDefinition } from "./types.js";
+import { ConfigModule } from "../engine/config/configModule.js";
 
 const tempRoots: string[] = [];
 
@@ -85,7 +86,7 @@ describe("ProviderManager", () => {
     };
 
     const manager = new ProviderManager({
-      config: baseConfig,
+      configModule: new ConfigModule(baseConfig),
       auth: new AuthStore(baseConfig),
       fileStore: new FileStore(baseConfig),
       inferenceRegistry,
@@ -158,7 +159,7 @@ describe("ProviderManager", () => {
     };
 
     const manager = new ProviderManager({
-      config,
+      configModule: new ConfigModule(config),
       auth: new AuthStore(config),
       fileStore: new FileStore(config),
       inferenceRegistry,

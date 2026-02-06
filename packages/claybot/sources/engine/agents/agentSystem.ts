@@ -34,6 +34,7 @@ import { agentStateWrite } from "./ops/agentStateWrite.js";
 import { AsyncLock } from "../../util/lock.js";
 import { permissionClone } from "../permissions/permissionClone.js";
 import { permissionAccessApply } from "../permissions/permissionAccessApply.js";
+import type { ConfigModule } from "../config/configModule.js";
 
 const logger = getLogger("engine.agent-system");
 
@@ -47,7 +48,7 @@ type AgentEntry = {
 };
 
 export type AgentSystemOptions = {
-  config: Config;
+  configModule: ConfigModule;
   eventBus: EngineEventBus;
   connectorRegistry: ConnectorRegistry;
   imageRegistry: ImageGenerationRegistry;
@@ -60,7 +61,7 @@ export type AgentSystemOptions = {
 };
 
 export class AgentSystem {
-  config: Config;
+  private readonly configModule: ConfigModule;
   readonly eventBus: EngineEventBus;
   readonly connectorRegistry: ConnectorRegistry;
   readonly imageRegistry: ImageGenerationRegistry;
@@ -77,7 +78,7 @@ export class AgentSystem {
   private stage: "idle" | "loaded" | "running" = "idle";
 
   constructor(options: AgentSystemOptions) {
-    this.config = options.config;
+    this.configModule = options.configModule;
     this.eventBus = options.eventBus;
     this.connectorRegistry = options.connectorRegistry;
     this.imageRegistry = options.imageRegistry;
@@ -87,6 +88,10 @@ export class AgentSystem {
     this.fileStore = options.fileStore;
     this.authStore = options.authStore;
     this.runWithReadLock = options.runWithReadLock;
+  }
+
+  get config(): Config {
+    return this.configModule.configGet();
   }
 
   get crons(): Crons {
@@ -257,7 +262,7 @@ export class AgentSystem {
   }
 
   reload(config: Config): void {
-    this.config = config;
+    this.configModule.configSet(config);
   }
 
   markStopped(agentId: string, error?: unknown): void {
