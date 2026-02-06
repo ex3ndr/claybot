@@ -223,7 +223,7 @@ async function setupProvider(providerId: string, config: ProviderConfig) {
     imageRegistry
   });
 
-  await providerManager.sync();
+  await providerManager.reload();
 
   const router = new InferenceRouter({
     providers: listActiveInferenceProviders(resolvedConfig.settings),

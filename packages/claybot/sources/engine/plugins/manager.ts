@@ -127,8 +127,8 @@ export class PluginManager {
     return prompts;
   }
 
-  async syncWithConfig(): Promise<void> {
-    this.logger.debug(`syncWithSettings starting loadedCount=${this.loaded.size}`);
+  async reload(): Promise<void> {
+    this.logger.debug(`reload() starting loadedCount=${this.loaded.size}`);
     const settings = this.config.current.settings;
     const desired = this.resolveEnabledPlugins(settings);
     const desiredMap = new Map(desired.map((plugin) => [plugin.instanceId, plugin]));
@@ -185,11 +185,11 @@ export class PluginManager {
       this.logger.debug(`Loading new plugin pluginId=${plugin.pluginId} instanceId=${plugin.instanceId}`);
       this.logger.info(
         { plugin: plugin.pluginId, instance: plugin.instanceId },
-        "Loading plugin (settings sync)"
+        "Loading plugin (settings reload)"
       );
       await this.load(plugin);
     }
-    this.logger.debug(`syncWithSettings complete loadedCount=${this.loaded.size}`);
+    this.logger.debug(`reload() complete loadedCount=${this.loaded.size}`);
   }
 
   getConfig(instanceId: string): PluginInstanceSettings | null {
@@ -320,16 +320,6 @@ export class PluginManager {
       this.logger.debug(`Plugin removed from loaded map instanceId=${instanceId} remainingCount=${this.loaded.size}`);
       this.logger.info({ instance: instanceId }, "Plugin unloaded");
     }
-  }
-
-  async loadEnabled(): Promise<void> {
-    const enabled = this.resolveEnabledPlugins(this.config.current.settings);
-    const enabledIds = enabled.map(p => p.instanceId).join(",");
-    this.logger.debug(`loadEnabled() starting enabledCount=${enabled.length} enabledIds=${enabledIds}`);
-    for (const plugin of enabled) {
-      await this.load(plugin);
-    }
-    this.logger.debug(`loadEnabled() complete loadedCount=${this.loaded.size}`);
   }
 
   async unloadAll(): Promise<void> {

@@ -1,14 +1,15 @@
 # Config reload locking
 
 Engine config reload now applies online through `Engine.reload()` using `InvalidateSync`.
-Reload requests coalesce; each sync run loads config from disk, then applies it inside a runtime write lock.
+Reload requests coalesce; each sync run first checks for config changes outside the lock, then
+re-reads and re-checks inside the runtime write lock before applying.
 Runtime config state and lock now live in `ConfigModule` (`current config` + `configurationLock`),
 and that module is shared across engine modules.
 Modules now receive that shared module as `config` and call `config.inReadLock(...)` directly
 instead of callback-style lock plumbing.
 `AgentSystem` no longer exposes a `reload` method; config mutation is centralized in
 `Engine.reloadApplyLatest()` via `ConfigModule.configSet(...)` under write lock.
-Subsystem sync paths (`ProviderManager`, `PluginManager`) now refresh from `config.current`
+Subsystem reload paths (`ProviderManager`, `PluginManager`) now refresh from `config.current`
 without receiving config payloads or calling `configSet(...)`.
 
 Read-locked runtime paths now include:
@@ -42,10 +43,12 @@ sequenceDiagram
 
   API->>Engine: reload()
   Engine->>Sync: invalidateAndAwait()
+  Sync->>Engine: load config + compare (no lock)
   Sync->>Lock: inWriteLock(apply latest config)
   Lock-->>Engine: write section entered (readers paused)
-  Engine->>Providers: sync()
-  Engine->>Plugins: syncWithConfig()
+  Engine->>Engine: load config + compare again
+  Engine->>Providers: reload()
+  Engine->>Plugins: reload()
   Engine-->>Lock: apply complete
   Lock-->>Sync: release write lock
   Sync-->>API: reload resolved

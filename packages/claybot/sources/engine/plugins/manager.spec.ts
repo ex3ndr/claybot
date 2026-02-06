@@ -165,7 +165,7 @@ export const plugin = {
         path.join(dir, "settings.json")
       )
     );
-    await manager.syncWithConfig();
+    await manager.reload();
     expect(manager.listLoaded()).toEqual(["sync-one"]);
 
     config.configSet(
@@ -183,7 +183,7 @@ export const plugin = {
         path.join(dir, "settings.json")
       )
     );
-    await manager.syncWithConfig();
+    await manager.reload();
     expect(manager.listLoaded()).toEqual([]);
   });
 
@@ -235,7 +235,7 @@ export const plugin = {
         path.join(dir, "settings.json")
       )
     );
-    await manager.syncWithConfig();
+    await manager.reload();
 
     config.configSet(
       configResolve(
@@ -258,7 +258,7 @@ export const plugin = {
         path.join(dir, "settings.json")
       )
     );
-    await manager.syncWithConfig();
+    await manager.reload();
 
     expect(events.map((event) => event.type)).toEqual(["loaded"]);
 
@@ -283,7 +283,7 @@ export const plugin = {
         path.join(dir, "settings.json")
       )
     );
-    await manager.syncWithConfig();
+    await manager.reload();
 
     expect(events.map((event) => event.type)).toEqual([
       "loaded",

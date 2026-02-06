@@ -57,9 +57,9 @@ export class ProviderManager {
     });
   }
 
-  async sync(): Promise<void> {
+  async reload(): Promise<void> {
     const currentConfig = this.config.current;
-    logger.debug(`sync() starting loadedCount=${this.loaded.size}`);
+    logger.debug(`reload() starting loadedCount=${this.loaded.size}`);
     const activeProviders = listProviders(currentConfig.settings).filter(
       (provider) => provider.enabled !== false
     );
@@ -117,7 +117,7 @@ export class ProviderManager {
         throw error;
       }
     }
-    logger.debug(`sync() complete loadedCount=${this.loaded.size}`);
+    logger.debug(`reload() complete loadedCount=${this.loaded.size}`);
   }
 
   static listDefinitions() {

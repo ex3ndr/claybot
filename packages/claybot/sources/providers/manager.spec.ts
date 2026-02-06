@@ -95,7 +95,7 @@ describe("ProviderManager", () => {
       providerDefinitionResolve: (id) => (id === "fake-provider" ? definition : null)
     });
 
-    await manager.sync();
+    await manager.reload();
     expect(inferenceRegistry.list().map((item) => item.id)).toEqual(["fake-provider-1"]);
     expect(manager.listLoaded()).toEqual(["fake-provider"]);
 
@@ -106,7 +106,7 @@ describe("ProviderManager", () => {
       }
     });
     configModule.configSet(equalByValueConfig);
-    await manager.sync();
+    await manager.reload();
     expect(inferenceRegistry.list().map((item) => item.id)).toEqual(["fake-provider-1"]);
 
     const changedConfig = configWithProvider(root, {
@@ -116,12 +116,12 @@ describe("ProviderManager", () => {
       }
     });
     configModule.configSet(changedConfig);
-    await manager.sync();
+    await manager.reload();
     expect(inferenceRegistry.list().map((item) => item.id)).toEqual(["fake-provider-2"]);
 
     const disabledConfig = configWithProvider(root, { enabled: false });
     configModule.configSet(disabledConfig);
-    await manager.sync();
+    await manager.reload();
     expect(inferenceRegistry.list()).toEqual([]);
     expect(manager.listLoaded()).toEqual([]);
   });
@@ -168,7 +168,7 @@ describe("ProviderManager", () => {
       providerDefinitionResolve: (id) => (id === "fake-provider" ? definition : null)
     });
 
-    await expect(manager.sync()).rejects.toThrow("Provider load failed");
+    await expect(manager.reload()).rejects.toThrow("Provider load failed");
     expect(manager.listLoaded()).toEqual([]);
     expect(inferenceRegistry.list()).toEqual([]);
     expect(imageRegistry.list()).toEqual([]);

@@ -39,7 +39,7 @@ export class InferenceRouter {
     this.logger.debug(`InferenceRouter initialized providerCount=${options.providers.length}`);
   }
 
-  updateProviders(providers: ProviderSettings[]): void {
+  reload(providers: ProviderSettings[]): void {
     const providerIds = providers.map(p => p.id).join(",");
     this.logger.debug(`Updating providers oldCount=${this.providers.length} newCount=${providers.length} providerIds=${providerIds}`);
     this.providers = providers;

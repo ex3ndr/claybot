@@ -227,12 +227,12 @@ export class Engine {
     await this.agentSystem.load();
     logger.debug("Agents loaded");
 
-    logger.debug("Syncing provider manager with settings");
-    await this.providerManager.sync();
-    logger.debug("Provider manager sync complete");
-    logger.debug("Loading enabled plugins");
-    await this.pluginManager.loadEnabled();
-    logger.debug("Plugins loaded");
+    logger.debug("Reloading provider manager with current config");
+    await this.providerManager.reload();
+    logger.debug("Provider manager reload complete");
+    logger.debug("Reloading plugins with current config");
+    await this.pluginManager.reload();
+    logger.debug("Plugin reload complete");
 
     await this.crons.ensureDir();
     await this.heartbeats.ensureDir();
@@ -382,19 +382,28 @@ export class Engine {
 
   private async reloadApplyLatest(): Promise<void> {
     const config = await configLoad(this.config.current.settingsPath, { verbose: this.config.current.verbose });
+    if (!this.isReloadable(config)) {
+      throw new Error("Config reload requires restart (paths changed).");
+    }
+    if (configReloadEqual(this.config.current, config)) {
+      logger.debug("Reload requested but config is unchanged.");
+      return;
+    }
+
     await this.config.inWriteLock(async () => {
-      if (!this.isReloadable(config)) {
+      const latest = await configLoad(this.config.current.settingsPath, { verbose: this.config.current.verbose });
+      if (!this.isReloadable(latest)) {
         throw new Error("Config reload requires restart (paths changed).");
       }
-      if (configReloadEqual(this.config.current, config)) {
+      if (configReloadEqual(this.config.current, latest)) {
         logger.debug("Reload requested but config is unchanged.");
         return;
       }
-      this.config.configSet(config);
+      this.config.configSet(latest);
       await ensureWorkspaceDir(this.config.current.defaultPermissions.workingDir);
-      await this.providerManager.sync();
-      await this.pluginManager.syncWithConfig();
-      this.inferenceRouter.updateProviders(listActiveInferenceProviders(this.config.current.settings));
+      await this.providerManager.reload();
+      await this.pluginManager.reload();
+      this.inferenceRouter.reload(listActiveInferenceProviders(this.config.current.settings));
       logger.info("Runtime configuration reloaded");
     });
   }
