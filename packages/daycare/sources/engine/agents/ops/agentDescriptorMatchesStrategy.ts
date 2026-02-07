@@ -12,7 +12,7 @@ export function agentDescriptorMatchesStrategy(
     case "most-recent-foreground":
       return descriptor.type === "user";
     case "heartbeat":
-      return descriptor.type === "heartbeat";
+      return descriptor.type === "system" && descriptor.tag === "heartbeat";
     default:
       return false;
   }

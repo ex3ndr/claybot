@@ -140,7 +140,7 @@ Update USER.md for stable user facts/preferences. Update SOUL.md for behavioral 
 
 ---
 
-## Permanent Agent Prompt
+## Agent Prompt
 
 {{{agentPrompt}}}
 {{/if}}

@@ -22,7 +22,7 @@ Agent descriptors live in `agents/<id>/descriptor.json`.
 type AgentDescriptor =
   | { type: "user"; connector: string; userId: string; channelId: string }
   | { type: "cron"; id: string }
-  | { type: "heartbeat" }
+  | { type: "system"; tag: string }
   | { type: "subagent"; id: string; parentAgentId: string; name: string }
   | {
       type: "permanent";
@@ -37,9 +37,23 @@ type AgentDescriptor =
 Notes:
 - `user` is a foreground connector conversation.
 - `cron` maps to a scheduled task uid.
-- `heartbeat` maps to the single heartbeat batch agent.
+- `system` maps to built-in tag-addressable agents (for example `heartbeat`, `architect`).
 - `subagent` is any background agent and always includes a parent + name.
 - `permanent` is a background agent with a stable name, short description, system prompt, and optional workspace folder.
+
+## System agent registry
+
+System agents are defined in a hardcoded list by lowercase tag and prompt file.
+Each entry can also opt into full system-prompt replacement.
+
+```mermaid
+flowchart LR
+  Config[_systemAgents.ts] --> Resolve[systemAgentPromptResolve]
+  Resolve --> PromptFiles[prompts/*.md]
+  Resolve --> Agent[Agent.buildSystemPrompt]
+  Agent -->|replaceSystemPrompt=false| BaseTemplate[SYSTEM.md + sections]
+  Agent -->|replaceSystemPrompt=true| DedicatedPrompt[system prompt replaced]
+```
 
 ## Permanent agents
 
@@ -75,7 +89,7 @@ type AgentFetchStrategy = "most-recent-foreground" | "heartbeat";
 
 Resolution behavior:
 - `most-recent-foreground` selects the most recent agent with a `user` descriptor.
-- `heartbeat` selects the most recent agent with a `heartbeat` descriptor.
+- `heartbeat` selects the most recent agent with `type: "system"` and `tag: "heartbeat"`.
 
 ## How agent types operate together
 
@@ -83,14 +97,15 @@ Resolution behavior:
 flowchart LR
   User[User agent] -->|spawns| Subagent[Subagent]
   Cron[Cron agent] -->|spawns| Subagent
-  Heartbeat[Heartbeat scheduler] -->|batch prompt| HeartbeatAgent[Heartbeat agent]
+  Heartbeat[Heartbeat scheduler] -->|batch prompt| HeartbeatAgent[System agent: heartbeat]
+  Architect[Planner flow] -->|specialized prompt| ArchitectAgent[System agent: architect]
   Subagent -->|send_agent_message| User
 ```
 
 Operational notes:
 - User agents are the only agents treated as foreground.
-- Subagents always have a parent (usually a user agent, cron, or heartbeat).
-- Heartbeat runs always map to a single `heartbeat` agent that runs a batch prompt.
+- Subagents always have a parent (usually a user agent, cron, or a system agent).
+- Heartbeat runs always map to a single `system:heartbeat` agent that runs a batch prompt.
 - Cron agents are scheduled inputs; they can spawn subagents but are not foreground targets.
 
 ## Message delivery
@@ -180,6 +195,7 @@ marker; it does not retry pending inbound messages.
 
 ## Implementation references
 
-- Descriptor type + normalization: `packages/daycare/sources/engine/agents/agentDescriptorTypes.ts`
+- Descriptor type + normalization: `packages/daycare/sources/engine/agents/ops/agentDescriptorTypes.ts`
+- System-agent config + prompt resolution: `packages/daycare/sources/engine/agents/system/`
 - Persistence ops: `packages/daycare/sources/engine/agents/ops/`
 - Resolver + usage: `packages/daycare/sources/engine/agents/agentSystem.ts`

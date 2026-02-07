@@ -40,11 +40,13 @@ export class Heartbeats {
       intervalMs: options.intervalMs,
       defaultPermissions: currentConfig.defaultPermissions,
       resolvePermissions: async () =>
-        this.agentSystem.permissionsForTarget({ descriptor: { type: "heartbeat" } }),
+        this.agentSystem.permissionsForTarget({
+          descriptor: { type: "system", tag: "heartbeat" }
+        }),
       onRun: async (tasks) => {
         const batch = heartbeatPromptBuildBatch(tasks);
         await this.agentSystem.postAndAwait(
-          { descriptor: { type: "heartbeat" } },
+          { descriptor: { type: "system", tag: "heartbeat" } },
           {
             type: "message",
             message: { text: batch.prompt },
@@ -61,7 +63,7 @@ export class Heartbeats {
           `Heartbeat gate permissions not allowed for ${label}: ${missing.join(", ")}. ` +
           "The gate check was skipped and the heartbeat ran anyway.";
         await this.agentSystem.post(
-          { descriptor: { type: "heartbeat" } },
+          { descriptor: { type: "system", tag: "heartbeat" } },
           {
             type: "system_message",
             text: notice,

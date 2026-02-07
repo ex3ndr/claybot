@@ -25,7 +25,8 @@ const descriptorSchema = z.discriminatedUnion("type", [
     .strict(),
   z
     .object({
-      type: z.literal("heartbeat")
+      type: z.literal("system"),
+      tag: z.string().regex(/^[a-z]+$/, "system tag must be lowercase english letters")
     })
     .strict(),
   z

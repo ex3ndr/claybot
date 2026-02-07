@@ -1058,10 +1058,12 @@ function formatAgentDescriptor(descriptor: AgentDescriptor) {
       return `${descriptor.connector}:${descriptor.userId} / ${descriptor.channelId}`;
     case "cron":
       return `cron:${descriptor.id}`;
-    case "heartbeat":
-      return "heartbeat";
+    case "system":
+      return `system:${descriptor.tag}`;
     case "subagent":
       return descriptor.name ? `${descriptor.name} / ${descriptor.id}` : descriptor.id;
+    case "permanent":
+      return `${descriptor.name} / ${descriptor.id}`;
     default:
       return "system";
   }

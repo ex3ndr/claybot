@@ -59,6 +59,7 @@ import { agentDescriptorWrite } from "./ops/agentDescriptorWrite.js";
 import { agentSystemPromptWrite } from "./ops/agentSystemPromptWrite.js";
 import { signalMessageBuild } from "../signals/signalMessageBuild.js";
 import type { AgentSystem } from "./agentSystem.js";
+import { systemAgentPromptResolve } from "./system/systemAgentPromptResolve.js";
 
 const logger = getLogger("engine.agent");
 
@@ -303,7 +304,11 @@ export class Agent {
       receivedAt
     };
     const source =
-      this.descriptor.type === "user" ? this.descriptor.connector : this.descriptor.type;
+      this.descriptor.type === "user"
+        ? this.descriptor.connector
+        : this.descriptor.type === "system"
+          ? this.descriptor.tag
+          : this.descriptor.type;
     logger.debug(
       `handleMessage start agentId=${this.id} source=${source} textLength=${entry.message.text?.length ?? 0} fileCount=${entry.message.files?.length ?? 0}`
     );
@@ -352,8 +357,16 @@ export class Agent {
     const skillsPrompt = skillPromptFormat(skills);
     const permanentAgents = await agentPermanentList(this.agentSystem.config.current);
     const permanentAgentsPrompt = agentPermanentPromptBuild(permanentAgents);
-    const agentPrompt =
-      this.descriptor.type === "permanent" ? this.descriptor.systemPrompt.trim() : "";
+    const systemAgentPrompt =
+      this.descriptor.type === "system"
+        ? await systemAgentPromptResolve(this.descriptor.tag)
+        : null;
+    if (this.descriptor.type === "system" && !systemAgentPrompt) {
+      throw new Error(`Unknown system agent tag: ${this.descriptor.tag}`);
+    }
+    const agentPrompt = this.descriptor.type === "permanent"
+      ? this.descriptor.systemPrompt.trim()
+      : (systemAgentPrompt?.systemPrompt ?? "");
     const agentKind = this.resolveAgentKind();
     const allowCronTools = agentDescriptorIsCron(this.descriptor);
 
@@ -404,6 +417,7 @@ export class Agent {
       skillsPrompt,
       permanentAgentsPrompt,
       agentPrompt,
+      replaceSystemPrompt: systemAgentPrompt?.replaceSystemPrompt ?? false,
       agentKind,
       parentAgentId: this.descriptor.type === "subagent"
         ? this.descriptor.parentAgentId ?? ""
@@ -947,6 +961,14 @@ export class Agent {
   private async buildSystemPrompt(
     context: AgentSystemPromptContext = {}
   ): Promise<string> {
+    if (context.replaceSystemPrompt) {
+      const replaced = (context.agentPrompt ?? "").trim();
+      if (!replaced) {
+        throw new Error("System prompt replacement requires a non-empty agent prompt.");
+      }
+      return replaced;
+    }
+
     const soulPath = context.soulPath ?? DEFAULT_SOUL_PATH;
     const userPath = context.userPath ?? DEFAULT_USER_PATH;
     logger.debug(`buildSystemPrompt reading soul prompt path=${soulPath}`);
@@ -1048,6 +1070,7 @@ type AgentSystemPromptContext = {
   skillsPrompt?: string;
   permanentAgentsPrompt?: string;
   agentPrompt?: string;
+  replaceSystemPrompt?: boolean;
   agentKind?: "background" | "foreground";
   parentAgentId?: string;
   configDir?: string;

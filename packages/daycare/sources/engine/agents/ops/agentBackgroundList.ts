@@ -48,7 +48,7 @@ export async function agentBackgroundList(config: Config): Promise<BackgroundAge
           ? descriptor.name ?? "permanent"
           : descriptor.type === "cron"
             ? descriptor.name ?? "cron task"
-            : "heartbeat";
+            : descriptor.tag;
     const parentAgentId =
       descriptor.type === "subagent" ? descriptor.parentAgentId ?? null : null;
     results.push({

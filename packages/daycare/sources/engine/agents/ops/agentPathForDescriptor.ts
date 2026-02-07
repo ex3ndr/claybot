@@ -8,8 +8,8 @@ export function agentPathForDescriptor(descriptor: AgentDescriptor): string | nu
   switch (descriptor.type) {
     case "cron":
       return `/cron/${descriptor.id}`;
-    case "heartbeat":
-      return "/heartbeat";
+    case "system":
+      return `/system/${descriptor.tag}`;
     case "user":
       return `/connectors/${descriptor.connector}/${descriptor.userId}/${descriptor.channelId}`;
     default:

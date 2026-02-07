@@ -30,6 +30,8 @@ export function agentListToolBuild(): ToolDefinition {
             name:
               descriptor.type === "subagent" || descriptor.type === "permanent"
                 ? descriptor.name
+                : descriptor.type === "system"
+                  ? descriptor.tag
                 : null,
             parentAgentId: descriptor.type === "subagent" ? descriptor.parentAgentId : null,
             connector: descriptor.type === "user" ? descriptor.connector : null,

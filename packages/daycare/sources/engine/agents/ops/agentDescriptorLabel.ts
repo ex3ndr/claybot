@@ -11,8 +11,8 @@ export function agentDescriptorLabel(descriptor: AgentDescriptor): string {
   if (descriptor.type === "cron") {
     return descriptor.name ?? "cron task";
   }
-  if (descriptor.type === "heartbeat") {
-    return "heartbeat";
+  if (descriptor.type === "system") {
+    return descriptor.tag;
   }
   return "user";
 }

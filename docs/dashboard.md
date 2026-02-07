@@ -35,11 +35,11 @@ and subagent children.
 ```mermaid
 flowchart TD
   Descriptor[AgentDescriptor] --> Cron{type === cron}
-  Descriptor --> Heartbeat{type === heartbeat}
+  Descriptor --> SystemTag{type === system && tag === heartbeat}
   Descriptor --> Subagent{type === subagent}
   Descriptor --> Connection{type === user}
   Cron -->|yes| CronType[Type: cron]
-  Heartbeat -->|yes| HeartbeatType[Type: heartbeat]
+  SystemTag -->|yes| HeartbeatType[Type: heartbeat]
   Subagent -->|yes| SubagentType[Type: subagent]
   Connection -->|yes| ConnectionType[Type: connection]
   Subagent -->|no| System[Type: system]

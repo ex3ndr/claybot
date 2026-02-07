@@ -5,7 +5,8 @@ export type AgentType =
   | { type: "cron"; id: string }
   | { type: "heartbeat" }
   | { type: "subagent"; id: string; parentAgentId: string; name: string }
-  | { type: "system"; id: string };
+  | { type: "permanent"; id: string; name: string }
+  | { type: "system"; tag: string };
 
 export function buildAgentType(agent: AgentSummary): AgentType {
   const descriptor = agent.descriptor;
@@ -19,8 +20,11 @@ export function buildAgentType(agent: AgentSummary): AgentType {
       };
     case "cron":
       return { type: "cron", id: descriptor.id };
-    case "heartbeat":
-      return { type: "heartbeat" };
+    case "system":
+      if (descriptor.tag === "heartbeat") {
+        return { type: "heartbeat" };
+      }
+      return { type: "system", tag: descriptor.tag };
     case "subagent":
       return {
         type: "subagent",
@@ -28,8 +32,14 @@ export function buildAgentType(agent: AgentSummary): AgentType {
         parentAgentId: descriptor.parentAgentId,
         name: descriptor.name
       };
+    case "permanent":
+      return {
+        type: "permanent",
+        id: descriptor.id,
+        name: descriptor.name
+      };
     default:
-      return { type: "system", id: agent.agentId };
+      return { type: "system", tag: "unknown" };
   }
 }
 
@@ -43,6 +53,8 @@ export function formatAgentTypeLabel(agentType: AgentType): string {
       return "Heartbeat";
     case "subagent":
       return "Subagent";
+    case "permanent":
+      return "Permanent";
     case "system":
       return "System";
     default:

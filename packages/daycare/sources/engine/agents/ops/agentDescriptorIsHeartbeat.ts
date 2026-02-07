@@ -6,6 +6,6 @@ import type { AgentDescriptor } from "./agentDescriptorTypes.js";
  */
 export function agentDescriptorIsHeartbeat(
   descriptor?: AgentDescriptor
-): descriptor is Extract<AgentDescriptor, { type: "heartbeat" }> {
-  return descriptor?.type === "heartbeat";
+): descriptor is Extract<AgentDescriptor, { type: "system"; tag: "heartbeat" }> {
+  return descriptor?.type === "system" && descriptor.tag === "heartbeat";
 }
