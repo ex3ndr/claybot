@@ -15,7 +15,7 @@ import { EngineEventBus } from "../ipc/events.js";
 import { AuthStore } from "../../auth/store.js";
 import { FileStore } from "../../files/store.js";
 import { configResolve } from "../../config/configResolve.js";
-import type { AgentDescriptor, Connector } from "@/types";
+import type { AgentDescriptor, Connector, Signal } from "@/types";
 import type { PluginManager } from "../plugins/manager.js";
 import type { InferenceRouter } from "../modules/inference/router.js";
 import type { Crons } from "../cron/crons.js";
@@ -235,6 +235,66 @@ describe("Agent", () => {
       const historyPath = path.join(config.agentsDir, agentId, "history.jsonl");
       const historyRaw = await readFile(historyPath, "utf8");
       expect(historyRaw.includes("[signal]")).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("emits wake and sleep lifecycle signals", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "daycare-agent-"));
+    try {
+      const config = configResolve(
+        { engine: { dataDir: dir }, assistant: { workspaceDir: dir } },
+        path.join(dir, "settings.json")
+      );
+      const eventBus = new EngineEventBus();
+      const agentSystem = new AgentSystem({
+        config: new ConfigModule(config),
+        eventBus,
+        connectorRegistry: new ConnectorRegistry({
+          onMessage: async () => undefined
+        }),
+        imageRegistry: new ImageGenerationRegistry(),
+        toolResolver: new ToolResolver(),
+        pluginManager: {} as unknown as PluginManager,
+        inferenceRouter: {} as unknown as InferenceRouter,
+        fileStore: new FileStore(config),
+        authStore: new AuthStore(config)
+      });
+      agentSystem.setCrons({} as unknown as Crons);
+      const signals = new Signals({ eventBus, configDir: config.configDir });
+      agentSystem.setSignals(signals);
+      await agentSystem.load();
+      await agentSystem.start();
+
+      const lifecycleTypes: string[] = [];
+      const unsubscribe = eventBus.onEvent((event) => {
+        if (event.type !== "signal.generated") {
+          return;
+        }
+        const payload = event.payload as Signal;
+        if (!payload.type.startsWith("agent:")) {
+          return;
+        }
+        lifecycleTypes.push(payload.type);
+      });
+
+      const agentId = createId();
+      const descriptor: AgentDescriptor = { type: "cron", id: agentId, name: "Lifecycle agent" };
+
+      await agentSystem.postAndAwait(
+        { descriptor },
+        { type: "reset", message: "init lifecycle" }
+      );
+      await agentSystem.postAndAwait(
+        { agentId },
+        { type: "reset", message: "wake lifecycle" }
+      );
+
+      unsubscribe();
+
+      expect(lifecycleTypes).toContain(`agent:${agentId}:sleep`);
+      expect(lifecycleTypes).toContain(`agent:${agentId}:wake`);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

@@ -345,6 +345,7 @@ export class AgentSystem {
     if (!entry) {
       return;
     }
+    let slept = false;
     await entry.lock.inLock(async () => {
       if (entry.inbox.size() > 0) {
         return;
@@ -356,7 +357,11 @@ export class AgentSystem {
       await agentStateWrite(this.config.current, agentId, entry.agent.state);
       this.eventBus.emit("agent.sleep", { agentId, reason });
       logger.debug({ agentId, reason }, "Agent entered sleep mode");
+      slept = true;
     });
+    if (slept) {
+      await this.signalLifecycle(agentId, "sleep");
+    }
   }
 
   agentFor(strategy: AgentFetchStrategy): string | null {
@@ -532,20 +537,40 @@ export class AgentSystem {
     item: AgentInboxItem,
     completion: AgentInboxCompletion | null
   ): Promise<void> {
+    let woke = false;
     await entry.lock.inLock(async () => {
-      await this.wakeEntryIfSleeping(entry);
+      woke = await this.wakeEntryIfSleeping(entry);
       entry.inbox.post(item, completion);
     });
+    if (woke) {
+      await this.signalLifecycle(entry.agentId, "wake");
+    }
   }
 
-  private async wakeEntryIfSleeping(entry: AgentEntry): Promise<void> {
+  private async wakeEntryIfSleeping(entry: AgentEntry): Promise<boolean> {
     if (entry.agent.state.state !== "sleeping") {
-      return;
+      return false;
     }
     entry.agent.state.state = "active";
     await agentStateWrite(this.config.current, entry.agentId, entry.agent.state);
     this.eventBus.emit("agent.woke", { agentId: entry.agentId });
     logger.debug({ agentId: entry.agentId }, "Agent woke from sleep");
+    return true;
+  }
+
+  private async signalLifecycle(agentId: string, state: "wake" | "sleep"): Promise<void> {
+    if (!this._signals) {
+      return;
+    }
+    try {
+      await this._signals.generate({
+        type: `agent:${agentId}:${state}`,
+        source: { type: "system" },
+        data: { agentId, state }
+      });
+    } catch (error) {
+      logger.warn({ agentId, state, error }, "Failed to emit lifecycle signal");
+    }
   }
 
   private async restoreAgent(

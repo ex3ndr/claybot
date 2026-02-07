@@ -103,6 +103,11 @@ Delivery model:
 - on generation failure, entry stays in queue and is retried
 - semantics are **at least once**
 
+Agent lifecycle signals:
+- when an agent transitions to active: `agent:<agentId>:wake`
+- when an agent transitions to sleeping: `agent:<agentId>:sleep`
+- source is `system`
+
 Repeat key behavior:
 - each delayed entry may set `repeatKey`
 - `repeatKey` is scoped by `type`
@@ -141,4 +146,12 @@ flowchart TD
   Validate --> Silent[silent system message]
   Validate --> NonSilent[non-silent system message]
   AgentA -->|signal_unsubscribe| Signals
+```
+
+```mermaid
+flowchart LR
+  AgentSystem[AgentSystem] --> Wake[agent.woke transition]
+  AgentSystem --> Sleep[agent.sleep transition]
+  Wake --> GenerateWake["Signals.generate(agent:<id>:wake)"]
+  Sleep --> GenerateSleep["Signals.generate(agent:<id>:sleep)"]
 ```
