@@ -50,7 +50,7 @@ export function buildSignalGenerateTool(signals: Signals): ToolDefinition {
     tool: {
       name: "generate_signal",
       description:
-        "Generate a signal with a type id and optional payload for runtime automation.",
+        "Broadcast a signal event. Any agent subscribed to a matching pattern receives it. Use colon-separated type segments (e.g. `build:project-x:done`). Signals are fire-and-forget — you don't need to know who listens.",
       parameters: schema
     },
     execute: async (args, toolContext, toolCall) => {

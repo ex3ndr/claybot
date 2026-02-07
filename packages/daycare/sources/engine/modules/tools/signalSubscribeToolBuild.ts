@@ -20,7 +20,7 @@ export function buildSignalSubscribeTool(signals: Signals): ToolDefinition {
     tool: {
       name: "signal_subscribe",
       description:
-        "Subscribe an agent to signal types using `*` wildcard segments (for example `a:*:c`).",
+        "Subscribe to signals matching a pattern. Pattern uses colon-separated segments with `*` as a single-segment wildcard (e.g. `build:*:done` matches `build:alpha:done` but not `build:alpha:beta:done`). Defaults to silent delivery (won't wake a sleeping agent); set `silent=false` to wake on signal. Pass `agentId` to subscribe another agent.",
       parameters: schema
     },
     execute: async (args, toolContext, toolCall) => {

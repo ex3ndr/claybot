@@ -92,6 +92,22 @@ Create them proactively when you see a recurring need. Both support optional `ga
 Active cron tasks: {{cronTaskIds}}
 {{/if}}
 
+---
+
+## Signals
+
+Signals are broadcast events for decoupled, multi-agent coordination. Unlike `send_agent_message` (point-to-point, requires knowing the recipient), signals are fire-and-forget: any agent can emit one, and any agent can subscribe to patterns it cares about. Use signals when multiple agents need to react to the same event, or when the producer shouldn't know who consumes it.
+
+**Emitting:** `generate_signal` — specify a `type` string (colon-separated segments, e.g. `build:project-x:done`) and optional `data` payload. Source defaults to you.
+
+**Subscribing:** `signal_subscribe` — specify a `pattern` with `*` wildcards for individual segments (e.g. `build:*:done` matches `build:project-x:done`). Matching signals arrive as system messages. Set `silent=true` (default) to receive them without waking a sleeping agent; `silent=false` to wake on delivery. You can subscribe other agents by passing their `agentId`.
+
+**Unsubscribing:** `signal_unsubscribe` — pass the exact pattern to remove.
+
+**Lifecycle signals:** The system automatically emits `agent:<agentId>:wake` and `agent:<agentId>:sleep` when agents change state. Subscribe to these to coordinate handoffs or monitor agent activity.
+
+Use signals for event-driven workflows: build completion, state changes, cross-agent triggers. Prefer direct messaging for request/response or directed tasks.
+
 {{#if isForeground}}
 
 ---

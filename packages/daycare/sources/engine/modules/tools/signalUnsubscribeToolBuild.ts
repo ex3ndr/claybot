@@ -19,7 +19,7 @@ export function buildSignalUnsubscribeTool(signals: Signals): ToolDefinition {
     tool: {
       name: "signal_unsubscribe",
       description:
-        "Remove an existing signal subscription for an agent and pattern.",
+        "Remove a signal subscription. The pattern must exactly match the one used in `signal_subscribe`. Pass `agentId` to unsubscribe another agent.",
       parameters: schema
     },
     execute: async (args, toolContext, toolCall) => {

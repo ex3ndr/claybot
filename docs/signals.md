@@ -1,12 +1,18 @@
 # Signals
 
-Signals are lightweight runtime events with a distinct string `type`, an optional `data` payload, and a structured `source`.
+Signals are the broadcast event system for decoupled, multi-agent coordination. They complement direct messaging (`send_agent_message`): where direct messages are point-to-point and require knowing the recipient, signals are fire-and-forget broadcasts that any agent can subscribe to by pattern.
+
+**When to use signals vs direct messages:**
+- **Signals**: event notifications where multiple agents may react independently, and the producer doesn't need to know who listens. Examples: build completion, state changes, deployment events, agent lifecycle transitions.
+- **Direct messages**: request/response interactions between specific agents, directed tasks, or when the sender needs an answer back.
+
+Each signal has a distinct string `type` (colon-separated segments like `build:project-x:done`), an optional `data` payload, and a structured `source` identifying the origin.
 
 Supported source variants:
-- `{ type: "system" }`
-- `{ type: "agent", id: string }`
-- `{ type: "webhook", id?: string }`
-- `{ type: "process", id?: string }`
+- `{ type: "system" }` — internal system events (e.g. lifecycle signals)
+- `{ type: "agent", id: string }` — emitted by an agent (default when using the tool)
+- `{ type: "webhook", id?: string }` — triggered by an external webhook
+- `{ type: "process", id?: string }` — emitted by a running process
 
 ## Runtime model
 
