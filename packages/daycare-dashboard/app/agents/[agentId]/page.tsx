@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowLeft, Clock, MessageSquare, RefreshCw } from "lucide-react";
+import { ArrowLeft, Bell, BellOff, Cable, Clock, MessageSquare, RefreshCw } from "lucide-react";
 
 import { DashboardShell } from "@/components/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
@@ -11,10 +11,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import {
   fetchAgentHistory,
   fetchAgents,
+  fetchSignalSubscriptions,
   type AgentDescriptor,
   type AgentHistoryRecord,
   type AgentSummary,
-  type EngineEvent
+  type EngineEvent,
+  type SignalSubscription
 } from "@/lib/engine-client";
 import { buildAgentType, formatAgentTypeLabel, formatAgentTypeObject } from "@/lib/agent-types";
 
@@ -28,6 +30,7 @@ export default function AgentDetailPage({ params }: AgentDetailPageProps) {
   const { agentId } = params;
   const [summary, setSummary] = useState<AgentSummary | null>(null);
   const [records, setRecords] = useState<AgentHistoryRecord[]>([]);
+  const [subscriptions, setSubscriptions] = useState<SignalSubscription[]>([]);
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,10 +50,11 @@ export default function AgentDetailPage({ params }: AgentDetailPageProps) {
       }
       setError(null);
       try {
-        const [agents, agentRecords] = await Promise.all([fetchAgents(), fetchAgentHistory(agentId)]);
+        const [agents, agentRecords, allSubscriptions] = await Promise.all([fetchAgents(), fetchAgentHistory(agentId), fetchSignalSubscriptions()]);
         const nextSummary = agents.find((agent) => agent.agentId === agentId) ?? null;
         setSummary(nextSummary);
         setRecords(agentRecords);
+        setSubscriptions(allSubscriptions.filter((s) => s.agentId === agentId));
         setLastUpdated(new Date());
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load agent");
@@ -224,6 +228,50 @@ export default function AgentDetailPage({ params }: AgentDetailPageProps) {
             </CardContent>
           </Card>
         </div>
+
+        {subscriptions.length > 0 && (
+          <Card className="overflow-hidden">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                  <Cable className="h-4 w-4" />
+                </div>
+                <div>
+                  <CardTitle>Signal subscriptions</CardTitle>
+                  <CardDescription>Patterns this agent is listening to.</CardDescription>
+                </div>
+                <Badge variant="secondary" className="ml-auto text-xs">
+                  {subscriptions.length}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-2">
+              {subscriptions.map((sub) => (
+                <div key={`${sub.agentId}::${sub.pattern}`} className="flex items-center gap-3 rounded-lg border px-3 py-2.5">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-sm font-medium text-foreground">{sub.pattern}</span>
+                      {sub.silent ? (
+                        <Badge variant="outline" className="text-[10px] gap-1 text-muted-foreground">
+                          <BellOff className="h-2.5 w-2.5" />
+                          silent
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] gap-1 text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700">
+                          <Bell className="h-2.5 w-2.5" />
+                          notify
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      subscribed {formatDateTime(sub.createdAt)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="overflow-hidden">
           <CardHeader>

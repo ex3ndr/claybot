@@ -42,6 +42,7 @@ import {
   fetchHeartbeatTasks,
   fetchAgents,
   fetchSignalEvents,
+  fetchSignalSubscriptions,
   type BackgroundAgentState,
   type CronTask,
   type EngineEvent,
@@ -50,7 +51,8 @@ import {
   type AgentSummary,
   type AgentDescriptor,
   type SignalEvent,
-  type SignalSource
+  type SignalSource,
+  type SignalSubscription
 } from "@/lib/engine-client";
 import { buildAgentType, formatAgentTypeLabel, formatAgentTypeObject } from "@/lib/agent-types";
 import type { LucideIcon } from "lucide-react";
@@ -67,6 +69,7 @@ export default function Dashboard() {
   const [backgroundAgents, setBackgroundAgents] = useState<BackgroundAgentState[]>([]);
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [signals, setSignals] = useState<SignalEvent[]>([]);
+  const [subscriptions, setSubscriptions] = useState<SignalSubscription[]>([]);
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,11 +105,16 @@ export default function Dashboard() {
     setSignals(data);
   }, []);
 
+  const fetchSubscriptions = useCallback(async () => {
+    const data = await fetchSignalSubscriptions();
+    setSubscriptions(data);
+  }, []);
+
   const refreshAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      await Promise.all([fetchStatus(), fetchCron(), fetchHeartbeats(), fetchBackgroundAgentsData(), fetchAgentsData(), fetchSignals()]);
+      await Promise.all([fetchStatus(), fetchCron(), fetchHeartbeats(), fetchBackgroundAgentsData(), fetchAgentsData(), fetchSignals(), fetchSubscriptions()]);
       setLastUpdated(new Date());
     } catch (err) {
       const message = err instanceof Error ? err.message : "Refresh failed";
@@ -114,7 +122,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [fetchAgentsData, fetchBackgroundAgentsData, fetchCron, fetchHeartbeats, fetchSignals, fetchStatus]);
+  }, [fetchAgentsData, fetchBackgroundAgentsData, fetchCron, fetchHeartbeats, fetchSignals, fetchSubscriptions, fetchStatus]);
 
   useEffect(() => {
     void refreshAll();
@@ -164,6 +172,7 @@ export default function Dashboard() {
           break;
         case "signal.generated":
           void fetchSignals();
+          void fetchSubscriptions();
           break;
         default:
           break;
@@ -173,7 +182,7 @@ export default function Dashboard() {
     return () => {
       source.close();
     };
-  }, [fetchAgentsData, fetchBackgroundAgentsData, fetchCron, fetchHeartbeats, fetchSignals, fetchStatus]);
+  }, [fetchAgentsData, fetchBackgroundAgentsData, fetchCron, fetchHeartbeats, fetchSignals, fetchSubscriptions, fetchStatus]);
 
   const pluginCount = status?.plugins?.length ?? 0;
   const agentCount = agents.length;
@@ -185,6 +194,7 @@ export default function Dashboard() {
   const imageProviderCount = status?.imageProviders?.length ?? 0;
   const toolCount = status?.tools?.length ?? 0;
   const signalCount = signals.length;
+  const subscriptionCount = subscriptions.length;
   const orderedAgents = useMemo(() => sortAgentsByActivity(agents), [agents]);
 
   const connectorTiles = useMemo(
@@ -347,7 +357,7 @@ export default function Dashboard() {
                 label: "Signals",
                 description: "View signal event stream",
                 href: "/signals",
-                value: `${signalCount} recent`,
+                value: `${signalCount} events · ${subscriptionCount} subs`,
                 icon: Radio
               },
               {
@@ -402,6 +412,7 @@ export default function Dashboard() {
               <CronPanel cron={cron} />
               <HeartbeatPanel heartbeats={heartbeats} />
               <SignalsPanel signals={signals} />
+              <SubscriptionsPanel subscriptions={subscriptions} />
               <BackgroundAgentsPanel agents={backgroundAgents} />
             </div>
           </div>
@@ -870,6 +881,52 @@ function formatSignalTime(ts: number): string {
   const diffH = Math.floor(diffMin / 60);
   if (diffH < 24) return `${diffH}h ago`;
   return formatShortDate(ts);
+}
+
+function SubscriptionsPanel({ subscriptions }: { subscriptions: SignalSubscription[] }) {
+  return (
+    <Card className="animate-in fade-in-0 slide-in-from-bottom-2">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+              <Cable className="h-4 w-4" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Subscriptions</CardTitle>
+              <CardDescription>Agents listening for signal patterns.</CardDescription>
+            </div>
+          </div>
+          <Link
+            href="/signals"
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            View all
+            <ArrowUpRight className="h-3 w-3" />
+          </Link>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {subscriptions.length ? (
+          subscriptions.map((sub) => (
+            <div key={`${sub.agentId}::${sub.pattern}`} className="rounded-lg border bg-background/60 px-3 py-2.5">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs font-medium text-foreground truncate">{sub.pattern}</span>
+                <Badge variant="outline" className="ml-auto shrink-0 text-[10px]">
+                  {sub.silent ? "silent" : "notify"}
+                </Badge>
+              </div>
+              <div className="mt-1 text-[10px] text-muted-foreground truncate">
+                {sub.agentId}
+              </div>
+            </div>
+          ))
+        ) : (
+          <EmptyState label="No signal subscriptions active." />
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function BackgroundAgentsPanel({ agents }: { agents: BackgroundAgentState[] }) {
