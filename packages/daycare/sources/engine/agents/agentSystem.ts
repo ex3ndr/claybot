@@ -240,6 +240,19 @@ export class AgentSystem {
     return permissionClone(entry.agent.state.permissions);
   }
 
+  /**
+   * Resolves a target to its concrete agent id, creating/restoring when needed.
+   * Expects: descriptor targets are valid for agent creation.
+   */
+  async agentIdForTarget(target: AgentPostTarget): Promise<string> {
+    const entry = await this.resolveEntry(target, {
+      type: "message",
+      message: { text: null },
+      context: {}
+    });
+    return entry.agentId;
+  }
+
   async tokensForTarget(target: AgentPostTarget): Promise<AgentTokenEntry | null> {
     const entry = await this.resolveEntry(target, {
       type: "message",

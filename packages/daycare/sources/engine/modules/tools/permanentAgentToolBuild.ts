@@ -9,6 +9,9 @@ import type { ToolDefinition } from "@/types";
 import type { AgentState, SessionPermissions } from "@/types";
 import { cuid2Is } from "../../../utils/cuid2Is.js";
 import { permissionClone } from "../../permissions/permissionClone.js";
+import { permissionTagsApply } from "../../permissions/permissionTagsApply.js";
+import { permissionTagsNormalize } from "../../permissions/permissionTagsNormalize.js";
+import { permissionTagsValidate } from "../../permissions/permissionTagsValidate.js";
 import { pathResolveSecure } from "../../permissions/pathResolveSecure.js";
 import { agentDescriptorWrite } from "../../agents/ops/agentDescriptorWrite.js";
 import { agentHistoryAppend } from "../../agents/ops/agentHistoryAppend.js";
@@ -23,7 +26,8 @@ const schema = Type.Object(
     description: Type.String({ minLength: 1 }),
     systemPrompt: Type.String({ minLength: 1 }),
     workspaceDir: Type.Optional(Type.String({ minLength: 1 })),
-    agentId: Type.Optional(Type.String({ minLength: 1 }))
+    agentId: Type.Optional(Type.String({ minLength: 1 })),
+    permissions: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }))
   },
   { additionalProperties: false }
 );
@@ -55,6 +59,8 @@ export function permanentAgentToolBuild(): ToolDefinition {
       if (!systemPrompt) {
         throw new Error("Permanent agent system prompt is required.");
       }
+      const permissionTags = permissionTagsNormalize(payload.permissions);
+      await permissionTagsValidate(toolContext.permissions, permissionTags);
 
       const config = toolContext.agentSystem.config.current;
       const existingAgents = await agentPermanentList(config);
@@ -81,9 +87,11 @@ export function permanentAgentToolBuild(): ToolDefinition {
         if (!state) {
           throw new Error("Permanent agent state not found.");
         }
+        const permissions = updatePermissions(state.permissions, resolvedWorkspaceDir);
+        permissionTagsApply(permissions, permissionTags);
         const nextState: AgentState = {
           ...state,
-          permissions: updatePermissions(state.permissions, resolvedWorkspaceDir),
+          permissions,
           updatedAt: Date.now()
         };
         await agentStateWrite(config, agentId, nextState);
@@ -94,6 +102,7 @@ export function permanentAgentToolBuild(): ToolDefinition {
           permissionClone(config.defaultPermissions),
           resolvedWorkspaceDir
         );
+        permissionTagsApply(permissions, permissionTags);
         const state: AgentState = {
           context: { messages: [] },
           permissions,

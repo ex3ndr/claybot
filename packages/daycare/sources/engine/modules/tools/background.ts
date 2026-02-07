@@ -3,11 +3,15 @@ import type { ToolResultMessage } from "@mariozechner/pi-ai";
 import { createId } from "@paralleldrive/cuid2";
 
 import type { ToolDefinition } from "@/types";
+import { permissionAccessParse } from "../../permissions/permissionAccessParse.js";
+import { permissionTagsNormalize } from "../../permissions/permissionTagsNormalize.js";
+import { permissionTagsValidate } from "../../permissions/permissionTagsValidate.js";
 
 const startSchema = Type.Object(
   {
     prompt: Type.String({ minLength: 1 }),
-    name: Type.Optional(Type.String({ minLength: 1 }))
+    name: Type.Optional(Type.String({ minLength: 1 })),
+    permissions: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }))
   },
   { additionalProperties: false }
 );
@@ -36,15 +40,24 @@ export function buildStartBackgroundAgentTool(): ToolDefinition {
       if (!prompt) {
         throw new Error("Background agent prompt is required");
       }
-      const agentId = createId();
+      const permissionTags = permissionTagsNormalize(payload.permissions);
+      await permissionTagsValidate(toolContext.permissions, permissionTags);
+
       const descriptor = {
         type: "subagent" as const,
-        id: agentId,
+        id: createId(),
         parentAgentId: toolContext.agent.id,
         name: payload.name ?? "subagent"
       };
+      const agentId = await toolContext.agentSystem.agentIdForTarget({ descriptor });
+      for (const tag of permissionTags) {
+        await toolContext.agentSystem.grantPermission(
+          { agentId },
+          permissionAccessParse(tag)
+        );
+      }
       await toolContext.agentSystem.post(
-        { descriptor },
+        { agentId },
         { type: "message", message: { text: prompt }, context: {} }
       );
 
