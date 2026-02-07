@@ -1,9 +1,9 @@
 import { Type } from "@sinclair/typebox";
-import { Resvg } from "@resvg/resvg-js";
 import { THEMES, renderMermaid } from "beautiful-mermaid";
 import type { ToolResultMessage } from "@mariozechner/pi-ai";
 
 import type { ToolDefinition } from "@/types";
+import { renderToPng } from "../../../util/renderToPng.js";
 
 const schema = Type.Object(
   {
@@ -52,15 +52,13 @@ export function buildMermaidPngTool(): ToolDefinition<typeof schema> {
       }
 
       const svg = await renderMermaid(diagram, theme);
-      const png = new Resvg(svg, {
-        fitTo: { mode: "width", value: payload.width ?? 1600 }
-      })
-        .render()
-        .asPng();
+      const png = await renderToPng(svg, {
+        width: payload.width ?? 1600
+      });
       const stored = await context.fileStore.saveBuffer({
         name: mermaidPngNameResolve(payload.name),
         mimeType: "image/png",
-        data: Buffer.from(png),
+        data: png,
         source: "generate_mermaid_png"
       });
 

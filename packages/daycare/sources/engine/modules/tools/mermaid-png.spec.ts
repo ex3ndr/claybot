@@ -3,6 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 import type { ToolExecutionContext } from "@/types";
 import { buildMermaidPngTool } from "./mermaid-png.js";
 
+const mocks = vi.hoisted(() => ({
+  renderToPng: vi.fn(async () => Buffer.from("png"))
+}));
+
+vi.mock("../../../util/renderToPng.js", () => ({
+  renderToPng: mocks.renderToPng
+}));
+
 describe("buildMermaidPngTool", () => {
   it("renders a png file from mermaid source", async () => {
     const saveBuffer = vi.fn(async (options: {
@@ -31,6 +39,7 @@ describe("buildMermaidPngTool", () => {
     );
 
     expect(saveBuffer).toHaveBeenCalledTimes(1);
+    expect(mocks.renderToPng).toHaveBeenCalledTimes(1);
     expect(saveBuffer.mock.calls[0]?.[0]).toMatchObject({
       name: "pipeline.png",
       mimeType: "image/png",
