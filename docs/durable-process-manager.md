@@ -24,6 +24,7 @@ Managed process state is stored per process in plugin data:
 - desired state (`running` or `stopped`)
 - observed status (`running`, `stopped`, `exited`)
 - keep-alive flag and restart count
+- restart backoff state (`restartFailureCount`, `nextRestartAt`)
 
 ## Runtime Flow
 
@@ -38,15 +39,19 @@ flowchart TD
   H --> I{pid running?}
   I -- yes --> J[Adopt running process]
   I -- no --> K{desired=running and keepAlive=true}
-  K -- yes --> L[Restart process]
-  K -- no --> M[Mark exited/stopped]
-  N[process_stop/process_stop_all] --> O[Set desired=stopped]
-  O --> P[Kill process group]
-  P --> Q[Persist stopped status]
+  K -- yes --> L[Schedule exponential backoff]
+  L --> M{backoff elapsed?}
+  M -- yes --> N[Restart process]
+  M -- no --> O[Wait for next monitor tick]
+  K -- no --> P[Mark exited/stopped]
+  S[process_stop/process_stop_all] --> T[Set desired=stopped]
+  T --> U[Kill process group]
+  U --> V[Persist stopped status]
 ```
 
 ## Notes
 
 - Keep-alive is opt-in per process via `process_start.keepAlive`.
+- Keep-alive restarts use exponential backoff (2s base, doubling to 60s max) for crash loops.
 - Stop operations apply to the full process group to terminate child processes.
 - Log access reads tail bytes and returns content without requiring direct file access.

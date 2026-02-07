@@ -124,6 +124,40 @@ describe("Processes", () => {
     TEST_TIMEOUT_MS
   );
 
+  it(
+    "applies exponential backoff for repeatedly failing keepAlive processes",
+    async () => {
+      const manager = await createManager(baseDir);
+      const failureCountPath = path.join(workspaceDir, "failure-count.txt");
+      const command = [
+        "node -e",
+        "\"const fs=require('node:fs');",
+        `const p='${escapeForNodeString(failureCountPath)}';`,
+        "let n=0;",
+        "try{n=Number(fs.readFileSync(p,'utf8'))||0}catch{};",
+        "fs.writeFileSync(p,String(n+1));",
+        "process.exit(1);\""
+      ].join(" ");
+
+      await manager.create(
+        {
+          command,
+          keepAlive: true,
+          cwd: workspaceDir
+        },
+        permissions
+      );
+
+      await sleep(7_500);
+      const raw = await fs.readFile(failureCountPath, "utf8");
+      const launches = Number(raw.trim());
+
+      expect(launches).toBeGreaterThanOrEqual(2);
+      expect(launches).toBeLessThanOrEqual(3);
+    },
+    TEST_TIMEOUT_MS
+  );
+
   async function createManager(dir: string): Promise<Processes> {
     const manager = new Processes(dir, getLogger("test.processes"));
     managers.push(manager);

@@ -23,6 +23,9 @@ const MONITOR_INTERVAL_MS = 2_000;
 const PROCESS_STOP_TIMEOUT_MS = 8_000;
 const PROCESS_STOP_POLL_MS = 200;
 const MAX_LOG_BYTES = 200_000;
+const RESTART_BACKOFF_BASE_MS = 2_000;
+const RESTART_BACKOFF_MAX_MS = 60_000;
+const RESTART_STABLE_UPTIME_MS = 30_000;
 
 const nodeRequire = createRequire(import.meta.url);
 const sandboxCliPath = nodeRequire.resolve("@anthropic-ai/sandbox-runtime/dist/cli.js");
@@ -76,6 +79,8 @@ type ProcessRecord = {
   status: "running" | "stopped" | "exited";
   pid: number | null;
   restartCount: number;
+  restartFailureCount: number;
+  nextRestartAt: number | null;
   createdAt: number;
   updatedAt: number;
   lastStartedAt: number | null;
@@ -198,6 +203,8 @@ export class Processes {
         status: "stopped",
         pid: null,
         restartCount: 0,
+        restartFailureCount: 0,
+        nextRestartAt: null,
         createdAt: now,
         updatedAt: now,
         lastStartedAt: null,
@@ -293,14 +300,27 @@ export class Processes {
     for (const record of this.records.values()) {
       const running = record.pid !== null && isProcessRunning(record.pid);
       if (running) {
+        const now = Date.now();
         if (record.desiredState === "stopped") {
           await this.stopRecordLocked(record, "SIGTERM");
           await this.writeRecordLocked(record);
           continue;
         }
+
+        if (
+          record.restartFailureCount > 0 &&
+          record.lastStartedAt !== null &&
+          now - record.lastStartedAt >= RESTART_STABLE_UPTIME_MS
+        ) {
+          record.restartFailureCount = 0;
+          record.nextRestartAt = null;
+          record.updatedAt = now;
+          await this.writeRecordLocked(record);
+        }
+
         if (record.status !== "running") {
           record.status = "running";
-          record.updatedAt = Date.now();
+          record.updatedAt = now;
           await this.writeRecordLocked(record);
         }
         continue;
@@ -313,8 +333,7 @@ export class Processes {
 
       if (record.desiredState === "running") {
         if (record.keepAlive) {
-          await this.startRecordLocked(record, { incrementRestart: true });
-          await this.writeRecordLocked(record);
+          await this.restartRecordWithBackoffLocked(record);
           continue;
         }
         if (record.status !== "exited") {
@@ -327,9 +346,46 @@ export class Processes {
 
       if (record.status !== "stopped") {
         record.status = "stopped";
+        record.restartFailureCount = 0;
+        record.nextRestartAt = null;
         record.updatedAt = Date.now();
         await this.writeRecordLocked(record);
       }
+    }
+  }
+
+  private async restartRecordWithBackoffLocked(record: ProcessRecord): Promise<void> {
+    const now = Date.now();
+    if (record.status !== "exited") {
+      record.status = "exited";
+      record.updatedAt = now;
+      await this.writeRecordLocked(record);
+    }
+
+    if (record.nextRestartAt === null) {
+      scheduleRestart(record, now);
+      await this.writeRecordLocked(record);
+      return;
+    }
+    if (now < record.nextRestartAt) {
+      return;
+    }
+
+    try {
+      await this.startRecordLocked(record, { incrementRestart: true });
+      record.nextRestartAt = null;
+      await this.writeRecordLocked(record);
+    } catch (error) {
+      this.logger.warn(
+        { error, processId: record.id, restartFailureCount: record.restartFailureCount + 1 },
+        "Process restart failed; backoff applied"
+      );
+      const failedAt = Date.now();
+      record.pid = null;
+      record.status = "exited";
+      record.lastExitedAt = failedAt;
+      scheduleRestart(record, failedAt);
+      await this.writeRecordLocked(record);
     }
   }
 
@@ -420,6 +476,8 @@ export class Processes {
     const now = Date.now();
     record.pid = null;
     record.status = "stopped";
+    record.nextRestartAt = null;
+    record.restartFailureCount = 0;
     record.lastExitedAt = now;
     record.updatedAt = now;
     this.children.delete(record.id);
@@ -534,6 +592,9 @@ async function readRecord(recordPath: string): Promise<ProcessRecord | null> {
       status,
       pid: typeof parsed.pid === "number" ? parsed.pid : null,
       restartCount: typeof parsed.restartCount === "number" ? parsed.restartCount : 0,
+      restartFailureCount:
+        typeof parsed.restartFailureCount === "number" ? parsed.restartFailureCount : 0,
+      nextRestartAt: typeof parsed.nextRestartAt === "number" ? parsed.nextRestartAt : null,
       createdAt: typeof parsed.createdAt === "number" ? parsed.createdAt : Date.now(),
       updatedAt: typeof parsed.updatedAt === "number" ? parsed.updatedAt : Date.now(),
       lastStartedAt: typeof parsed.lastStartedAt === "number" ? parsed.lastStartedAt : null,
@@ -679,4 +740,33 @@ function tailUtf8(input: string, maxBytes: number): string {
   }
   const sliced = buffer.subarray(buffer.byteLength - maxBytes);
   return sliced.toString("utf8");
+}
+
+function scheduleRestart(record: ProcessRecord, now: number): void {
+  const uptimeMs = resolveUptimeMs(record, now);
+  if (uptimeMs >= RESTART_STABLE_UPTIME_MS) {
+    record.restartFailureCount = 0;
+  }
+  record.restartFailureCount += 1;
+  const delayMs = restartBackoffMs(record.restartFailureCount);
+  record.nextRestartAt = now + delayMs;
+  record.updatedAt = now;
+}
+
+function resolveUptimeMs(record: ProcessRecord, now: number): number {
+  const startedAt = record.lastStartedAt;
+  if (startedAt === null) {
+    return 0;
+  }
+  const exitedAt = record.lastExitedAt ?? now;
+  if (exitedAt < startedAt) {
+    return 0;
+  }
+  return exitedAt - startedAt;
+}
+
+function restartBackoffMs(restartFailureCount: number): number {
+  const exponent = Math.max(0, restartFailureCount - 1);
+  const delay = RESTART_BACKOFF_BASE_MS * 2 ** exponent;
+  return Math.min(delay, RESTART_BACKOFF_MAX_MS);
 }
