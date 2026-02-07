@@ -35,6 +35,8 @@ export type CronTask = {
 export type HeartbeatTask = {
   id: string;
   title: string;
+  prompt?: string;
+  filePath?: string;
   gate?: ExecGate;
   lastRunAt?: string;
 };
