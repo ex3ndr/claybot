@@ -23,6 +23,7 @@ export function permissionBuildDefault(
     DEFAULT_MEMORY_PATH
   ].map((entry) => path.resolve(entry));
   const writeDirs = [
+    path.resolve(workingDir),
     ...writeDefaults,
     ...(heartbeatDir ? [heartbeatDir] : []),
     ...(skillsDir ? [skillsDir] : [])

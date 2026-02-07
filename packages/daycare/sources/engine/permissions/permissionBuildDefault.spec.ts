@@ -19,6 +19,7 @@ describe("permissionBuildDefault", () => {
     expect(permissions.workingDir).toBe(path.resolve(workingDir));
     expect(permissions.writeDirs).toEqual(
       expect.arrayContaining([
+        path.resolve(workingDir),
         path.resolve(DEFAULT_SOUL_PATH),
         path.resolve(DEFAULT_USER_PATH),
         path.resolve(DEFAULT_MEMORY_PATH),
