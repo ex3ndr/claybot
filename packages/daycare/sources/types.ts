@@ -76,3 +76,6 @@ export type {
 
 // Config
 export type { Config } from "./config/configTypes.js";
+
+// Signals
+export type { Signal, SignalGenerateInput, SignalSource } from "./engine/signals/signalTypes.js";

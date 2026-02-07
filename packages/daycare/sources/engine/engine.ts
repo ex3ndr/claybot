@@ -21,6 +21,7 @@ import { buildImageGenerationTool } from "./modules/tools/image-generation.js";
 import { buildReactionTool } from "./modules/tools/reaction.js";
 import { buildPermissionGrantTool, buildPermissionRequestTool } from "./modules/tools/permissions.js";
 import { buildSendFileTool } from "./modules/tools/send-file.js";
+import { buildSignalGenerateTool } from "./modules/tools/signal.js";
 import { agentListToolBuild } from "./modules/tools/agentListToolBuild.js";
 import { sessionHistoryToolBuild } from "./modules/tools/sessionHistoryToolBuild.js";
 import { permanentAgentToolBuild } from "./modules/tools/permanentAgentToolBuild.js";
@@ -43,6 +44,7 @@ import { InvalidateSync } from "../util/sync.js";
 import { valueDeepEqual } from "../util/valueDeepEqual.js";
 import { configLoad } from "../config/configLoad.js";
 import { ConfigModule } from "./config/configModule.js";
+import { Signals } from "./signals/signals.js";
 
 const logger = getLogger("engine.runtime");
 
@@ -62,6 +64,7 @@ export class Engine {
   readonly agentSystem: AgentSystem;
   readonly crons: Crons;
   readonly heartbeats: Heartbeats;
+  readonly signals: Signals;
   readonly inferenceRouter: InferenceRouter;
   readonly eventBus: EngineEventBus;
   private readonly reloadSync: InvalidateSync;
@@ -70,6 +73,7 @@ export class Engine {
     logger.debug(`Engine constructor starting, dataDir=${options.config.dataDir}`);
     this.config = new ConfigModule(options.config);
     this.eventBus = options.eventBus;
+    this.signals = new Signals({ eventBus: this.eventBus });
     this.reloadSync = new InvalidateSync(async () => {
       await this.reloadApplyLatest();
     });
@@ -264,10 +268,11 @@ export class Engine {
     this.modules.tools.register("core", buildImageGenerationTool(this.modules.images));
     this.modules.tools.register("core", buildReactionTool());
     this.modules.tools.register("core", buildSendFileTool());
+    this.modules.tools.register("core", buildSignalGenerateTool(this.signals));
     this.modules.tools.register("core", buildPermissionRequestTool());
     this.modules.tools.register("core", buildPermissionGrantTool());
     logger.debug(
-      "Core tools registered: cron, cron_memory, heartbeat, background, agent_listing, session_history, permanent_agents, image_generation, reaction, send_file, request_permission, grant_permission"
+      "Core tools registered: cron, cron_memory, heartbeat, background, agent_listing, session_history, permanent_agents, image_generation, reaction, send_file, generate_signal, request_permission, grant_permission"
     );
 
     logger.debug("Starting agent system");
