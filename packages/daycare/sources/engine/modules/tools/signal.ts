@@ -4,16 +4,40 @@ import { Type, type Static } from "@sinclair/typebox";
 import type { ToolDefinition } from "@/types";
 import type { Signals } from "../../signals/signals.js";
 
+const sourceSchema = Type.Union([
+  Type.Object(
+    {
+      type: Type.Literal("system")
+    },
+    { additionalProperties: false }
+  ),
+  Type.Object(
+    {
+      type: Type.Literal("agent"),
+      id: Type.String({ minLength: 1 })
+    },
+    { additionalProperties: false }
+  ),
+  Type.Object(
+    {
+      type: Type.Literal("webhook"),
+      id: Type.Optional(Type.String({ minLength: 1 }))
+    },
+    { additionalProperties: false }
+  ),
+  Type.Object(
+    {
+      type: Type.Literal("process"),
+      id: Type.Optional(Type.String({ minLength: 1 }))
+    },
+    { additionalProperties: false }
+  )
+]);
+
 const schema = Type.Object(
   {
     type: Type.String({ minLength: 1 }),
-    source: Type.Optional(
-      Type.Union([
-        Type.Literal("webhook"),
-        Type.Literal("agent"),
-        Type.Literal("process")
-      ])
-    ),
+    source: Type.Optional(sourceSchema),
     data: Type.Optional(Type.Unknown())
   },
   { additionalProperties: false }
@@ -31,12 +55,11 @@ export function buildSignalGenerateTool(signals: Signals): ToolDefinition {
     },
     execute: async (args, toolContext, toolCall) => {
       const payload = args as GenerateSignalArgs;
-      const source = payload.source ?? "agent";
+      const source = payload.source ?? { type: "agent", id: toolContext.agent.id };
       const signal = signals.generate({
         type: payload.type,
         source,
-        data: payload.data,
-        agentId: source === "agent" ? toolContext.agent.id : undefined
+        data: payload.data
       });
 
       const toolMessage: ToolResultMessage = {
@@ -46,7 +69,7 @@ export function buildSignalGenerateTool(signals: Signals): ToolDefinition {
         content: [
           {
             type: "text",
-            text: `Signal generated: ${signal.id} (${signal.type}, source=${signal.source}).`
+            text: `Signal generated: ${signal.id} (${signal.type}, source=${signalSourceLabel(signal.source)}).`
           }
         ],
         details: { signal },
@@ -57,4 +80,8 @@ export function buildSignalGenerateTool(signals: Signals): ToolDefinition {
       return { toolMessage, files: [] };
     }
   };
+}
+
+function signalSourceLabel(source: { type: string; id?: string }): string {
+  return source.id ? `${source.type}:${source.id}` : source.type;
 }

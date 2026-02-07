@@ -16,7 +16,7 @@ describe("Signals", () => {
 
     const signal = signals.generate({
       type: "build.completed",
-      source: "process",
+      source: { type: "process", id: "main-runtime" },
       data: { ok: true }
     });
 
@@ -25,7 +25,7 @@ describe("Signals", () => {
     expect(signal.id.length).toBeGreaterThan(0);
     expect(signal.createdAt).toBeGreaterThan(0);
     expect(signal.type).toBe("build.completed");
-    expect(signal.source).toBe("process");
+    expect(signal.source).toEqual({ type: "process", id: "main-runtime" });
     expect(signal.data).toEqual({ ok: true });
 
     const generated = events.find((event) => event.type === "signal.generated");

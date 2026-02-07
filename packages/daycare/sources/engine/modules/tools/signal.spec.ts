@@ -31,11 +31,10 @@ describe("buildSignalGenerateTool", () => {
 
     expect(result.toolMessage.isError).toBe(false);
     const details = result.toolMessage.details as
-      | { signal?: { type: string; source: string; agentId?: string; data?: unknown } }
+      | { signal?: { type: string; source: { type: string; id?: string }; data?: unknown } }
       | undefined;
     expect(details?.signal?.type).toBe("automation.requested");
-    expect(details?.signal?.source).toBe("agent");
-    expect(details?.signal?.agentId).toBe("agent-123");
+    expect(details?.signal?.source).toEqual({ type: "agent", id: "agent-123" });
     expect(details?.signal?.data).toEqual({ target: "deploy" });
     expect(events.some((event) => event.type === "signal.generated")).toBe(true);
   });

@@ -1,12 +1,13 @@
-export const SIGNAL_SOURCES = ["webhook", "agent", "process"] as const;
-
-export type SignalSource = (typeof SIGNAL_SOURCES)[number];
+export type SignalSource =
+  | { type: "system" }
+  | { type: "agent"; id: string }
+  | { type: "webhook"; id?: string }
+  | { type: "process"; id?: string };
 
 export type SignalGenerateInput = {
   type: string;
   source?: SignalSource;
   data?: unknown;
-  agentId?: string;
 };
 
 export type Signal = {
@@ -14,6 +15,5 @@ export type Signal = {
   type: string;
   source: SignalSource;
   data?: unknown;
-  agentId?: string;
   createdAt: number;
 };

@@ -1,11 +1,12 @@
 # Signals
 
-Signals are lightweight runtime events with a distinct string `type`, an optional `data` payload, and a `source`.
+Signals are lightweight runtime events with a distinct string `type`, an optional `data` payload, and a structured `source`.
 
-Supported sources:
-- `webhook`
-- `agent`
-- `process`
+Supported source variants:
+- `{ type: "system" }`
+- `{ type: "agent", id: string }`
+- `{ type: "webhook", id?: string }`
+- `{ type: "process", id?: string }`
 
 ## Runtime model
 
@@ -15,9 +16,8 @@ Supported sources:
 Signal shape:
 - `id` (cuid2)
 - `type` (string id)
-- `source` (`webhook | agent | process`)
+- `source` (discriminated object union)
 - `data` (optional)
-- `agentId` (optional, set for agent-generated signals)
 - `createdAt` (unix timestamp in milliseconds)
 
 ```mermaid
@@ -36,7 +36,5 @@ The core tool `generate_signal` is registered for agent contexts.
 
 Arguments:
 - `type` (required string)
-- `source` (optional, defaults to `agent` in tool usage)
+- `source` (optional object; defaults to `{ type: "agent", id: <current-agent-id> }` in tool usage)
 - `data` (optional payload)
-
-When used by an agent, `agentId` is attached when source is `agent`.
