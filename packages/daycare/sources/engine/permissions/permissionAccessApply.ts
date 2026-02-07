@@ -28,9 +28,14 @@ export function permissionAccessApply(
   }
 
   if (access.kind === "write") {
-    const next = new Set(permissions.writeDirs);
-    next.add(resolved);
-    permissions.writeDirs = Array.from(next.values());
+    const writeDirs = new Set(permissions.writeDirs);
+    writeDirs.add(resolved);
+    permissions.writeDirs = Array.from(writeDirs.values());
+
+    // Write access requires read access to the same path.
+    const readDirs = new Set(permissions.readDirs);
+    readDirs.add(resolved);
+    permissions.readDirs = Array.from(readDirs.values());
     return true;
   }
 

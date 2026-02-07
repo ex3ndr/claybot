@@ -38,6 +38,19 @@ flowchart TD
 - `permissionFormatTag`: format the `@network`/`@read`/`@write` tag used in logs.
 - `permissionDescribeDecision`: human-readable label for permission decisions.
 
+## Write implies read
+
+When a `@write:<path>` permission is applied, the same sanitized path is also added to
+`readDirs`. This keeps stored permission state aligned with the runtime rule that writable
+paths must also be readable.
+
+```mermaid
+flowchart LR
+  A["Approved @write:/path"] --> B["permissionAccessApply"]
+  B --> C["add /path to writeDirs"]
+  B --> D["add /path to readDirs"]
+```
+
 ## Permission requests
 
 Foreground agents request permissions directly from users via `request_permission`. Background

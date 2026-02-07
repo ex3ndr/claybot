@@ -25,6 +25,7 @@ describe("permissionAccessApply", () => {
     expect(permissionAccessApply(permissions, { kind: "read", path: readPath })).toBe(true);
     expect(permissionAccessApply(permissions, { kind: "write", path: writePath })).toBe(true);
     expect(permissions.readDirs).toContain(readPath);
+    expect(permissions.readDirs).toContain(writePath);
     expect(permissions.writeDirs).toContain(writePath);
   });
 

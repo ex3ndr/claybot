@@ -43,6 +43,7 @@ describe("permissionApply", () => {
     permissionApply(permissions, decision);
 
     expect(permissions.writeDirs).toEqual(expect.arrayContaining([target]));
+    expect(permissions.readDirs).toEqual(expect.arrayContaining([target]));
   });
 
   it("skips relative paths", () => {
