@@ -2,7 +2,11 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_SOUL_PATH, DEFAULT_USER_PATH } from "../../paths.js";
+import {
+  DEFAULT_MEMORY_PATH,
+  DEFAULT_SOUL_PATH,
+  DEFAULT_USER_PATH
+} from "../../paths.js";
 import { permissionBuildDefault } from "./permissionBuildDefault.js";
 
 describe("permissionBuildDefault", () => {
@@ -17,6 +21,7 @@ describe("permissionBuildDefault", () => {
       expect.arrayContaining([
         path.resolve(DEFAULT_SOUL_PATH),
         path.resolve(DEFAULT_USER_PATH),
+        path.resolve(DEFAULT_MEMORY_PATH),
         path.resolve(configDir, "heartbeat"),
         path.resolve(configDir, "skills")
       ])

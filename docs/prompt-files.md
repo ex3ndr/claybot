@@ -10,8 +10,9 @@ Daycare injects editable Markdown files into the system prompt. Agents read them
 | USER.md | `~/.daycare/USER.md` | Stable user facts, preferences, and context |
 | ACTORS.md | `~/.daycare/ACTORS.md` | Known agents, roles, and signal subscriptions |
 | TOOLS.md | `~/.daycare/TOOLS.md` | Learned tool knowledge — tips, pitfalls, patterns |
+| MEMORY.md | `~/.daycare/MEMORY.md` | Durable working notes and active context across sessions |
 
-All four are automatically created from bundled templates on first run if missing.
+All five are automatically created from bundled templates on first run if missing.
 
 ## Lifecycle
 
@@ -25,13 +26,13 @@ flowchart TD
   Skip --> Read[promptFileRead]
   Disk --> Read
   Read --> Context[Handlebars template context]
-  Context --> Render["SYSTEM.md renders {{{soul}}}, {{{user}}}, {{{actors}}}, {{{tools}}}"]
+  Context --> Render["SYSTEM.md renders {{{soul}}}, {{{user}}}, {{{actors}}}, {{{tools}}}, {{{memory}}}"]
 ```
 
 ## Injection
 
-- Foreground agents see all four files in their system prompt.
-- Background agents do not receive SOUL, USER, ACTORS, or TOOLS.
+- Foreground agents see all five files in their system prompt.
+- Background agents do not receive SOUL, USER, ACTORS, TOOLS, or MEMORY.
 - Paths are shown in the write permissions allowlist so agents can edit them.
 - Content is injected via triple-brace Handlebars (`{{{actors}}}`) to avoid HTML escaping.
 
@@ -42,3 +43,4 @@ Bundled defaults live in `sources/prompts/`:
 - `USER.md` — blank user profile fields
 - `ACTORS.md` — empty agent/subscription tables
 - `TOOLS.md` — empty tool knowledge tables
+- `MEMORY.md` — persistent working-memory template

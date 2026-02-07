@@ -9,6 +9,7 @@ import Handlebars from "handlebars";
 import { getLogger } from "../../log.js";
 import {
   DEFAULT_ACTORS_PATH,
+  DEFAULT_MEMORY_PATH,
   DEFAULT_SOUL_PATH,
   DEFAULT_TOOLS_PATH,
   DEFAULT_USER_PATH
@@ -420,6 +421,7 @@ export class Agent {
       userPath: DEFAULT_USER_PATH,
       actorsPath: DEFAULT_ACTORS_PATH,
       toolsPath: DEFAULT_TOOLS_PATH,
+      memoryPath: DEFAULT_MEMORY_PATH,
       pluginPrompt,
       skillsPrompt,
       permanentAgentsPrompt,
@@ -980,6 +982,7 @@ export class Agent {
     const userPath = context.userPath ?? DEFAULT_USER_PATH;
     const actorsPath = context.actorsPath ?? DEFAULT_ACTORS_PATH;
     const toolsPath = context.toolsPath ?? DEFAULT_TOOLS_PATH;
+    const memoryPath = context.memoryPath ?? DEFAULT_MEMORY_PATH;
     logger.debug(`buildSystemPrompt reading soul prompt path=${soulPath}`);
     const soul = await promptFileRead(soulPath, "SOUL.md");
     logger.debug(`buildSystemPrompt reading user prompt path=${userPath}`);
@@ -988,6 +991,8 @@ export class Agent {
     const actors = await promptFileRead(actorsPath, "ACTORS.md");
     logger.debug(`buildSystemPrompt reading tools prompt path=${toolsPath}`);
     const tools = await promptFileRead(toolsPath, "TOOLS.md");
+    logger.debug(`buildSystemPrompt reading memory prompt path=${memoryPath}`);
+    const memory = await promptFileRead(memoryPath, "MEMORY.md");
     logger.debug("buildSystemPrompt reading system template");
     const systemTemplate = await agentPromptBundledRead("SYSTEM.md");
     logger.debug("buildSystemPrompt reading permissions template");
@@ -1000,7 +1005,8 @@ export class Agent {
       soulPath,
       userPath,
       actorsPath,
-      toolsPath
+      toolsPath,
+      memoryPath
     );
 
     const isForeground = context.agentKind !== "background";
@@ -1031,6 +1037,7 @@ export class Agent {
       userPath,
       actorsPath,
       toolsPath,
+      memoryPath,
       pluginPrompt: context.pluginPrompt ?? "",
       skillsPrompt: context.skillsPrompt ?? "",
       parentAgentId: context.parentAgentId ?? "",
@@ -1041,6 +1048,7 @@ export class Agent {
       user,
       actors,
       tools,
+      memory,
       additionalWriteDirs,
       permanentAgentsPrompt: context.permanentAgentsPrompt ?? "",
       agentPrompt: context.agentPrompt ?? ""
@@ -1087,6 +1095,7 @@ type AgentSystemPromptContext = {
   userPath?: string;
   actorsPath?: string;
   toolsPath?: string;
+  memoryPath?: string;
   pluginPrompt?: string;
   skillsPrompt?: string;
   permanentAgentsPrompt?: string;
@@ -1104,10 +1113,11 @@ function resolveAdditionalWriteDirs(
   soulPath: string,
   userPath: string,
   actorsPath: string,
-  toolsPath: string
+  toolsPath: string,
+  memoryPath: string
 ): string[] {
   const excluded = new Set(
-    [workspace, soulPath, userPath, actorsPath, toolsPath]
+    [workspace, soulPath, userPath, actorsPath, toolsPath, memoryPath]
       .filter((entry) => entry && entry.trim().length > 0)
       .map((entry) => path.resolve(entry))
   );

@@ -142,8 +142,8 @@ Use `cron_read_memory`/`cron_write_memory` for durable task state.
 
 ## Memory
 
-Memory files: SOUL `{{soulPath}}`, USER `{{userPath}}`, ACTORS `{{actorsPath}}`, TOOLS `{{toolsPath}}`.
-Update USER.md for stable user facts/preferences. Update SOUL.md for behavioral refinements. Update TOOLS.md when you learn non-obvious tool behavior. Keep concise, no speculation.
+Memory files: SOUL `{{soulPath}}`, USER `{{userPath}}`, ACTORS `{{actorsPath}}`, TOOLS `{{toolsPath}}`, MEMORY `{{memoryPath}}`.
+Update USER.md for stable user facts/preferences. Update SOUL.md for behavioral refinements. Update ACTORS.md when agents are created or signal subscriptions change. Update TOOLS.md when you learn non-obvious tool behavior. Update MEMORY.md for durable working notes, ongoing plans, and session-to-session continuity that doesn't belong in USER/ACTORS/TOOLS. Keep concise, no speculation.
 
 **ACTORS.md — update before any system change.** Any change to the actor topology must be documented in ACTORS.md **before** implementing it. This includes:
 - Adding or removing a **permanent agent**
@@ -177,6 +177,12 @@ Update the mermaid diagram whenever the wiring changes so it stays in sync with 
 ## Tool Knowledge
 
 {{{tools}}}
+
+---
+
+## Working Memory
+
+{{{memory}}}
 {{/if}}
 
 {{#if agentPrompt}}

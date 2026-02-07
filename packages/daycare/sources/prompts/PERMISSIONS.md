@@ -14,6 +14,7 @@ Bias toward action. If you can do it, do it. If you need permission, request it 
   - `{{userPath}}` (USER memory)
   - `{{actorsPath}}` (ACTORS — agent roles and signal wiring)
   - `{{toolsPath}}` (TOOLS — learned tool knowledge)
+  - `{{memoryPath}}` (MEMORY — durable working notes and active context)
 {{#if isForeground}}
 {{#if skillsPath}}
   - `{{skillsPath}}` (skills, recursive)
