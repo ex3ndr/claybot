@@ -20,7 +20,7 @@ import { toolResultFormatVerbose } from "./toolResultFormatVerbose.js";
 
 const schema = Type.Object(
   {
-    sessionId: Type.String({ minLength: 1 }),
+    agentId: Type.String({ minLength: 1 }),
     summarized: Type.Optional(Type.Boolean())
   },
   { additionalProperties: false }
@@ -33,37 +33,37 @@ const MAX_SUMMARY_INPUT_CHARS = 120_000;
 
 /**
  * Builds the read_session_history tool for cross-session visibility.
- * Expects: sessionId references another persisted agent/session id.
+ * Expects: agentId references another persisted agent/session id.
  */
 export function sessionHistoryToolBuild(): ToolDefinition {
   return {
     tool: {
       name: "read_session_history",
       description:
-        "Read another session's history by sessionId. Returns a summary by default (summarized=true).",
+        "Read another session's history by agentId. Returns a summary by default (summarized=true).",
       parameters: schema
     },
     execute: async (args, toolContext, toolCall) => {
       const payload = args as SessionHistoryArgs;
-      const sessionId = payload.sessionId.trim();
-      if (!sessionId) {
-        throw new Error("sessionId is required.");
+      const agentId = payload.agentId.trim();
+      if (!agentId) {
+        throw new Error("agentId is required.");
       }
-      if (sessionId === toolContext.agent.id) {
-        throw new Error("sessionId must refer to another session.");
+      if (agentId === toolContext.agent.id) {
+        throw new Error("agentId must refer to another session.");
       }
 
       const config = toolContext.agentSystem.config.current;
-      const descriptor = await agentDescriptorRead(config, sessionId);
+      const descriptor = await agentDescriptorRead(config, agentId);
       if (!descriptor) {
-        throw new Error(`Session not found: ${sessionId}`);
+        throw new Error(`Agent session not found: ${agentId}`);
       }
 
-      const records = await agentHistoryLoad(config, sessionId);
+      const records = await agentHistoryLoad(config, agentId);
       const summarized = payload.summarized ?? true;
       const text = summarized
-        ? await summaryTextGenerate(sessionId, records, toolContext)
-        : rawHistoryTextBuild(sessionId, records);
+        ? await summaryTextGenerate(agentId, records, toolContext)
+        : rawHistoryTextBuild(agentId, records);
 
       const toolMessage: ToolResultMessage = {
         role: "toolResult",
@@ -71,7 +71,7 @@ export function sessionHistoryToolBuild(): ToolDefinition {
         toolName: toolCall.name,
         content: [{ type: "text", text }],
         details: {
-          sessionId,
+          agentId,
           summarized,
           recordCount: records.length
         },
@@ -85,12 +85,12 @@ export function sessionHistoryToolBuild(): ToolDefinition {
 }
 
 async function summaryTextGenerate(
-  sessionId: string,
+  agentId: string,
   records: AgentHistoryRecord[],
   toolContext: ToolExecutionContext
 ): Promise<string> {
   if (records.length === 0) {
-    return `No history records found for session ${sessionId}.`;
+    return `No history records found for agent ${agentId}.`;
   }
   const providers = listActiveInferenceProviders(
     toolContext.agentSystem.config.current.settings
@@ -110,7 +110,7 @@ async function summaryTextGenerate(
     messages: [
       {
         role: "user",
-        content: summaryInputBuild(sessionId, records),
+        content: summaryInputBuild(agentId, records),
         timestamp: Date.now()
       }
     ]
@@ -125,25 +125,25 @@ async function summaryTextGenerate(
   if (!summaryText) {
     throw new Error("Summarization model returned empty output.");
   }
-  return [`Session ${sessionId} summary:`, summaryText].join("\n");
+  return [`Agent ${agentId} session summary:`, summaryText].join("\n");
 }
 
-function rawHistoryTextBuild(sessionId: string, records: AgentHistoryRecord[]): string {
+function rawHistoryTextBuild(agentId: string, records: AgentHistoryRecord[]): string {
   if (records.length === 0) {
-    return `No history records found for session ${sessionId}.`;
+    return `No history records found for agent ${agentId}.`;
   }
   return [
-    `Session ${sessionId} full history (${records.length} records):`,
+    `Agent ${agentId} full session history (${records.length} records):`,
     JSON.stringify(records, null, 2)
   ].join("\n");
 }
 
-function summaryInputBuild(sessionId: string, records: AgentHistoryRecord[]): string {
+function summaryInputBuild(agentId: string, records: AgentHistoryRecord[]): string {
   const summary = agentHistorySummaryBuild(records);
   const tail = records.slice(-MAX_SUMMARY_RECORDS);
   const omittedCount = records.length - tail.length;
   const lines = [
-    `Summarize this session history: ${sessionId}`,
+    `Summarize this agent session history: ${agentId}`,
     `record_count: ${summary.recordCount}`,
     `range: ${formatTimestamp(summary.firstAt)} -> ${formatTimestamp(summary.lastAt)}`,
     [

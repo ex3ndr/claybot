@@ -1,8 +1,8 @@
 # Session History Tool
 
-`read_session_history` lets an agent inspect another session's history by `sessionId`.
+`read_session_history` lets an agent inspect another session's history by `agentId`.
 
-- `sessionId`: target session id to read (required)
+- `agentId`: target agent/session id to read (required)
 - `summarized`: when omitted, defaults to `true`
   - `true`: runs a summarization model and returns model-generated summary text
   - `false`: return full JSON history payload
@@ -15,7 +15,7 @@ sequenceDiagram
   participant Disk as Agent Store
   participant Router as InferenceRouter
   participant Model as Summarization Model
-  Agent->>Tool: sessionId + summarized?
+  Agent->>Tool: agentId + summarized?
   Tool->>Disk: read descriptor.json
   Tool->>Disk: read history.jsonl
   alt summarized=true (default)

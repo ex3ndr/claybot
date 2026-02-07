@@ -27,15 +27,15 @@ describe("sessionHistoryToolBuild", () => {
         path.join(dir, "settings.json")
       );
       const currentAgentId = createId();
-      const targetSessionId = createId();
-      await agentDescriptorWrite(config, targetSessionId, {
+      const targetAgentId = createId();
+      await agentDescriptorWrite(config, targetAgentId, {
         type: "subagent",
-        id: targetSessionId,
+        id: targetAgentId,
         parentAgentId: currentAgentId,
         name: "worker"
       });
-      await agentHistoryAppend(config, targetSessionId, { type: "start", at: 10 });
-      await agentHistoryAppend(config, targetSessionId, {
+      await agentHistoryAppend(config, targetAgentId, { type: "start", at: 10 });
+      await agentHistoryAppend(config, targetAgentId, {
         type: "user_message",
         at: 20,
         text: "check logs",
@@ -49,11 +49,11 @@ describe("sessionHistoryToolBuild", () => {
         modelId: "gpt-test"
       }));
       const context = buildContext(currentAgentId, config, completeMock);
-      const result = await tool.execute({ sessionId: targetSessionId }, context, toolCall);
+      const result = await tool.execute({ agentId: targetAgentId }, context, toolCall);
 
       const text = contentText(result.toolMessage.content);
       expect(result.toolMessage.isError).toBe(false);
-      expect(text).toContain("Session");
+      expect(text).toContain("Agent");
       expect(text).toContain("Summary:");
       expect(text).toContain("reviewed history");
       expect(completeMock).toHaveBeenCalledTimes(1);
@@ -77,15 +77,15 @@ describe("sessionHistoryToolBuild", () => {
         path.join(dir, "settings.json")
       );
       const currentAgentId = createId();
-      const targetSessionId = createId();
-      await agentDescriptorWrite(config, targetSessionId, {
+      const targetAgentId = createId();
+      await agentDescriptorWrite(config, targetAgentId, {
         type: "subagent",
-        id: targetSessionId,
+        id: targetAgentId,
         parentAgentId: currentAgentId,
         name: "worker"
       });
-      await agentHistoryAppend(config, targetSessionId, { type: "start", at: 10 });
-      await agentHistoryAppend(config, targetSessionId, {
+      await agentHistoryAppend(config, targetAgentId, { type: "start", at: 10 });
+      await agentHistoryAppend(config, targetAgentId, {
         type: "note",
         at: 30,
         text: "done"
@@ -99,14 +99,14 @@ describe("sessionHistoryToolBuild", () => {
       }));
       const context = buildContext(currentAgentId, config, completeMock);
       const result = await tool.execute(
-        { sessionId: targetSessionId, summarized: false },
+        { agentId: targetAgentId, summarized: false },
         context,
         toolCall
       );
 
       const text = contentText(result.toolMessage.content);
       expect(result.toolMessage.isError).toBe(false);
-      expect(text).toContain("full history");
+      expect(text).toContain("full session history");
       expect(text).toContain("\"type\": \"note\"");
       expect(completeMock).not.toHaveBeenCalled();
     } finally {
