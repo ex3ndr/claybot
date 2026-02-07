@@ -299,4 +299,146 @@ describe("Agent", () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  it("emits idle lifecycle signal one minute after sleeping", async () => {
+    vi.useFakeTimers();
+    const dir = await mkdtemp(path.join(os.tmpdir(), "daycare-agent-"));
+    try {
+      const config = configResolve(
+        { engine: { dataDir: dir }, assistant: { workspaceDir: dir } },
+        path.join(dir, "settings.json")
+      );
+      const eventBus = new EngineEventBus();
+      const agentSystem = new AgentSystem({
+        config: new ConfigModule(config),
+        eventBus,
+        connectorRegistry: new ConnectorRegistry({
+          onMessage: async () => undefined
+        }),
+        imageRegistry: new ImageGenerationRegistry(),
+        toolResolver: new ToolResolver(),
+        pluginManager: {} as unknown as PluginManager,
+        inferenceRouter: {} as unknown as InferenceRouter,
+        fileStore: new FileStore(config),
+        authStore: new AuthStore(config)
+      });
+      agentSystem.setCrons({} as unknown as Crons);
+      const signals = new Signals({ eventBus, configDir: config.configDir });
+      agentSystem.setSignals(signals);
+      await agentSystem.load();
+      await agentSystem.start();
+
+      const lifecycleTypes: string[] = [];
+      const idleAgentIds: string[] = [];
+      const unsubscribe = eventBus.onEvent((event) => {
+        if (event.type === "signal.generated") {
+          const payload = event.payload as Signal;
+          lifecycleTypes.push(payload.type);
+          return;
+        }
+        if (event.type === "agent.idle") {
+          const payload = event.payload as { agentId: string };
+          idleAgentIds.push(payload.agentId);
+        }
+      });
+
+      const agentId = createId();
+      const descriptor: AgentDescriptor = { type: "cron", id: agentId, name: "Idle agent" };
+
+      await agentSystem.postAndAwait(
+        { descriptor },
+        { type: "reset", message: "init idle lifecycle" }
+      );
+
+      await vi.advanceTimersByTimeAsync(59_000);
+      expect(idleAgentIds).toEqual([]);
+      expect(lifecycleTypes).not.toContain(`agent:${agentId}:idle`);
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.waitFor(() => {
+        expect(lifecycleTypes).toContain(`agent:${agentId}:idle`);
+      });
+
+      unsubscribe();
+
+      expect(idleAgentIds).toContain(agentId);
+    } finally {
+      vi.useRealTimers();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("cancels pending idle lifecycle signal when agent wakes", async () => {
+    vi.useFakeTimers();
+    const dir = await mkdtemp(path.join(os.tmpdir(), "daycare-agent-"));
+    try {
+      const config = configResolve(
+        { engine: { dataDir: dir }, assistant: { workspaceDir: dir } },
+        path.join(dir, "settings.json")
+      );
+      const eventBus = new EngineEventBus();
+      const agentSystem = new AgentSystem({
+        config: new ConfigModule(config),
+        eventBus,
+        connectorRegistry: new ConnectorRegistry({
+          onMessage: async () => undefined
+        }),
+        imageRegistry: new ImageGenerationRegistry(),
+        toolResolver: new ToolResolver(),
+        pluginManager: {} as unknown as PluginManager,
+        inferenceRouter: {} as unknown as InferenceRouter,
+        fileStore: new FileStore(config),
+        authStore: new AuthStore(config)
+      });
+      agentSystem.setCrons({} as unknown as Crons);
+      const signals = new Signals({ eventBus, configDir: config.configDir });
+      agentSystem.setSignals(signals);
+      await agentSystem.load();
+      await agentSystem.start();
+
+      const lifecycleTypes: string[] = [];
+      const idleAgentIds: string[] = [];
+      const unsubscribe = eventBus.onEvent((event) => {
+        if (event.type === "signal.generated") {
+          const payload = event.payload as Signal;
+          lifecycleTypes.push(payload.type);
+          return;
+        }
+        if (event.type === "agent.idle") {
+          const payload = event.payload as { agentId: string };
+          idleAgentIds.push(payload.agentId);
+        }
+      });
+
+      const agentId = createId();
+      const descriptor: AgentDescriptor = { type: "cron", id: agentId, name: "Wake cancel agent" };
+
+      await agentSystem.postAndAwait(
+        { descriptor },
+        { type: "reset", message: "initial sleep" }
+      );
+
+      await vi.advanceTimersByTimeAsync(30_000);
+
+      await agentSystem.postAndAwait(
+        { agentId },
+        { type: "reset", message: "wake before idle deadline" }
+      );
+
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(idleAgentIds).toEqual([]);
+      expect(lifecycleTypes).not.toContain(`agent:${agentId}:idle`);
+
+      await vi.advanceTimersByTimeAsync(30_000);
+      await vi.waitFor(() => {
+        expect(lifecycleTypes).toContain(`agent:${agentId}:idle`);
+      });
+      unsubscribe();
+
+      expect(idleAgentIds).toEqual([agentId]);
+    } finally {
+      vi.useRealTimers();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });

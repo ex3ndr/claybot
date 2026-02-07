@@ -24,7 +24,7 @@ When proposing new agents, include:
 
 Communication primitives:
 - **Direct messages** (`send_agent_message`): point-to-point, synchronous feel. Use for requests, responses, and directed tasks between specific agents.
-- **Signals** (`generate_signal` / `signal_subscribe`): broadcast, decoupled. Use for event notifications (build done, state changed, agent woke/slept) where multiple agents may react independently. Signal types use colon-separated segments (e.g. `deploy:staging:done`); subscribers use `*` wildcards per segment. System emits lifecycle signals: `agent:<id>:wake` and `agent:<id>:sleep`.
+- **Signals** (`generate_signal` / `signal_subscribe`): broadcast, decoupled. Use for event notifications (build done, state changed, agent woke/slept/idled) where multiple agents may react independently. Signal types use colon-separated segments (e.g. `deploy:staging:done`); subscribers use `*` wildcards per segment. System emits lifecycle signals: `agent:<id>:wake`, `agent:<id>:sleep`, and `agent:<id>:idle` (after 1 minute asleep).
 
 Output format:
 - Topology

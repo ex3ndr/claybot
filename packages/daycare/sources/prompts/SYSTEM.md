@@ -104,7 +104,7 @@ Signals are broadcast events for decoupled, multi-agent coordination. Unlike `se
 
 **Unsubscribing:** `signal_unsubscribe` — pass the exact pattern to remove.
 
-**Lifecycle signals:** The system automatically emits `agent:<agentId>:wake` and `agent:<agentId>:sleep` when agents change state. Subscribe to these to coordinate handoffs or monitor agent activity.
+**Lifecycle signals:** The system automatically emits `agent:<agentId>:wake`, `agent:<agentId>:sleep`, and `agent:<agentId>:idle` (after 1 minute asleep) when agents change state. Subscribe to these to coordinate handoffs or monitor agent activity.
 
 Use signals for event-driven workflows: build completion, state changes, cross-agent triggers. Prefer direct messaging for request/response or directed tasks.
 

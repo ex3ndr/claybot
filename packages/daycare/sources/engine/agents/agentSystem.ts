@@ -44,6 +44,7 @@ import type { ConfigModule } from "../config/configModule.js";
 import type { Signals } from "../signals/signals.js";
 
 const logger = getLogger("engine.agent-system");
+const AGENT_IDLE_DELAY_MS = 60_000;
 
 type AgentEntry = {
   agentId: string;
@@ -81,6 +82,7 @@ export class AgentSystem {
   private _signals: Signals | null = null;
   private entries = new Map<string, AgentEntry>();
   private keyMap = new Map<string, string>();
+  private idleTimers = new Map<string, NodeJS.Timeout>();
   private stage: "idle" | "loaded" | "running" = "idle";
 
   constructor(options: AgentSystemOptions) {
@@ -360,6 +362,7 @@ export class AgentSystem {
       slept = true;
     });
     if (slept) {
+      this.scheduleIdleEvent(agentId);
       await this.signalLifecycle(agentId, "sleep");
     }
   }
@@ -551,6 +554,7 @@ export class AgentSystem {
     if (entry.agent.state.state !== "sleeping") {
       return false;
     }
+    this.cancelIdleEvent(entry.agentId);
     entry.agent.state.state = "active";
     await agentStateWrite(this.config.current, entry.agentId, entry.agent.state);
     this.eventBus.emit("agent.woke", { agentId: entry.agentId });
@@ -558,7 +562,58 @@ export class AgentSystem {
     return true;
   }
 
-  private async signalLifecycle(agentId: string, state: "wake" | "sleep"): Promise<void> {
+  private scheduleIdleEvent(agentId: string): void {
+    this.cancelIdleEvent(agentId);
+    let timer: NodeJS.Timeout;
+    timer = setTimeout(() => {
+      void this.emitIdleIfStillSleeping(agentId, timer);
+    }, AGENT_IDLE_DELAY_MS);
+    this.idleTimers.set(agentId, timer);
+  }
+
+  private cancelIdleEvent(agentId: string): void {
+    const timer = this.idleTimers.get(agentId);
+    if (!timer) {
+      return;
+    }
+    clearTimeout(timer);
+    this.idleTimers.delete(agentId);
+  }
+
+  private async emitIdleIfStillSleeping(agentId: string, timer: NodeJS.Timeout): Promise<void> {
+    if (this.idleTimers.get(agentId) !== timer) {
+      return;
+    }
+    this.idleTimers.delete(agentId);
+
+    const entry = this.entries.get(agentId);
+    if (!entry) {
+      return;
+    }
+
+    let shouldEmit = false;
+    await entry.lock.inLock(async () => {
+      if (entry.agent.state.state !== "sleeping") {
+        return;
+      }
+      if (entry.inbox.size() > 0) {
+        return;
+      }
+      shouldEmit = true;
+    });
+    if (!shouldEmit) {
+      return;
+    }
+
+    this.eventBus.emit("agent.idle", {
+      agentId,
+      delayMs: AGENT_IDLE_DELAY_MS
+    });
+    logger.debug({ agentId, delayMs: AGENT_IDLE_DELAY_MS }, "Agent idle event emitted");
+    await this.signalLifecycle(agentId, "idle");
+  }
+
+  private async signalLifecycle(agentId: string, state: "wake" | "sleep" | "idle"): Promise<void> {
     if (!this._signals) {
       return;
     }
