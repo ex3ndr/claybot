@@ -213,6 +213,10 @@ describe("TelegramConnector startup", () => {
         {
           command: "context",
           description: "Show latest context token usage."
+        },
+        {
+          command: "stop",
+          description: "Abort the current inference."
         }
       ],
       {

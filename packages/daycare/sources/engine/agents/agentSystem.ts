@@ -226,6 +226,20 @@ export class AgentSystem {
     };
   }
 
+  /**
+   * Aborts the active inference call for a loaded agent target.
+   * Returns false when the target is not loaded or has no active inference.
+   */
+  abortInferenceForTarget(target: AgentPostTarget): boolean {
+    const entry = this.findLoadedEntry(target);
+    if (!entry) {
+      return false;
+    }
+    const aborted = entry.agent.abortInference();
+    logger.info({ agentId: entry.agentId, aborted }, "Abort inference requested");
+    return aborted;
+  }
+
   async grantPermission(
     target: AgentPostTarget,
     access: PermissionAccess
@@ -338,6 +352,21 @@ export class AgentSystem {
 
   async inReadLock<T>(operation: () => Promise<T>): Promise<T> {
     return this.config.inReadLock(operation);
+  }
+
+  private findLoadedEntry(target: AgentPostTarget): AgentEntry | null {
+    if ("agentId" in target) {
+      return this.entries.get(target.agentId) ?? null;
+    }
+    const key = agentPathForDescriptor(target.descriptor);
+    if (!key) {
+      return null;
+    }
+    const agentId = this.keyMap.get(key);
+    if (!agentId) {
+      return null;
+    }
+    return this.entries.get(agentId) ?? null;
   }
 
   private async resolveEntry(

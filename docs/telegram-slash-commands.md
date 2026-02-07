@@ -5,6 +5,7 @@ The Telegram connector now registers slash commands when it starts. This ensures
 ## Registered commands
 - `/reset` - reset the current conversation.
 - `/context` - show the latest context token usage snapshot.
+- `/stop` - abort the current inference.
 
 ## Startup flow
 
@@ -12,7 +13,7 @@ The Telegram connector now registers slash commands when it starts. This ensures
 flowchart TD
   A[TelegramConnector constructor] --> B[initialize]
   B --> C[registerSlashCommands]
-  C --> D[bot.setMyCommands reset/context]
+  C --> D[bot.setMyCommands reset/context/stop]
   D --> E{Succeeded?}
   E -->|yes| F[Continue startup]
   E -->|no| G[Log warning]

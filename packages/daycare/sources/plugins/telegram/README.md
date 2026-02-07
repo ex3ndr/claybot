@@ -31,7 +31,7 @@ It normalizes incoming messages into `ConnectorMessage` objects and sends respon
 
 ## Slash commands
 - Registers Telegram bot commands during startup via `setMyCommands`.
-- Commands are scoped to private chats: `/reset` and `/context`.
+- Commands are scoped to private chats: `/reset`, `/context`, and `/stop`.
 
 ## Persistence
 - Tracks the last processed Telegram `update_id` and persists it to the configured state file.

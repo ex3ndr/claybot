@@ -72,6 +72,7 @@ flowchart LR
 
 ## Telegram commands
 - `/reset` clears the agent message history for the current user.
+- `/stop` aborts the current inference for the current user.
 
 ```mermaid
 sequenceDiagram
@@ -80,7 +81,7 @@ sequenceDiagram
   participant E as Engine
   participant AS as AgentSystem
   U->>T: /reset
-  T->>E: onMessage (command=reset)
+  T->>E: onCommand("/reset")
   E->>AS: post(reset)
 ```
 

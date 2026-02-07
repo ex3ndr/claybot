@@ -42,6 +42,7 @@ type AgentLoopRunOptions = {
   providersForAgent: ProviderSettings[];
   verbose: boolean;
   logger: Logger;
+  abortSignal?: AbortSignal;
   notifySubagentFailure: (reason: string, error?: unknown) => Promise<void>;
 };
 
@@ -85,6 +86,7 @@ export async function agentLoopRun(options: AgentLoopRunOptions): Promise<AgentL
     providersForAgent,
     verbose,
     logger,
+    abortSignal,
     notifySubagentFailure
   } = options;
 
@@ -110,6 +112,7 @@ export async function agentLoopRun(options: AgentLoopRunOptions): Promise<AgentL
       );
       response = await inferenceRouter.complete(context, agent.id, {
         providersOverride: providersForAgent,
+        signal: abortSignal,
         onAttempt: (providerId, modelId) => {
           logger.debug(
             `Inference attempt starting providerId=${providerId} modelId=${modelId} agentId=${agent.id}`
@@ -291,6 +294,10 @@ export async function agentLoopRun(options: AgentLoopRunOptions): Promise<AgentL
     logger.debug("Inference loop completed");
   } catch (error) {
     logger.debug(`Inference loop caught error error=${String(error)}`);
+    if (isInferenceAbortError(error, abortSignal)) {
+      logger.info({ agentId: agent.id }, "Inference aborted");
+      return { responseText: finalResponseText, historyRecords, tokenStatsUpdates };
+    }
     if (isContextOverflowError(error)) {
       logger.warn({ agentId: agent.id, error }, "Inference context overflow detected");
       return { responseText: finalResponseText, historyRecords, contextOverflow: true, tokenStatsUpdates };
@@ -320,7 +327,12 @@ export async function agentLoopRun(options: AgentLoopRunOptions): Promise<AgentL
     return { responseText: finalResponseText, historyRecords, tokenStatsUpdates };
   }
 
-  if (response.message.stopReason === "error" || response.message.stopReason === "aborted") {
+  if (response.message.stopReason === "aborted") {
+    logger.info({ agentId: agent.id }, "Inference aborted by provider");
+    return { responseText: finalResponseText, historyRecords, tokenStatsUpdates };
+  }
+
+  if (response.message.stopReason === "error") {
     if (isContextOverflowError(response.message.errorMessage ?? "")) {
       logger.warn(
         { agentId: agent.id, error: response.message.errorMessage },
@@ -497,6 +509,22 @@ function isContextOverflowError(error: unknown): boolean {
   for (const value of candidates) {
     const normalized = value.toLowerCase();
     if (patterns.some((pattern) => normalized.includes(pattern))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isInferenceAbortError(error: unknown, signal?: AbortSignal): boolean {
+  if (signal?.aborted) {
+    return true;
+  }
+  if (error instanceof Error && error.name === "AbortError") {
+    return true;
+  }
+  if (typeof error === "object" && error !== null) {
+    const name = (error as { name?: unknown }).name;
+    if (typeof name === "string" && name === "AbortError") {
       return true;
     }
   }

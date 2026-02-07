@@ -69,6 +69,7 @@ export class Agent {
   private providerId: string | null = null;
   private processing = false;
   private started = false;
+  private inferenceAbortController: AbortController | null = null;
 
   private constructor(
     id: string,
@@ -155,6 +156,19 @@ export class Agent {
 
   isProcessing(): boolean {
     return this.processing;
+  }
+
+  /**
+   * Aborts the currently running inference call for this agent.
+   * Returns false when no active inference is in flight.
+   */
+  abortInference(): boolean {
+    const controller = this.inferenceAbortController;
+    if (!controller || controller.signal.aborted) {
+      return false;
+    }
+    controller.abort();
+    return true;
   }
 
   private async runLoop(): Promise<void> {
@@ -485,26 +499,37 @@ export class Agent {
       : [];
 
     logger.debug(`handleMessage invoking inference loop agentId=${this.id}`);
-    const result = await agentLoopRun({
-      entry,
-      agent: this,
-      source,
-      context: contextForRun,
-      connector,
-      connectorRegistry: this.agentSystem.connectorRegistry,
-      inferenceRouter: this.agentSystem.inferenceRouter,
-      toolResolver: this.agentSystem.toolResolver,
-      fileStore: this.agentSystem.fileStore,
-      authStore: this.agentSystem.authStore,
-      eventBus: this.agentSystem.eventBus,
-      assistant: this.agentSystem.config.current.settings.assistant ?? null,
-      agentSystem: this.agentSystem,
-      heartbeats: this.agentSystem.heartbeats,
-      providersForAgent,
-      verbose: this.agentSystem.config.current.verbose,
-      logger,
-      notifySubagentFailure: (reason, error) => this.notifySubagentFailure(reason, error)
-    });
+    const inferenceAbortController = new AbortController();
+    this.inferenceAbortController = inferenceAbortController;
+    const result = await (async () => {
+      try {
+        return await agentLoopRun({
+          entry,
+          agent: this,
+          source,
+          context: contextForRun,
+          connector,
+          connectorRegistry: this.agentSystem.connectorRegistry,
+          inferenceRouter: this.agentSystem.inferenceRouter,
+          toolResolver: this.agentSystem.toolResolver,
+          fileStore: this.agentSystem.fileStore,
+          authStore: this.agentSystem.authStore,
+          eventBus: this.agentSystem.eventBus,
+          assistant: this.agentSystem.config.current.settings.assistant ?? null,
+          agentSystem: this.agentSystem,
+          heartbeats: this.agentSystem.heartbeats,
+          providersForAgent,
+          verbose: this.agentSystem.config.current.verbose,
+          logger,
+          abortSignal: inferenceAbortController.signal,
+          notifySubagentFailure: (reason, error) => this.notifySubagentFailure(reason, error)
+        });
+      } finally {
+        if (this.inferenceAbortController === inferenceAbortController) {
+          this.inferenceAbortController = null;
+        }
+      }
+    })();
 
     if (result.contextOverflow) {
       logger.warn({ agentId: this.id }, "Inference context overflow; resetting session");

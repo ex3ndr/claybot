@@ -114,6 +114,17 @@ export class Engine {
           await this.handleContextCommand(descriptor, context);
           return;
         }
+        if (parsed.name === "stop") {
+          if (descriptor.type !== "user") {
+            return;
+          }
+          logger.info(
+            { connector, channelId: descriptor.channelId, userId: descriptor.userId },
+            "Stop command received"
+          );
+          await this.handleStopCommand(descriptor, context);
+          return;
+        }
         logger.debug({ connector, command: parsed.name }, "Unknown command ignored");
       }),
       onPermission: async (decision, context, descriptor) => this.runConnectorCallback("permission", async () => {
@@ -361,6 +372,32 @@ export class Engine {
       { descriptor },
       { type: "reset", message: "Manual reset requested by the user.", context }
     );
+  }
+
+  private async handleStopCommand(
+    descriptor: AgentDescriptor,
+    context: MessageContext
+  ): Promise<void> {
+    const target = agentDescriptorTargetResolve(descriptor);
+    if (!target) {
+      return;
+    }
+    const connector = this.modules.connectors.get(target.connector);
+    if (!connector?.capabilities.sendText) {
+      return;
+    }
+    const aborted = this.agentSystem.abortInferenceForTarget({ descriptor });
+    const text = aborted
+      ? "Stopped current inference."
+      : "No active inference to stop.";
+    try {
+      await connector.sendMessage(target.targetId, {
+        text,
+        replyToMessageId: context.messageId
+      });
+    } catch (error) {
+      logger.warn({ connector: target.connector, error }, "Stop command failed to send response");
+    }
   }
 
   async reload(): Promise<void> {

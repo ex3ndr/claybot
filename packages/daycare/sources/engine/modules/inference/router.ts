@@ -25,6 +25,7 @@ export type InferenceCompleteOptions = {
   onSuccess?: (providerId: string, modelId: string, message: AssistantMessage) => void;
   onFailure?: (providerId: string, error: unknown) => void;
   providersOverride?: ProviderSettings[];
+  signal?: AbortSignal;
 };
 
 export class InferenceRouter {
@@ -91,7 +92,10 @@ export class InferenceRouter {
         try {
           this.logger.debug(`Calling client.complete() providerId=${providerConfig.id} modelId=${client.modelId} agentId=${agentId}`);
           // Provider API still expects `sessionId`; map to the agent id.
-          const message = await client.complete(context, { sessionId: agentId });
+          const message = await client.complete(context, {
+            sessionId: agentId,
+            signal: options?.signal
+          });
           this.logger.debug(`Inference completed successfully providerId=${providerConfig.id} modelId=${client.modelId} stopReason=${message.stopReason} contentBlocks=${message.content.length} inputTokens=${message.usage?.input} outputTokens=${message.usage?.output}`);
           options?.onSuccess?.(providerConfig.id, client.modelId, message);
           return { message, providerId: providerConfig.id, modelId: client.modelId };
