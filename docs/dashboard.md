@@ -95,6 +95,7 @@ flowchart TD
   MainGrid --> Agents[Active agents table]
   MainGrid --> Inventory[Inventory tabs]
   MainGrid --> Cron[Cron tasks]
+  MainGrid --> Heartbeat[Heartbeat tasks]
 ```
 
 ## Quick actions
@@ -107,6 +108,22 @@ flowchart LR
   Actions --> Automations[Automations]
   Actions --> Connectors[Connectors]
   Actions --> Providers[Providers]
+```
+
+## Automations task views
+
+The automations screen fetches both cron and heartbeat task lists on refresh and renders dedicated views for each.
+
+```mermaid
+flowchart LR
+  Automations[Automations page] -->|fetch /api/v1/engine/cron/tasks| Proxy[API Proxy]
+  Automations -->|fetch /api/v1/engine/heartbeat/tasks| Proxy
+  Proxy --> Socket[daycare.sock]
+  Socket --> Engine[Engine server]
+  Engine --> CronData[Cron tasks]
+  Engine --> HeartbeatData[Heartbeat tasks]
+  CronData --> CronTable[Cron task table]
+  HeartbeatData --> HeartbeatTable[Heartbeat task table]
 ```
 
 ## Engine socket resolution
