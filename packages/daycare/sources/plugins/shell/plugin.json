@@ -1,6 +1,6 @@
 {
   "id": "shell",
   "name": "Shell",
-  "description": "Workspace file access and command execution tools.",
+  "description": "Workspace file access, command execution, and durable process management tools.",
   "entry": "./plugin.js"
 }

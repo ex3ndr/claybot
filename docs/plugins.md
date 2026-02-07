@@ -186,7 +186,7 @@ sequenceDiagram
 - `telegram` (connector)
 - `brave-search` (tool)
 - `memory` (tool + storage)
-- `shell` (tools: read/write/edit/exec)
+- `shell` (tools: read/write/edit/exec + durable process manager tools)
 - `monty-python` (tool: python)
 
 ## Providers
