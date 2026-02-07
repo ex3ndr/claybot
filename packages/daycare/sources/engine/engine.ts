@@ -18,6 +18,7 @@ import {
   buildCronWriteMemoryTool
 } from "./modules/tools/cron.js";
 import { buildImageGenerationTool } from "./modules/tools/image-generation.js";
+import { buildMermaidPngTool } from "./modules/tools/mermaid-png.js";
 import { buildReactionTool } from "./modules/tools/reaction.js";
 import { buildPermissionGrantTool, buildPermissionRequestTool } from "./modules/tools/permissions.js";
 import { buildSendFileTool } from "./modules/tools/send-file.js";
@@ -285,6 +286,7 @@ export class Engine {
     this.modules.tools.register("core", sessionHistoryToolBuild());
     this.modules.tools.register("core", permanentAgentToolBuild());
     this.modules.tools.register("core", buildImageGenerationTool(this.modules.images));
+    this.modules.tools.register("core", buildMermaidPngTool());
     this.modules.tools.register("core", buildReactionTool());
     this.modules.tools.register("core", buildSendFileTool());
     this.modules.tools.register("core", buildSignalGenerateTool(this.signals));
@@ -293,7 +295,7 @@ export class Engine {
     this.modules.tools.register("core", buildPermissionRequestTool());
     this.modules.tools.register("core", buildPermissionGrantTool());
     logger.debug(
-      "Core tools registered: cron, cron_memory, heartbeat, background, agent_listing, session_history, permanent_agents, image_generation, reaction, send_file, generate_signal, signal_subscribe, signal_unsubscribe, request_permission, grant_permission"
+      "Core tools registered: cron, cron_memory, heartbeat, background, agent_listing, session_history, permanent_agents, image_generation, mermaid_png, reaction, send_file, generate_signal, signal_subscribe, signal_unsubscribe, request_permission, grant_permission"
     );
 
     logger.debug("Starting agent system");

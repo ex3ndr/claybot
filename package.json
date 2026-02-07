@@ -9,7 +9,6 @@
     "build": "yarn workspace daycare run build",
     "dashboard": "yarn workspace daycare-dashboard dev",
     "dev": "DAYCARE_ROOT_DIR=~/.dev yarn workspace daycare run dev",
-    "docs:mermaid": "yarn workspace daycare run docs:mermaid",
     "test": "yarn workspaces run test",
     "test:watch": "yarn workspaces run test:watch",
     "typecheck": "yarn workspaces run typecheck"

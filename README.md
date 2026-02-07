@@ -87,6 +87,7 @@ Built-in tools available to the agent:
 - `heartbeat_add` / `heartbeat_run` / `heartbeat_list` / `heartbeat_remove` - Heartbeat scheduling
 - `create_permanent_agent` / `start_background_agent` / `send_agent_message` - Multi-agent coordination
 - `generate_image` - Image generation via configured providers
+- `generate_mermaid_png` - Render Mermaid source into a PNG artifact
 - `set_reaction` - React to messages
 - `send_file` - Send files via connectors
 - `request_permission` / `grant_permission` - Runtime permission management
@@ -120,7 +121,6 @@ yarn build        # Compile TypeScript
 yarn test         # Run tests
 yarn typecheck    # Type check without emit
 yarn dev          # Run with tsx (no build)
-yarn docs:mermaid # Render Mermaid code fences in docs/ to PNG files
 ```
 
 ## Workspace
@@ -144,7 +144,7 @@ See [docs/](./docs/) for detailed documentation:
 - [Permissions](./docs/permissions.md) - Permission system
 - [CLI](./docs/cli.md) - Command reference
 - [Inference](./docs/inference.md) - Inference providers
-- [Mermaid Rendering](./docs/mermaid-rendering.md) - Generate PNG diagrams from Mermaid docs
+- [Mermaid PNG Tool](./docs/mermaid-png-tool.md) - Built-in tool for rendering Mermaid diagrams
 
 ## License
 
