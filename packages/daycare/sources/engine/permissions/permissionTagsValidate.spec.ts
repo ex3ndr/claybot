@@ -65,4 +65,17 @@ describe("permissionTagsValidate", () => {
     await expect(permissionTagsValidate(permissions, ["@read:/etc"]))
       .rejects.toThrow("Cannot attach permission '@read:/etc' - you don't have it.");
   });
+
+  it("allows read tags for any absolute path when readDirs are empty", async () => {
+    const permissions = {
+      workingDir: "/tmp",
+      writeDirs: [],
+      readDirs: [],
+      network: false
+    };
+
+    await expect(
+      permissionTagsValidate(permissions, ["@read:/etc"])
+    ).resolves.toBeUndefined();
+  });
 });

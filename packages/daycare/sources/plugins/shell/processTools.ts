@@ -7,6 +7,7 @@ import type { Processes } from "../../engine/processes/processes.js";
 import { permissionTagsApply } from "../../engine/permissions/permissionTagsApply.js";
 import { permissionTagsNormalize } from "../../engine/permissions/permissionTagsNormalize.js";
 import { permissionTagsValidate } from "../../engine/permissions/permissionTagsValidate.js";
+import { permissionScopeBuildReadOnly } from "../../engine/permissions/permissionScopeBuildReadOnly.js";
 
 const envSchema = Type.Record(
   Type.String({ minLength: 1 }),
@@ -79,7 +80,7 @@ export function buildProcessStartTool(processes: Processes): ToolDefinition {
     tool: {
       name: "process_start",
       description:
-        "Start a durable sandboxed process. The process survives engine restarts and can optionally auto-restart when keepAlive is true. By default it starts with zero additional permissions (no network, no write grants; read follows sandbox defaults) unless explicit permission tags are provided.",
+        "Start a durable sandboxed process. The process survives engine restarts and can optionally auto-restart when keepAlive is true. By default it starts with read-only scoped caller permissions (no network, no write grants). If caller readDirs is empty, read follows sandbox defaults. Explicit permission tags can only re-enable caller-held permissions.",
       parameters: processStartSchema
     },
     execute: async (args, toolContext, toolCall) => {
@@ -254,12 +255,7 @@ async function resolveProcessPermissions(
   currentPermissions: SessionPermissions,
   requestedTags: string[] | undefined
 ): Promise<SessionPermissions> {
-  const processPermissions: SessionPermissions = {
-    workingDir: currentPermissions.workingDir,
-    writeDirs: [],
-    readDirs: [],
-    network: false
-  };
+  const processPermissions = permissionScopeBuildReadOnly(currentPermissions);
   if (!requestedTags || requestedTags.length === 0) {
     return processPermissions;
   }

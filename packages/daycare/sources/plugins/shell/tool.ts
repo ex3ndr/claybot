@@ -17,6 +17,7 @@ import { envNormalize } from "../../util/envNormalize.js";
 import { permissionTagsApply } from "../../engine/permissions/permissionTagsApply.js";
 import { permissionTagsNormalize } from "../../engine/permissions/permissionTagsNormalize.js";
 import { permissionTagsValidate } from "../../engine/permissions/permissionTagsValidate.js";
+import { permissionScopeBuildReadOnly } from "../../engine/permissions/permissionScopeBuildReadOnly.js";
 import {
   isWithinSecure,
   openSecure
@@ -176,7 +177,7 @@ export function buildExecTool(): ToolDefinition {
     tool: {
       name: "exec",
       description:
-        "Execute a shell command inside the agent workspace (or a subdirectory). The cwd, if provided, must be an absolute path that resolves inside the workspace. By default exec runs with zero additional permissions: no network and no write grants, while read follows sandbox defaults (all paths except protected deny-list paths). Use explicit permission tags to grant network or writable path access. Writes are sandboxed to the allowed write directories. Optional home (absolute path within allowed write directories) remaps HOME and related env vars for sandboxed execution. Optional packageManagers language presets auto-allow ecosystem hosts (dart/dotnet/go/java/node/php/python/ruby/rust). Optional allowedDomains enables outbound access to specific domains (supports subdomain wildcards like *.example.com, no global wildcard). Returns stdout/stderr and failure details.",
+        "Execute a shell command inside the agent workspace (or a subdirectory). The cwd, if provided, must be an absolute path that resolves inside the workspace. By default exec runs with read-only scoped caller permissions: no network and no write grants. If caller readDirs is empty, read remains sandbox-default (all paths except protected deny-list paths). Use explicit permission tags to re-enable caller-held network or writable path access. Writes are sandboxed to the allowed write directories. Optional home (absolute path within allowed write directories) remaps HOME and related env vars for sandboxed execution. Optional packageManagers language presets auto-allow ecosystem hosts (dart/dotnet/go/java/node/php/python/ruby/rust). Optional allowedDomains enables outbound access to specific domains (supports subdomain wildcards like *.example.com, no global wildcard). Returns stdout/stderr and failure details.",
       parameters: execSchema
     },
     execute: async (args, toolContext, toolCall) => {
@@ -505,12 +506,7 @@ async function resolveExecPermissions(
   currentPermissions: SessionPermissions,
   requestedTags: string[] | undefined
 ): Promise<SessionPermissions> {
-  const execPermissions: SessionPermissions = {
-    workingDir: currentPermissions.workingDir,
-    writeDirs: [],
-    readDirs: [],
-    network: false
-  };
+  const execPermissions = permissionScopeBuildReadOnly(currentPermissions);
   if (!requestedTags || requestedTags.length === 0) {
     return execPermissions;
   }

@@ -29,7 +29,9 @@ export async function permissionAccessAllows(
 
   const allowedDirs = access.kind === "write"
     ? [...permissions.writeDirs]
-    : [permissions.workingDir, ...permissions.readDirs, ...permissions.writeDirs];
+    : permissions.readDirs.length > 0
+      ? [permissions.workingDir, ...permissions.readDirs, ...permissions.writeDirs]
+      : [path.parse(resolved).root];
 
   try {
     await pathResolveSecure(allowedDirs, resolved);

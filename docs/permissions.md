@@ -116,6 +116,33 @@ flowchart LR
   Scoped --> Resolve
 ```
 
+The same empty-`readDirs` behavior is used when validating `@read:<path>` tags for scoped
+`exec` and `process_start` calls. This keeps tag validation aligned with read-time enforcement.
+
+## Exec/process scoped permissions
+
+`exec` and `process_start` now derive a read-only scope from caller permissions and never
+mutate the caller permission object:
+
+- keep caller `workingDir`
+- drop `writeDirs` and `network` by default
+- keep caller read semantics (`readDirs=[]` remains unrestricted read; otherwise caller read scope is retained)
+- apply explicit tags only after validating they are already allowed by caller permissions
+
+```mermaid
+flowchart TD
+  A[Caller permissions] --> B[Build read-only scoped permissions]
+  B --> C[workingDir unchanged]
+  B --> D[writeDirs cleared]
+  B --> E[network false]
+  B --> F{caller readDirs empty?}
+  F -- yes --> G[scoped readDirs empty]
+  F -- no --> H[scoped readDirs = caller readDirs + caller writeDirs]
+  G --> I[optional tag validation + apply]
+  H --> I
+  I --> J[exec/process sandbox permissions]
+```
+
 ## Direct grants
 
 Agents can share permissions with other agents using the `grant_permission` tool.

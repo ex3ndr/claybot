@@ -5,7 +5,7 @@ import type { SessionPermissions, ToolExecutionContext } from "@/types";
 import { buildProcessStartTool } from "./processTools.js";
 
 describe("process_start permissions", () => {
-  it("uses zero permissions when none are provided", async () => {
+  it("uses read-only scoped caller permissions when none are provided", async () => {
     let capturedPermissions: SessionPermissions | null = null;
     const create = vi.fn(async (_input: ProcessCreateInput, permissions: SessionPermissions) => {
       capturedPermissions = permissions;
@@ -29,9 +29,38 @@ describe("process_start permissions", () => {
     expect(capturedPermissions).toEqual({
       workingDir: "/workspace",
       writeDirs: [],
-      readDirs: [],
+      readDirs: ["/workspace", "/tmp", "/tmp/read-only"],
       network: false
     });
+  });
+
+  it("does not mutate tool context permissions", async () => {
+    const create = vi.fn(async () => buildProcessInfo());
+    const tool = buildProcessStartTool({ create } as unknown as Processes);
+    const permissions: SessionPermissions = {
+      workingDir: "/workspace",
+      writeDirs: ["/workspace", "/tmp"],
+      readDirs: ["/workspace", "/tmp"],
+      network: true
+    };
+    const original = {
+      workingDir: permissions.workingDir,
+      writeDirs: [...permissions.writeDirs],
+      readDirs: [...permissions.readDirs],
+      network: permissions.network
+    };
+    const context = createContext(permissions);
+
+    await tool.execute(
+      {
+        command: "echo hello",
+        permissions: ["@write:/tmp", "@network"]
+      },
+      context,
+      { id: "call-0b", name: "process_start" }
+    );
+
+    expect(context.permissions).toEqual(original);
   });
 
   it("rejects requested permissions that are not held by the caller", async () => {
@@ -57,7 +86,7 @@ describe("process_start permissions", () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it("uses only explicitly requested permissions when provided", async () => {
+  it("adds requested permissions without dropping caller read scope", async () => {
     let capturedPermissions: SessionPermissions | null = null;
     const create = vi.fn(async (_input: ProcessCreateInput, permissions: SessionPermissions) => {
       capturedPermissions = permissions;
@@ -82,7 +111,7 @@ describe("process_start permissions", () => {
     expect(capturedPermissions).toEqual({
       workingDir: "/workspace",
       writeDirs: ["/tmp"],
-      readDirs: ["/tmp"],
+      readDirs: ["/workspace", "/tmp", "/tmp/read-only"],
       network: false
     });
   });

@@ -33,6 +33,21 @@ describe("permissionAccessAllows", () => {
     expect(allowed).toBe(true);
   });
 
+  it("treats empty readDirs as unrestricted read access", async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "perm-workspace-"));
+    const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), "perm-outside-"));
+    tempDirs.push(workspaceDir, outsideDir);
+    const outsideFile = path.join(outsideDir, "outside.txt");
+    await fs.writeFile(outsideFile, "ok", "utf8");
+
+    const allowed = await permissionAccessAllows(
+      { workingDir: workspaceDir, writeDirs: [], readDirs: [], network: false },
+      { kind: "read", path: outsideFile }
+    );
+
+    expect(allowed).toBe(true);
+  });
+
   it("denies write access outside allowed directories", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "perm-deny-"));
     tempDirs.push(dir);

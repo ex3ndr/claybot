@@ -234,6 +234,33 @@ describe("exec tool allowedDomains", () => {
       )
     ).rejects.toThrow("Path is outside the allowed directories.");
   });
+
+  it("does not mutate tool context permissions", async () => {
+    const tool = buildExecTool();
+    const writeDir = await fs.mkdtemp(path.join(os.tmpdir(), "exec-tool-write-scope-"));
+    const context = createContext(workingDir, true, [workingDir], [workingDir, writeDir]);
+    const original = {
+      workingDir: context.permissions.workingDir,
+      writeDirs: [...context.permissions.writeDirs],
+      readDirs: [...context.permissions.readDirs],
+      network: context.permissions.network
+    };
+
+    try {
+      const result = await tool.execute(
+        {
+          command: "echo ok",
+          permissions: ["@network", `@write:${writeDir}`]
+        },
+        context,
+        execToolCall
+      );
+      expect(result.toolMessage.isError).toBe(false);
+      expect(context.permissions).toEqual(original);
+    } finally {
+      await fs.rm(writeDir, { recursive: true, force: true });
+    }
+  });
 });
 
 function createContext(
