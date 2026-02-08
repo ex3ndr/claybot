@@ -5,6 +5,35 @@ import type { SessionPermissions, ToolExecutionContext } from "@/types";
 import { buildProcessStartTool } from "./processTools.js";
 
 describe("process_start permissions", () => {
+  it("uses zero permissions when none are provided", async () => {
+    let capturedPermissions: SessionPermissions | null = null;
+    const create = vi.fn(async (_input: ProcessCreateInput, permissions: SessionPermissions) => {
+      capturedPermissions = permissions;
+      return buildProcessInfo();
+    });
+    const tool = buildProcessStartTool({ create } as unknown as Processes);
+
+    await tool.execute(
+      {
+        command: "echo hello"
+      },
+      createContext({
+        workingDir: "/workspace",
+        writeDirs: ["/workspace", "/tmp"],
+        readDirs: ["/workspace", "/tmp", "/tmp/read-only"],
+        network: true
+      }),
+      { id: "call-0", name: "process_start" }
+    );
+
+    expect(capturedPermissions).toEqual({
+      workingDir: "/workspace",
+      writeDirs: [],
+      readDirs: [],
+      network: false
+    });
+  });
+
   it("rejects requested permissions that are not held by the caller", async () => {
     const create = vi.fn(async () => buildProcessInfo());
     const tool = buildProcessStartTool({ create } as unknown as Processes);

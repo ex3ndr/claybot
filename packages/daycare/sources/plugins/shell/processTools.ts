@@ -4,7 +4,6 @@ import type { ToolResultMessage } from "@mariozechner/pi-ai";
 import type { ToolDefinition } from "@/types";
 import type { SessionPermissions } from "@/types";
 import type { Processes } from "../../engine/processes/processes.js";
-import { permissionClone } from "../../engine/permissions/permissionClone.js";
 import { permissionTagsApply } from "../../engine/permissions/permissionTagsApply.js";
 import { permissionTagsNormalize } from "../../engine/permissions/permissionTagsNormalize.js";
 import { permissionTagsValidate } from "../../engine/permissions/permissionTagsValidate.js";
@@ -80,7 +79,7 @@ export function buildProcessStartTool(processes: Processes): ToolDefinition {
     tool: {
       name: "process_start",
       description:
-        "Start a durable sandboxed process. The process survives engine restarts and can optionally auto-restart when keepAlive is true.",
+        "Start a durable sandboxed process. The process survives engine restarts and can optionally auto-restart when keepAlive is true. By default it starts with zero permissions unless explicit permission tags are provided.",
       parameters: processStartSchema
     },
     execute: async (args, toolContext, toolCall) => {
@@ -255,18 +254,17 @@ async function resolveProcessPermissions(
   currentPermissions: SessionPermissions,
   requestedTags: string[] | undefined
 ): Promise<SessionPermissions> {
-  if (!requestedTags || requestedTags.length === 0) {
-    return permissionClone(currentPermissions);
-  }
-  const permissionTags = permissionTagsNormalize(requestedTags);
-  await permissionTagsValidate(currentPermissions, permissionTags);
-
   const processPermissions: SessionPermissions = {
     workingDir: currentPermissions.workingDir,
     writeDirs: [],
     readDirs: [],
     network: false
   };
+  if (!requestedTags || requestedTags.length === 0) {
+    return processPermissions;
+  }
+  const permissionTags = permissionTagsNormalize(requestedTags);
+  await permissionTagsValidate(currentPermissions, permissionTags);
   permissionTagsApply(processPermissions, permissionTags);
   return processPermissions;
 }

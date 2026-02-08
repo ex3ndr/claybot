@@ -118,6 +118,19 @@ describe("exec tool allowedDomains", () => {
     ).rejects.toThrow("Wildcard");
   });
 
+  it("uses zero permissions by default when none are provided", async () => {
+    const tool = buildExecTool();
+    const context = createContext(workingDir, true);
+
+    await expect(
+      tool.execute(
+        { command: "echo ok", allowedDomains: ["example.com"] },
+        context,
+        execToolCall
+      )
+    ).rejects.toThrow("Network permission is required");
+  });
+
   it("only allows exact domain unless wildcard subdomain is listed", async () => {
     const tool = buildExecTool();
     const context = createContext(workingDir, true);
@@ -126,6 +139,7 @@ describe("exec tool allowedDomains", () => {
       {
         command: "curl -I -sS https://google.com",
         allowedDomains: ["google.com"],
+        permissions: ["@network"],
         timeoutMs: 30_000
       },
       context,
@@ -142,6 +156,7 @@ describe("exec tool allowedDomains", () => {
       {
         command: "curl -I -sS https://www.google.com",
         allowedDomains: ["google.com"],
+        permissions: ["@network"],
         timeoutMs: 30_000
       },
       context,
@@ -163,7 +178,8 @@ describe("exec tool allowedDomains", () => {
     const result = await tool.execute(
       {
         command: "printf '%s' \"$HOME\"",
-        home
+        home,
+        permissions: [`@write:${workingDir}`]
       },
       context,
       execToolCall

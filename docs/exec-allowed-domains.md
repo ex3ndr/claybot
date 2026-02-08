@@ -4,6 +4,11 @@ The `exec` tool can optionally allow outbound network access for specific domain
 The list is explicit: exact domains are allowed, and subdomain wildcards like
 `*.example.com` are supported. A global wildcard (`*`) is not allowed.
 
+`exec` now runs with **zero permissions by default**. To allow network or filesystem
+writes, the call must include explicit `permissions` tags (for example `@network`,
+`@write:/absolute/path`), and each tag is validated as a subset of the caller's
+existing permissions.
+
 `exec` and exec gates also support typed language ecosystem presets:
 - `dart` -> `pub.dev`, `storage.googleapis.com`
 - `dotnet` -> `nuget.org`, `api.nuget.org`, `globalcdn.nuget.org`
@@ -19,6 +24,12 @@ Presets are merged with explicit `allowedDomains`, deduped, then validated.
 
 ```mermaid
 flowchart TD
+  A[exec args] --> P{permissions provided?}
+  P -- no --> Z[use zero-permission sandbox]
+  P -- yes --> V[validate permission tags against caller]
+  V --> S[build sandbox permissions from tags]
+  Z --> B
+  S --> B
   A[exec args] --> B[resolve allowedDomains]
   A --> C[expand packageManagers presets]
   B --> D[merge + dedupe]

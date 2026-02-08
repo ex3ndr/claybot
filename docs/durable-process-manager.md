@@ -36,7 +36,10 @@ flowchart TD
   A[shell plugin tools] --> B[Engine Processes facade]
   A --> A1[Validate requested permission tags]
   A1 --> A2[Build process sandbox permissions]
+  A --> A0[No permissions provided]
+  A0 --> A2z[Use zero-permission sandbox]
   A2 --> B
+  A2z --> B
   B --> C[Persist record.json + sandbox.json]
   C --> D[Spawn detached sandbox runtime process]
   D --> E[Append stdout/stderr to process.log]
@@ -72,7 +75,7 @@ flowchart TD
 
 - Keep-alive is opt-in per process via `process_start.keepAlive`.
 - `process_start.permissions` is optional:
-  - Omitted: process inherits current agent sandbox permissions.
+  - Omitted: process gets zero permissions (`network=false`, no read/write grants).
   - Provided: tags are validated against caller permissions, then only requested tags are applied.
 - Reboot safety uses system boot time comparison; boot mismatch clears persisted pids.
 - Keep-alive restarts use exponential backoff (2s base, doubling to 60s max) for crash loops.
