@@ -59,8 +59,7 @@ const processStopAllSchema = Type.Object(
 
 const processLogsSchema = Type.Object(
   {
-    processId: Type.String({ minLength: 1 }),
-    bytes: Type.Optional(Type.Number({ minimum: 1, maximum: 200_000 }))
+    processId: Type.String({ minLength: 1 })
   },
   { additionalProperties: false }
 );
@@ -192,18 +191,21 @@ export function buildProcessLogsTool(processes: Processes): ToolDefinition {
   return {
     tool: {
       name: "process_logs",
-      description: "Read the tail of a managed process log file.",
+      description:
+        "Return the absolute log file path for a managed process. Use the read tool to inspect contents.",
       parameters: processLogsSchema
     },
     execute: async (args, _toolContext, toolCall) => {
       const payload = args as ProcessLogsArgs;
-      const log = await processes.logs(payload.processId, payload.bytes);
-      const text = `Log file: ${log.path}\n${log.text}`;
+      const log = await processes.logs(payload.processId);
+      const text = [
+        `Log file: ${log.path}`,
+        "Use the read tool with this full file path to inspect logs."
+      ].join("\n");
       return {
         toolMessage: buildToolMessage(toolCall, text, false, {
           processId: payload.processId,
-          path: log.path,
-          bytes: payload.bytes ?? 20_000
+          path: log.path
         }),
         files: []
       };

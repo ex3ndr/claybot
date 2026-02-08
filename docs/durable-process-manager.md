@@ -58,4 +58,4 @@ flowchart TD
 - Reboot safety uses system boot time comparison; boot mismatch clears persisted pids.
 - Keep-alive restarts use exponential backoff (2s base, doubling to 60s max) for crash loops.
 - Stop operations apply to the full process group to terminate child processes.
-- Log access reads tail bytes and returns content without requiring direct file access.
+- `process_logs` returns the full absolute log filename; read file contents via the `read` tool.

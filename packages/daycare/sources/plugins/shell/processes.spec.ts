@@ -105,7 +105,7 @@ describe("Processes", () => {
   );
 
   it(
-    "writes logs and can tail them",
+    "writes logs to file that can be read separately",
     async () => {
       const manager = await createManager(baseDir);
       const created = await manager.create(
@@ -119,7 +119,11 @@ describe("Processes", () => {
 
       await sleep(1_500);
       const log = await manager.logs(created.id);
-      expect(log.text).toContain("hello-durable-log");
+      expect(path.isAbsolute(log.path)).toBe(true);
+      expect(log.path.endsWith(path.join(created.id, "process.log"))).toBe(true);
+
+      const content = await fs.readFile(log.path, "utf8");
+      expect(content).toContain("hello-durable-log");
     },
     TEST_TIMEOUT_MS
   );

@@ -8,7 +8,7 @@ The shell plugin provides workspace file tools (`read`, `write`, `edit`), one-sh
 - `process_list`: shows current process status (`running`, `stopped`, `exited`) and metadata.
 - `process_stop`: stops one managed process by id.
 - `process_stop_all`: stops all managed processes.
-- `process_logs`: reads the tail of a process log file.
+- `process_logs`: returns the absolute process log filename for use with `read`.
 
 ## Persistence Layout
 

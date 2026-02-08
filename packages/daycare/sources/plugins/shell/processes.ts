@@ -23,7 +23,6 @@ const RECORD_VERSION = 2;
 const MONITOR_INTERVAL_MS = 2_000;
 const PROCESS_STOP_TIMEOUT_MS = 8_000;
 const PROCESS_STOP_POLL_MS = 200;
-const MAX_LOG_BYTES = 200_000;
 const RESTART_BACKOFF_BASE_MS = 2_000;
 const RESTART_BACKOFF_MAX_MS = 60_000;
 const RESTART_STABLE_UPTIME_MS = 30_000;
@@ -270,29 +269,14 @@ export class Processes {
     });
   }
 
-  async logs(processId: string, bytes: number = 20_000): Promise<{ path: string; text: string }> {
+  async logs(processId: string): Promise<{ path: string }> {
     return this.lock.inLock(async () => {
       const record = this.records.get(processId);
       if (!record) {
         throw new Error(`Unknown process id: ${processId}`);
       }
-      const safeBytes = Math.max(1, Math.min(bytes, MAX_LOG_BYTES));
-      let content = "";
-      try {
-        const raw = await fs.readFile(record.logPath, "utf8");
-        if (Buffer.byteLength(raw, "utf8") <= safeBytes) {
-          content = raw;
-        } else {
-          content = tailUtf8(raw, safeBytes);
-        }
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-          throw error;
-        }
-      }
       return {
-        path: record.logPath,
-        text: content
+        path: record.logPath
       };
     });
   }
@@ -789,15 +773,6 @@ async function spawnProcess(options: {
       resolve({ child });
     });
   });
-}
-
-function tailUtf8(input: string, maxBytes: number): string {
-  const buffer = Buffer.from(input, "utf8");
-  if (buffer.byteLength <= maxBytes) {
-    return input;
-  }
-  const sliced = buffer.subarray(buffer.byteLength - maxBytes);
-  return sliced.toString("utf8");
 }
 
 function scheduleRestart(record: ProcessRecord, now: number): void {
