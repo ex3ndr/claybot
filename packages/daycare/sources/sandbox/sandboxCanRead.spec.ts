@@ -31,15 +31,15 @@ describe("sandboxCanRead", () => {
     expect(result).toBe(await fs.realpath(outsideFile));
   });
 
-  it("rejects paths outside read allowlist when readDirs are configured", async () => {
+  it("allows reading any absolute path when readDirs are configured", async () => {
     const permissions = buildPermissions(workingDir, [workingDir], []);
 
-    await expect(sandboxCanRead(permissions, outsideFile))
-      .rejects
-      .toThrow("Path is outside the allowed directories.");
+    const result = await sandboxCanRead(permissions, outsideFile);
+
+    expect(result).toBe(await fs.realpath(outsideFile));
   });
 
-  it("allows reading write-granted paths when readDirs are configured", async () => {
+  it("ignores write grants for read access checks", async () => {
     const permissions = buildPermissions(workingDir, [workingDir], [outsideFile]);
 
     const result = await sandboxCanRead(permissions, outsideFile);

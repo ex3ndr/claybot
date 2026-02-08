@@ -7,7 +7,7 @@ Read/write path resolution is now centralized in sandbox helpers:
 
 These functions receive `SessionPermissions` and return the resolved real path when allowed.
 
-`sandboxCanRead` supports default read behavior: when `readDirs` is empty, any absolute path is allowed. When `readDirs` is configured, it also includes `writeDirs` so file-level write grants remain readable.
+`sandboxCanRead` now ignores `readDirs` and allows any absolute read path.
 
 `sandboxCanWrite` only allows writes within explicitly granted `writeDirs` (it does not implicitly allow `workingDir`).
 
@@ -16,8 +16,6 @@ flowchart LR
   A["Shell read/write/edit tools"] --> B["sandboxCanRead / sandboxCanWrite"]
   B --> C["pathResolveSecure(allowedDirs, target)"]
   C --> D["realPath"]
-  E["permissions.readDirs empty"] --> F["allow root of target (default read all)"]
-  G["permissions.readDirs configured"] --> H["readDirs + writeDirs + workingDir"]
+  E["read tool call"] --> F["allow root of target (always read all)"]
   F --> C
-  H --> C
 ```

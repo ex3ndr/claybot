@@ -35,9 +35,9 @@ Managed process state is stored per process in engine data:
 flowchart TD
   A[shell plugin tools] --> B[Engine Processes facade]
   A --> A1[Validate requested permission tags]
-  A1 --> A2[Build process sandbox permissions from read-only caller scope]
+  A1 --> A2[Build process sandbox permissions]
   A --> A0[No permissions provided]
-  A0 --> A2z[Use read-only caller scope]
+  A0 --> A2z[Use zero write/network + read-all scope]
   A2 --> B
   A2z --> B
   B --> C[Persist record.json + sandbox.json]
@@ -75,9 +75,8 @@ flowchart TD
 
 - Keep-alive is opt-in per process via `process_start.keepAlive`.
 - `process_start.permissions` is optional:
-  - Omitted: process keeps caller read scope but drops write and network (`network=false`, `writeDirs=[]`).
-    If caller `readDirs` is empty, read follows sandbox defaults.
-  - Provided: tags are validated against caller permissions, then applied on top of the read-only caller scope.
+  - Omitted: process runs with no network and no write grants (`network=false`, `writeDirs=[]`); reads stay globally allowed.
+  - Provided: non-read tags are validated against caller permissions, then applied on top of that baseline (`@read:*` tags are ignored).
 - Reboot safety uses system boot time comparison; boot mismatch clears persisted pids.
 - Keep-alive restarts use exponential backoff (2s base, doubling to 60s max) for crash loops.
 - Stop operations apply to the full process group to terminate child processes.

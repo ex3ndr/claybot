@@ -44,13 +44,18 @@ describe("read tool allowed paths", () => {
     expect(text).toContain("outside-content");
   });
 
-  it("keeps readDirs restrictions when explicitly configured", async () => {
+  it("allows reading outside workspace even when readDirs are configured", async () => {
     const tool = buildWorkspaceReadTool();
     const context = createContext(workingDir, false, [workingDir]);
 
-    await expect(
-      tool.execute({ path: outsideFile }, context, readToolCall)
-    ).rejects.toThrow("Path is outside the allowed directories.");
+    const result = await tool.execute({ path: outsideFile }, context, readToolCall);
+    const text = result.toolMessage.content
+      .filter((item) => item.type === "text")
+      .map((item) => item.text)
+      .join("\n");
+
+    expect(result.toolMessage.isError).toBe(false);
+    expect(text).toContain("outside-content");
   });
 
   it("allows reading write-granted files when readDirs are restricted", async () => {
@@ -129,6 +134,26 @@ describe("exec tool allowedDomains", () => {
         execToolCall
       )
     ).rejects.toThrow("Network permission is required");
+  });
+
+  it("ignores @read tags in exec permissions", async () => {
+    const tool = buildExecTool();
+    const context = createContext(workingDir, false, [workingDir], []);
+
+    const result = await tool.execute(
+      {
+        command: "echo ok",
+        permissions: ["@read:/etc"]
+      },
+      context,
+      execToolCall
+    );
+    const text = result.toolMessage.content
+      .filter((item) => item.type === "text")
+      .map((item) => item.text)
+      .join("\n");
+    expect(result.toolMessage.isError).toBe(false);
+    expect(text).toContain("stdout:\nok");
   });
 
   it("allows reading outside workspace by default", async () => {

@@ -101,45 +101,36 @@ Tool availability by agent type:
 |------|------------|------------|
 | `request_permission` | ✓ | ✓ |
 
-## Read tool fallback behavior
+## Read tool behavior
 
-The shell `read` tool treats empty `readDirs` as unrestricted absolute-path reads (matching
-sandbox default read behavior). If `readDirs` is explicitly configured, `read` enforces
-`workingDir + readDirs` containment.
+The shell `read` tool allows any absolute path regardless of `readDirs`.
 
 ```mermaid
 flowchart LR
-  ReadCall[read path request] --> HasDirs{readDirs configured?}
-  HasDirs -->|no| Root[target root allowed]
-  HasDirs -->|yes| Scoped[workingDir + readDirs allowed]
+  ReadCall[read path request] --> Root[target root allowed]
   Root --> Resolve[pathResolveSecure]
-  Scoped --> Resolve
 ```
 
-The same empty-`readDirs` behavior is used when validating `@read:<path>` tags for scoped
-`exec` and `process_start` calls. This keeps tag validation aligned with read-time enforcement.
+`@read:<path>` tags are ignored in `exec` and `process_start` tool-call permission scoping.
 
 ## Exec/process scoped permissions
 
-`exec` and `process_start` now derive a read-only scope from caller permissions and never
+`exec` and `process_start` now derive a write/network-restricted scope from caller permissions and never
 mutate the caller permission object:
 
 - keep caller `workingDir`
 - drop `writeDirs` and `network` by default
-- keep caller read semantics (`readDirs=[]` remains unrestricted read; otherwise caller read scope is retained)
-- apply explicit tags only after validating they are already allowed by caller permissions
+- keep `readDirs` empty in tool-call scope (reads are globally allowed)
+- apply explicit non-read tags only after validating they are already allowed by caller permissions
 
 ```mermaid
 flowchart TD
-  A[Caller permissions] --> B[Build read-only scoped permissions]
+  A[Caller permissions] --> B[Build scoped permissions]
   B --> C[workingDir unchanged]
   B --> D[writeDirs cleared]
+  B --> D2[readDirs cleared]
   B --> E[network false]
-  B --> F{caller readDirs empty?}
-  F -- yes --> G[scoped readDirs empty]
-  F -- no --> H[scoped readDirs = caller readDirs + caller writeDirs]
-  G --> I[optional tag validation + apply]
-  H --> I
+  D2 --> I[optional tag validation + apply]
   I --> J[exec/process sandbox permissions]
 ```
 

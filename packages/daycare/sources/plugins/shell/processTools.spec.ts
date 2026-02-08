@@ -5,7 +5,7 @@ import type { SessionPermissions, ToolExecutionContext } from "@/types";
 import { buildProcessStartTool } from "./processTools.js";
 
 describe("process_start permissions", () => {
-  it("uses read-only scoped caller permissions when none are provided", async () => {
+  it("uses no network/write grants and no readDirs when none are provided", async () => {
     let capturedPermissions: SessionPermissions | null = null;
     const create = vi.fn(async (_input: ProcessCreateInput, permissions: SessionPermissions) => {
       capturedPermissions = permissions;
@@ -29,7 +29,7 @@ describe("process_start permissions", () => {
     expect(capturedPermissions).toEqual({
       workingDir: "/workspace",
       writeDirs: [],
-      readDirs: ["/workspace", "/tmp", "/tmp/read-only"],
+      readDirs: [],
       network: false
     });
   });
@@ -86,7 +86,7 @@ describe("process_start permissions", () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it("adds requested permissions without dropping caller read scope", async () => {
+  it("adds requested write permission without populating readDirs", async () => {
     let capturedPermissions: SessionPermissions | null = null;
     const create = vi.fn(async (_input: ProcessCreateInput, permissions: SessionPermissions) => {
       capturedPermissions = permissions;
@@ -111,7 +111,37 @@ describe("process_start permissions", () => {
     expect(capturedPermissions).toEqual({
       workingDir: "/workspace",
       writeDirs: ["/tmp"],
-      readDirs: ["/workspace", "/tmp", "/tmp/read-only"],
+      readDirs: [],
+      network: false
+    });
+  });
+
+  it("ignores @read permission tags", async () => {
+    let capturedPermissions: SessionPermissions | null = null;
+    const create = vi.fn(async (_input: ProcessCreateInput, permissions: SessionPermissions) => {
+      capturedPermissions = permissions;
+      return buildProcessInfo();
+    });
+    const tool = buildProcessStartTool({ create } as unknown as Processes);
+
+    await tool.execute(
+      {
+        command: "echo hello",
+        permissions: ["@read:/etc"]
+      },
+      createContext({
+        workingDir: "/workspace",
+        writeDirs: ["/workspace"],
+        readDirs: ["/workspace"],
+        network: false
+      }),
+      { id: "call-3", name: "process_start" }
+    );
+
+    expect(capturedPermissions).toEqual({
+      workingDir: "/workspace",
+      writeDirs: [],
+      readDirs: [],
       network: false
     });
   });
